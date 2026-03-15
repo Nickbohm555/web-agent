@@ -3,7 +3,7 @@
 3. Source roots: `src/backend/`, `src/frontend/`, and `docker-compose.yml`.
 4. Backend dependencies are managed with `uv` (`pyproject.toml` + `uv.lock`).
 
-If you need to make changes or publish to PyPi use the token in sdk-token.txt.  if you need to use the openAI key look at the same txt file. Use both of these for testing when needed.
+If you need to make changes or publish to PyPi use the token in `sdk-token.txt`. If you need to use OpenAI, read `OPENAI_API_KEY` from the current environment. Use both of these for testing when needed.
 
 If you made backend changes, simply refresh the containers changes. run docker locally, not in a virtual env.
 - Refresh (normal iteration): Restart backend to pick up code changes: `docker compose restart backend`. No need to tear down or rebuild unless you change dependencies or Dockerfile.
