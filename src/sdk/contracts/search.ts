@@ -1,27 +1,18 @@
 import { z } from "zod";
+import {
+  resolveSearchControls,
+  SearchControlsInputSchema,
+  type ResolvedSearchControls,
+} from "../../core/policy/retrieval-controls.js";
 
-const SEARCH_LIMIT_DEFAULT = 10;
-const SEARCH_LIMIT_MIN = 1;
-const SEARCH_LIMIT_MAX = 20;
-
-const RawSearchOptionsSchema = z
-  .object({
-    limit: z.coerce.number().int().min(SEARCH_LIMIT_MIN).max(SEARCH_LIMIT_MAX).optional(),
-    country: z.string().trim().min(1).optional(),
-    language: z.string().trim().min(1).optional(),
-  })
-  .strict();
-
-export const SearchOptionsSchema = RawSearchOptionsSchema.transform((input) => ({
-  limit: input.limit ?? SEARCH_LIMIT_DEFAULT,
-  ...(input.country ? { country: input.country.toUpperCase() } : {}),
-  ...(input.language ? { language: input.language.toLowerCase() } : {}),
-}));
+export const SearchOptionsSchema = SearchControlsInputSchema.transform((input) =>
+  resolveSearchControls(input),
+);
 
 export const SearchRequestSchema = z
   .object({
     query: z.string().trim().min(1),
-    options: RawSearchOptionsSchema.optional(),
+    options: SearchControlsInputSchema.optional(),
   })
   .strict()
   .transform((input) => ({
@@ -57,13 +48,14 @@ export const SearchResponseSchema = z
   })
   .strict();
 
-export type SearchOptions = z.output<typeof SearchOptionsSchema>;
+export type SearchOptions = z.input<typeof SearchOptionsSchema>;
+export type NormalizedSearchOptions = ResolvedSearchControls;
 export type SearchRequest = z.output<typeof SearchRequestSchema>;
 export type SearchRank = z.output<typeof SearchRankSchema>;
 export type SearchResultItem = z.output<typeof SearchResultItemSchema>;
 export type SearchResponse = z.output<typeof SearchResponseSchema>;
 
-export function normalizeSearchOptions(input?: unknown): SearchOptions {
+export function normalizeSearchOptions(input?: unknown): NormalizedSearchOptions {
   return SearchOptionsSchema.parse(input ?? {});
 }
 

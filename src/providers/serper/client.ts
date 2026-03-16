@@ -3,7 +3,11 @@ import { request, type Dispatcher } from "undici";
 import { z } from "zod";
 
 import { executeWithRetry } from "../../core/retry.js";
-import { normalizeSearchRequest, type SearchRequest } from "../../sdk/contracts/search.js";
+import {
+  normalizeSearchRequest,
+  type SearchOptions,
+  type SearchRequest,
+} from "../../sdk/contracts/search.js";
 
 const SERPER_API_URL = "https://google.serper.dev/search";
 const SERPER_TIMEOUT_MS = 5_000;
@@ -47,7 +51,7 @@ export interface SerperClientResult {
 
 export async function callSerperSearch(
   query: string,
-  options?: SearchRequest["options"],
+  options?: SearchOptions,
   clientOptions: SerperClientOptions = {},
 ): Promise<SerperClientResult> {
   const normalizedRequest = normalizeSearchRequest(query, options);
@@ -156,9 +160,9 @@ export type { SerperSearchResponse };
 function toSerperRequestBody(request: SearchRequest): Record<string, unknown> {
   return {
     q: request.query,
-    num: request.options.limit,
-    ...(request.options.country ? { gl: request.options.country.toLowerCase() } : {}),
-    ...(request.options.language ? { hl: request.options.language } : {}),
+    num: request.options.maxResults,
+    gl: request.options.country.toLowerCase(),
+    hl: request.options.language,
   };
 }
 

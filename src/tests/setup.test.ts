@@ -89,7 +89,11 @@ describe("sdk foundation", () => {
     ).toEqual({
       query: "Baseline Query",
       options: {
-        limit: 10,
+        maxResults: 10,
+        timeoutMs: 5000,
+        country: "US",
+        language: "en",
+        freshness: "any",
       },
     });
 

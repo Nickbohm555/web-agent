@@ -54,8 +54,8 @@
 
 - **phase:** 02-retrieval-controls-and-cost-tuning
 - **plan:** 02-01
-- **task:** 0
-- **status:** ready
+- **task:** 1
+- **status:** implemented
 
 ---
 *Last updated: 2026-03-15*

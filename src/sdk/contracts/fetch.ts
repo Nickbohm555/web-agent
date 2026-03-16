@@ -1,8 +1,9 @@
 import { z } from "zod";
-
-const FETCH_TIMEOUT_DEFAULT = 10_000;
-const FETCH_TIMEOUT_MIN = 1_000;
-const FETCH_TIMEOUT_MAX = 30_000;
+import {
+  FetchControlsInputSchema,
+  resolveFetchControls,
+  type ResolvedFetchControls,
+} from "../../core/policy/retrieval-controls.js";
 
 const FetchUrlSchema = z.string().trim().url();
 
@@ -12,20 +13,14 @@ export const FetchFallbackReasonSchema = z.enum([
   "browser-required",
 ]);
 
-const RawFetchOptionsSchema = z
-  .object({
-    timeoutMs: z.coerce.number().int().min(FETCH_TIMEOUT_MIN).max(FETCH_TIMEOUT_MAX).optional(),
-  })
-  .strict();
-
-export const FetchOptionsSchema = RawFetchOptionsSchema.transform((input) => ({
-  timeoutMs: input.timeoutMs ?? FETCH_TIMEOUT_DEFAULT,
-}));
+export const FetchOptionsSchema = FetchControlsInputSchema.transform((input) =>
+  resolveFetchControls(input),
+);
 
 export const FetchRequestSchema = z
   .object({
     url: FetchUrlSchema.transform(normalizeUrl),
-    options: RawFetchOptionsSchema.optional(),
+    options: FetchControlsInputSchema.optional(),
   })
   .strict()
   .transform((input) => ({
@@ -50,11 +45,12 @@ export const FetchResponseSchema = z
   .strict();
 
 export type FetchFallbackReason = z.output<typeof FetchFallbackReasonSchema>;
-export type FetchOptions = z.output<typeof FetchOptionsSchema>;
+export type FetchOptions = z.input<typeof FetchOptionsSchema>;
+export type NormalizedFetchOptions = ResolvedFetchControls;
 export type FetchRequest = z.output<typeof FetchRequestSchema>;
 export type FetchResponse = z.output<typeof FetchResponseSchema>;
 
-export function normalizeFetchOptions(input?: unknown): FetchOptions {
+export function normalizeFetchOptions(input?: unknown): NormalizedFetchOptions {
   return FetchOptionsSchema.parse(input ?? {});
 }
 

@@ -15,7 +15,7 @@ export async function search(
   const { payload } = await callSerperSearch(request.query, request.options);
   const response = mapSerperOrganicToSearchResponse(payload, {
     query: request.query,
-    limit: request.options.limit,
+    limit: request.options.maxResults,
   });
 
   return normalizeSearchResponse(response);
