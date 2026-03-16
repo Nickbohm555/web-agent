@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROMPT_FILE="PROMPT_build.md"
+PROMPT_FILE="${PROMPT_FILE:-PROMPT_build.md}"
 AGENTS_FILE="AGENTS.md"
 MAX_ITERATIONS=0
 AGENT_CMD="codex exec --sandbox danger-full-access -"
@@ -38,8 +38,14 @@ if ! [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
 fi
 
 if [ ! -f "$PROMPT_FILE" ]; then
-  echo "Error: prompt file not found: $PROMPT_FILE"
-  exit 1
+  if [ "$PROMPT_FILE" = "PROMPT_build.md" ] && [ -f "prompt_build.md" ]; then
+    PROMPT_FILE="prompt_build.md"
+  elif [ "$PROMPT_FILE" = "prompt_build.md" ] && [ -f "PROMPT_build.md" ]; then
+    PROMPT_FILE="PROMPT_build.md"
+  else
+    echo "Error: prompt file not found: $PROMPT_FILE"
+    exit 1
+  fi
 fi
 
 if [ ! -f "$AGENTS_FILE" ]; then

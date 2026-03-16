@@ -73,6 +73,27 @@ This roadmap is derived directly from the v1 requirements and organizes delivery
 2. Fetch behavior enforces network safety constraints (including SSRF guardrails) that are visible through explicit errors/outcomes.
 3. Robots/compliance checks produce explicit allow/deny outcomes that developers can inspect before or during fetch execution.
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] `04-01-safety-decision-contracts-PLAN.md` — establish typed safety/compliance contracts and URL preflight policy gate
+- [ ] `04-02-ssrf-network-guardrails-PLAN.md` — implement DNS/IP SSRF controls and redirect revalidation
+- [ ] `04-03-robots-compliance-fetch-wiring-PLAN.md` — wire robots outcomes into fetch orchestration with phase integration tests
+
+### Phase 5: Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
+
+**Goal:** A local frontend validation console can invoke `search(...)` and `fetch(...)` and display clear per-call inputs, outputs, status, and timing.
+**Depends on:** Phase 4
+**Plans:** 3 plans
+
+Plans:
+- [ ] `05-01-frontend-dev-console-api-surface-PLAN.md` — build Express frontend API surface with validated contracts for `search` and `fetch`
+- [ ] `05-02-frontend-ui-invocation-and-output-PLAN.md` — implement dual-panel frontend UI for calling both functions and rendering clear outputs
+- [ ] `05-03-run-both-history-and-phase-verification-PLAN.md` — add run-both flow, call history/replay, and automated smoke verification
+
+**Details:**
+This phase adds a local dev-console frontend that keeps SDK calls server-side, exposes `/api/search` and `/api/fetch`, and provides a visible UI for per-operation request/response inspection. It emphasizes transparency and debugging clarity (state, duration, typed errors, and history) over production polish.
+
 ## Progress
 
 | Phase | Goal | Requirement Count | Status |
@@ -81,6 +102,7 @@ This roadmap is derived directly from the v1 requirements and organizes delivery
 | 2 - Retrieval Controls and Cost Tuning | Control retrieval scope, latency, and freshness | 4 | Pending |
 | 3 - Reliability and Usage Transparency | Predictable failures and inspectable usage/timing | 2 | Pending |
 | 4 - Fetch Safety and Compliance Guardrails | Safe, robots-aware fetch behavior | 2 | Pending |
+| 5 - Frontend Validation Surface | Display `search` and `fetch` calls and outputs clearly | 0 | Planned |
 
 ---
 *Last updated: 2026-03-15*

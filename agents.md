@@ -1,7 +1,7 @@
 ## App Build + Debug Instructions (Operational)
 
 Core retrieval tests require `SERPER_API_KEY` in the current environment.
-If you need to test something requiring an LLM key, use `OPENAI_API_KEY` from `keys.txt` only as a local reference, then export it into the environment before running tests.
+If you need to test something requiring an LLM key, use `OPENAI_API_KEY` or `SERPER_API_KEY` from `keys.txt` only as a local reference, then export it into the environment before running tests.
 
 1. Stack: Node.js `24` LTS (allow `22` fallback) + TypeScript `^5.7` + SDK-first architecture.
 2. Product surface: TypeScript SDK methods `search(...)` and `fetch(...)`.

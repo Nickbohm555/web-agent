@@ -1,0 +1,42 @@
+{
+  "name": "web-agent",
+  "version": "1.0.0",
+  "description": "Lightweight local agent workflow for building and iterating on web apps with Codex.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nickbohm555/web-agent.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nickbohm555/web-agent/issues"
+  },
+  "homepage": "https://github.com/Nickbohm555/web-agent#readme",
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "p-queue": "^9.1.0",
+    "p-retry": "^7.1.1",
+    "pino": "^10.3.1",
+    "robots-parser": "^3.0.1",
+    "tldts": "^7.0.25",
+    "turndown": "^7.2.2",
+    "undici": "^7.24.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "tsdown": "^0.21.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

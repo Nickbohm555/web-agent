@@ -10,14 +10,15 @@
 
 - **Current phase:** 1 - Core Retrieval Engine
 - **Current plan:** Not created yet
+- **Next phase:** 5 - Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
 - **Overall status:** Ready for phase planning
-- **Progress:** 0/4 phases complete (0%)
+- **Progress:** 0/5 phases complete (0%)
 - **Progress bar:** [----] 0%
 
 ## Performance Metrics
 
 - **Completed phases:** 0
-- **Pending phases:** 4
+- **Pending phases:** 5
 - **Blocked phases:** 0
 - **Requirement coverage:** 10/10 mapped in roadmap
 
@@ -28,6 +29,10 @@
 - SDK packaging is out of scope for current phases; focus is core logic first.
 - v1 scope is constrained to the `search` and `fetch` primitives.
 - Serper remains the only search provider in v1.
+
+### Roadmap Evolution
+
+- Phase 5 added: Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
 
 ### TODOs
 
