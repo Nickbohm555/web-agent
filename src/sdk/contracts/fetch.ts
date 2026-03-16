@@ -13,6 +13,11 @@ export const FetchFallbackReasonSchema = z.enum([
   "browser-required",
 ]);
 
+export const FetchCacheControlInputSchema = FetchControlsInputSchema.pick({
+  maxAgeMs: true,
+  fresh: true,
+});
+
 export const FetchOptionsSchema = FetchControlsInputSchema.transform((input) =>
   resolveFetchControls(input),
 );
@@ -47,11 +52,27 @@ export const FetchResponseSchema = z
 export type FetchFallbackReason = z.output<typeof FetchFallbackReasonSchema>;
 export type FetchOptions = z.input<typeof FetchOptionsSchema>;
 export type NormalizedFetchOptions = ResolvedFetchControls;
+export type FetchCacheControlInput = z.input<typeof FetchCacheControlInputSchema>;
+export type NormalizedFetchCacheControl = Pick<
+  ResolvedFetchControls,
+  "maxAgeMs" | "fresh"
+>;
 export type FetchRequest = z.output<typeof FetchRequestSchema>;
 export type FetchResponse = z.output<typeof FetchResponseSchema>;
 
 export function normalizeFetchOptions(input?: unknown): NormalizedFetchOptions {
   return FetchOptionsSchema.parse(input ?? {});
+}
+
+export function normalizeFetchCacheControl(
+  input?: unknown,
+): NormalizedFetchCacheControl {
+  const options = normalizeFetchOptions(input);
+
+  return {
+    maxAgeMs: options.maxAgeMs,
+    fresh: options.fresh,
+  };
 }
 
 export function normalizeFetchRequest(
