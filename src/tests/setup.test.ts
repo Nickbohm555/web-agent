@@ -94,6 +94,10 @@ describe("sdk foundation", () => {
         country: "US",
         language: "en",
         freshness: "any",
+        domainScope: {
+          includeDomains: [],
+          excludeDomains: [],
+        },
       },
     });
 

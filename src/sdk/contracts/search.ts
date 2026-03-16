@@ -12,12 +12,12 @@ export const SearchOptionsSchema = SearchControlsInputSchema.transform((input) =
 export const SearchRequestSchema = z
   .object({
     query: z.string().trim().min(1),
-    options: SearchControlsInputSchema.optional(),
+    options: SearchOptionsSchema.optional(),
   })
   .strict()
   .transform((input) => ({
     query: input.query,
-    options: normalizeSearchOptions(input.options),
+    options: input.options ?? normalizeSearchOptions(),
   }));
 
 export const SearchRankSchema = z

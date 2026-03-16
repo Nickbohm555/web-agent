@@ -8,6 +8,7 @@ import {
   type SearchOptions,
   type SearchRequest,
 } from "../../sdk/contracts/search.js";
+import type { ResolvedSearchControls } from "../../core/policy/retrieval-controls.js";
 
 const SERPER_API_URL = "https://google.serper.dev/search";
 const SERPER_TIMEOUT_MS = 5_000;
@@ -51,10 +52,15 @@ export interface SerperClientResult {
 
 export async function callSerperSearch(
   query: string,
-  options?: SearchOptions,
+  options?: SearchOptions | ResolvedSearchControls,
   clientOptions: SerperClientOptions = {},
 ): Promise<SerperClientResult> {
-  const normalizedRequest = normalizeSearchRequest(query, options);
+  const normalizedRequest = isResolvedSearchControls(options)
+    ? {
+        query: normalizeSearchRequest(query).query,
+        options,
+      }
+    : normalizeSearchRequest(query, options);
   const apiKey = clientOptions.apiKey ?? process.env.SERPER_API_KEY;
 
   if (!apiKey) {
@@ -156,6 +162,12 @@ export async function callSerperSearch(
 }
 
 export type { SerperSearchResponse };
+
+function isResolvedSearchControls(
+  value: SearchOptions | ResolvedSearchControls | undefined,
+): value is ResolvedSearchControls {
+  return typeof value === "object" && value !== null && "domainScope" in value;
+}
 
 function toSerperRequestBody(request: SearchRequest): Record<string, unknown> {
   return {

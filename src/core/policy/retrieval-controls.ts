@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  resolveDomainScope,
+  type ResolvedDomainScope,
+} from "./domain-scope.js";
 
 const SEARCH_RESULTS_DEFAULT = 10;
 const SEARCH_RESULTS_MIN = 1;
@@ -32,6 +36,8 @@ export const SearchControlsInputSchema = z
     country: z.string().trim().min(1).optional(),
     language: z.string().trim().min(1).optional(),
     freshness: RetrievalFreshnessSchema.optional(),
+    includeDomains: z.array(z.string()).optional(),
+    excludeDomains: z.array(z.string()).optional(),
   })
   .strict()
   .superRefine((input, ctx) => {
@@ -58,6 +64,7 @@ export interface ResolvedSearchControls {
   country: string;
   language: string;
   freshness: z.output<typeof RetrievalFreshnessSchema>;
+  domainScope: ResolvedDomainScope;
 }
 
 export interface ResolvedFetchControls {
@@ -72,6 +79,10 @@ export function resolveSearchControls(input?: unknown): ResolvedSearchControls {
     country: parsed.country,
     language: parsed.language,
   });
+  const domainScope = resolveDomainScope({
+    includeDomains: parsed.includeDomains,
+    excludeDomains: parsed.excludeDomains,
+  });
 
   return {
     maxResults: parsed.maxResults ?? parsed.limit ?? SEARCH_RESULTS_DEFAULT,
@@ -79,6 +90,7 @@ export function resolveSearchControls(input?: unknown): ResolvedSearchControls {
     country: locale.country.toUpperCase(),
     language: locale.language.toLowerCase(),
     freshness: parsed.freshness ?? "any",
+    domainScope,
   };
 }
 
