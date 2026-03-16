@@ -18,7 +18,7 @@ export async function search(
   const { payload } = await callSerperSearch(normalizedQuery, normalizedOptions);
   const mappedResponse = mapSerperOrganicToSearchResponse(payload, {
     query: normalizedQuery,
-    limit: normalizedOptions.maxResults,
+    limit: payload.organic.length,
   });
   const filteredResults = filterSearchResultsByDomainScope(
     mappedResponse.results,
