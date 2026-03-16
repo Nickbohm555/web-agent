@@ -150,6 +150,12 @@ describe("fetch stability", () => {
           httpMs: expect.any(Number),
           extractionMs: expect.any(Number),
         },
+        usage: {
+          content: {
+            textChars: 10,
+            markdownChars: 10,
+          },
+        },
       },
       metadata: {
         finalUrl: "https://example.com/articles/thin",

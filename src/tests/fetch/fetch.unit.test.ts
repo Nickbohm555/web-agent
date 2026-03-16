@@ -166,7 +166,7 @@ describe("fetch task 1 primitives", () => {
     expect(response.markdown).toContain("Example Article");
   });
 
-  it("returns an explicit network fallback reason when HTTP retrieval fails", async () => {
+  it("throws a typed fetch error when HTTP retrieval fails", async () => {
     const evaluateRobotsFn = vi.fn(async () => ({
       ...allowedRobotsResult,
       targetUrl: "https://example.com/article",
@@ -189,15 +189,18 @@ describe("fetch task 1 primitives", () => {
       },
     }));
 
-    const response = await runFetchOrchestrator("https://example.com/article", {
-      evaluateRobotsFn,
-      runHttpWorkerFn,
-    });
-
-    expect(response).toEqual({
-      url: "https://example.com/article",
-      text: "",
-      markdown: "",
+    await expect(
+      runFetchOrchestrator("https://example.com/article", {
+        evaluateRobotsFn,
+        runHttpWorkerFn,
+      }),
+    ).rejects.toMatchObject({
+      name: "SdkError",
+      kind: "network",
+      retryable: true,
+      attemptNumber: 3,
+      operation: "fetch",
+      fallbackReason: "network-error",
       meta: {
         operation: "fetch",
         durationMs: expect.any(Number),
@@ -214,7 +217,6 @@ describe("fetch task 1 primitives", () => {
         contentType: null,
         statusCode: null,
       },
-      fallbackReason: "network-error",
     });
     expect(evaluateRobotsFn).toHaveBeenCalledBefore(runHttpWorkerFn);
   });
@@ -255,6 +257,12 @@ describe("fetch task 1 primitives", () => {
           robotsMs: expect.any(Number),
           httpMs: expect.any(Number),
           extractionMs: expect.any(Number),
+        },
+        usage: {
+          content: {
+            textChars: 10,
+            markdownChars: 10,
+          },
         },
       },
       metadata: {

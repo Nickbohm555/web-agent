@@ -60,6 +60,7 @@ export type NormalizedFetchCacheControl = Pick<
   "maxAgeMs" | "fresh"
 >;
 export type FetchRequest = z.output<typeof FetchRequestSchema>;
+export type FetchMetadata = z.output<typeof FetchResponseSchema.shape.metadata>;
 export type FetchResponse = z.output<typeof FetchResponseSchema>;
 
 export function normalizeFetchOptions(input?: unknown): NormalizedFetchOptions {

@@ -1,5 +1,10 @@
-import type { FetchFallbackReason, FetchResponse } from "../sdk/contracts/fetch.js";
+import {
+  type FetchFallbackReason,
+  type FetchMetadata,
+  type FetchResponse,
+} from "../sdk/contracts/fetch.js";
 import { normalizeUrl } from "../sdk/contracts/fetch.js";
+import { createSdkError, type SdkError } from "../core/errors/sdk-error.js";
 import { buildCallMeta, startCallTimer } from "../core/telemetry/call-meta.js";
 import {
   extractContent,
@@ -55,18 +60,18 @@ export async function runFetchOrchestrator(
   });
 
   if (!robots.canFetch) {
-    return createResponse(normalizedUrl, {
+    throw createFetchError({
+      kind: "policy_denied",
       startedAt,
       attempts: 1,
       retries: 0,
-      cacheHit: false,
       timings: {
         robotsMs: startCallTimer() - robotsStartedAt,
       },
       finalUrl: normalizedUrl,
       contentType: null,
       statusCode: null,
-      fallbackReason: "browser-required",
+      fallbackReason: null,
     });
   }
 
@@ -75,11 +80,11 @@ export async function runFetchOrchestrator(
   const httpDurationMs = startCallTimer() - httpStartedAt;
 
   if (httpResult.state !== "OK") {
-    return createResponse(normalizedUrl, {
+    throw createFetchError({
+      kind: httpResult.errorKind,
       startedAt,
       attempts: httpResult.meta.attempts,
       retries: httpResult.meta.retries,
-      cacheHit: false,
       timings: {
         robotsMs: startCallTimer() - robotsStartedAt,
         httpMs: httpDurationMs,
@@ -100,7 +105,6 @@ export async function runFetchOrchestrator(
       startedAt,
       attempts: httpResult.meta.attempts,
       retries: httpResult.meta.retries,
-      cacheHit: false,
       timings: {
         robotsMs: startCallTimer() - robotsStartedAt,
         httpMs: httpDurationMs,
@@ -118,7 +122,6 @@ export async function runFetchOrchestrator(
       startedAt,
       attempts: httpResult.meta.attempts,
       retries: httpResult.meta.retries,
-      cacheHit: false,
       timings: {
         robotsMs: startCallTimer() - robotsStartedAt,
         httpMs: httpDurationMs,
@@ -137,7 +140,6 @@ export async function runFetchOrchestrator(
     startedAt,
     attempts: httpResult.meta.attempts,
     retries: httpResult.meta.retries,
-    cacheHit: false,
     timings: {
       robotsMs: startCallTimer() - robotsStartedAt,
       httpMs: httpDurationMs,
@@ -158,7 +160,6 @@ function createResponse(
     startedAt: number;
     attempts: number;
     retries: number;
-    cacheHit: boolean;
     timings: Record<string, number>;
     finalUrl: string;
     contentType: string | null;
@@ -177,8 +178,14 @@ function createResponse(
       startedAt: input.startedAt,
       attempts: input.attempts,
       retries: input.retries,
-      cacheHit: input.cacheHit,
+      cacheHit: false,
       timings: input.timings,
+      usage: {
+        content: {
+          textChars: (input.text ?? "").length,
+          markdownChars: (input.markdown ?? "").length,
+        },
+      },
     }),
     metadata: {
       finalUrl: input.finalUrl,
@@ -186,6 +193,81 @@ function createResponse(
       statusCode: input.statusCode,
     },
     fallbackReason: input.fallbackReason,
+  };
+}
+
+function createFetchError(input: {
+  kind: SdkError["kind"];
+  startedAt: number;
+  attempts: number;
+  retries: number;
+  timings: Record<string, number>;
+  finalUrl: string;
+  contentType: string | null;
+  statusCode: number | null;
+  fallbackReason: FetchFallbackReason | null;
+}): SdkError {
+  const error = createSdkError({
+    kind: input.kind,
+    ...(input.statusCode !== null ? { statusCode: input.statusCode } : {}),
+  });
+
+  Object.defineProperties(error, {
+    attemptNumber: {
+      value: input.attempts,
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    },
+    operation: {
+      value: "fetch",
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    },
+    fallbackReason: {
+      value: input.fallbackReason,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    },
+    meta: {
+      value: buildCallMeta({
+        operation: "fetch",
+        startedAt: input.startedAt,
+        attempts: input.attempts,
+        retries: input.retries,
+        cacheHit: false,
+        timings: input.timings,
+      }),
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    },
+    metadata: {
+      value: createFetchMetadata(
+        input.finalUrl,
+        input.contentType,
+        input.statusCode,
+      ),
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    },
+  });
+
+  return error;
+}
+
+function createFetchMetadata(
+  finalUrl: string,
+  contentType: string | null,
+  statusCode: number | null,
+): FetchMetadata {
+  return {
+    finalUrl,
+    contentType,
+    statusCode,
   };
 }
 
