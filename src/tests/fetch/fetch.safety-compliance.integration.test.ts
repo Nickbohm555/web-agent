@@ -192,6 +192,198 @@ describe("fetch safety compliance integration", () => {
     });
   });
 
+  it("surfaces url preflight denies through the public fetch contract and never reaches downstream stages", async () => {
+    vi.resetModules();
+    const resolveAndClassifyTarget = vi.fn();
+    const evaluateRobotsCompliance = vi.fn();
+    const runHttpWorker = vi.fn();
+
+    vi.doMock("../../core/network/resolve-and-classify.js", () => ({
+      resolveAndClassifyTarget,
+    }));
+    vi.doMock("../../scraper/robots/evaluator.js", () => ({
+      evaluateRobotsCompliance,
+    }));
+    vi.doMock("../../scraper/http-worker.js", () => ({
+      runHttpWorker,
+    }));
+
+    const { fetch } = await import("../../sdk/fetch.js");
+
+    await expect(
+      fetch("https://user:secret@example.com/article", {
+        fresh: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "SdkError",
+      kind: "policy_denied",
+      operation: "fetch",
+      stage: "url_preflight",
+      reason: "URL_HAS_CREDENTIALS",
+      fallbackReason: null,
+      metadata: {
+        finalUrl: "https://user:secret@example.com/article",
+        decisions: {
+          safety: {
+            stage: "url_preflight",
+            outcome: "deny",
+            reason: "URL_HAS_CREDENTIALS",
+          },
+          compliance: null,
+        },
+      },
+    });
+
+    expect(resolveAndClassifyTarget).not.toHaveBeenCalled();
+    expect(evaluateRobotsCompliance).not.toHaveBeenCalled();
+    expect(runHttpWorker).not.toHaveBeenCalled();
+  });
+
+  it("surfaces ssrf denies through the public fetch contract and never reaches robots or http", async () => {
+    vi.resetModules();
+    const resolveAndClassifyTarget = vi.fn(
+      async (): Promise<ResolveAndClassifyResult> => ({
+        outcome: "deny",
+        decision: {
+          stage: "network_preflight",
+          outcome: "deny",
+          reason: "SSRF_BLOCKED_IP",
+          target: {
+            url: "https://example.com/article",
+            scheme: "https",
+            hostname: "example.com",
+            port: 443,
+          },
+        },
+        resolvedAddresses: [
+          {
+            address: "127.0.0.1",
+            family: 4,
+            normalized: "127.0.0.1",
+            classification: "loopback",
+            outcome: "deny",
+          },
+        ],
+        resolverErrorCode: null,
+      }),
+    );
+    const evaluateRobotsCompliance = vi.fn();
+    const runHttpWorker = vi.fn();
+
+    vi.doMock("../../core/network/resolve-and-classify.js", () => ({
+      resolveAndClassifyTarget,
+    }));
+    vi.doMock("../../scraper/robots/evaluator.js", () => ({
+      evaluateRobotsCompliance,
+    }));
+    vi.doMock("../../scraper/http-worker.js", () => ({
+      runHttpWorker,
+    }));
+
+    const { fetch } = await import("../../sdk/fetch.js");
+
+    await expect(
+      fetch("https://example.com/article", {
+        fresh: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "SdkError",
+      kind: "policy_denied",
+      operation: "fetch",
+      stage: "network_preflight",
+      reason: "SSRF_BLOCKED_IP",
+      fallbackReason: null,
+      metadata: {
+        finalUrl: "https://example.com/article",
+        decisions: {
+          safety: {
+            stage: "network_preflight",
+            outcome: "deny",
+            reason: "SSRF_BLOCKED_IP",
+          },
+          compliance: null,
+        },
+      },
+    });
+
+    expect(evaluateRobotsCompliance).not.toHaveBeenCalled();
+    expect(runHttpWorker).not.toHaveBeenCalled();
+  });
+
+  it("surfaces robots deny decisions through the public fetch contract and never reaches http", async () => {
+    vi.resetModules();
+    const resolveAndClassifyTarget = vi.fn(
+      async (): Promise<ResolveAndClassifyResult> => ({
+        outcome: "allow",
+        decision: {
+          stage: "network_preflight",
+          outcome: "allow",
+          target: {
+            url: "https://example.com/private",
+            scheme: "https",
+            hostname: "example.com",
+            port: 443,
+          },
+        },
+        resolvedAddresses: [
+          {
+            address: "93.184.216.34",
+            family: 4,
+            normalized: "93.184.216.34",
+            classification: "public",
+            outcome: "allow",
+          },
+        ],
+      }),
+    );
+    const evaluateRobotsCompliance = vi.fn(
+      async () => createRobotsResult("DENY", "https://example.com/private"),
+    );
+    const runHttpWorker = vi.fn();
+
+    vi.doMock("../../core/network/resolve-and-classify.js", () => ({
+      resolveAndClassifyTarget,
+    }));
+    vi.doMock("../../scraper/robots/evaluator.js", () => ({
+      evaluateRobotsCompliance,
+    }));
+    vi.doMock("../../scraper/http-worker.js", () => ({
+      runHttpWorker,
+    }));
+
+    const { fetch } = await import("../../sdk/fetch.js");
+
+    await expect(
+      fetch("https://example.com/private", {
+        fresh: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "SdkError",
+      kind: "policy_denied",
+      operation: "fetch",
+      stage: "robots",
+      reason: "ROBOTS_DENY",
+      fallbackReason: null,
+      metadata: {
+        finalUrl: "https://example.com/private",
+        decisions: {
+          safety: {
+            stage: "network_preflight",
+            outcome: "allow",
+          },
+          compliance: {
+            stage: "robots",
+            outcome: "deny",
+            reason: "ROBOTS_DENY",
+          },
+        },
+      },
+    });
+
+    expect(evaluateRobotsCompliance).toHaveBeenCalledTimes(1);
+    expect(runHttpWorker).not.toHaveBeenCalled();
+  });
+
   it("short-circuits before robots and http when url safety preflight denies", async () => {
     const evaluateRobotsComplianceFn = vi.fn();
     const runHttpWorkerFn = vi.fn();
