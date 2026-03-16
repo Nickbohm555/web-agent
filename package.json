@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "tsdown src/sdk/index.ts --format esm --dts",
-    "dev": "tsx src/sdk/index.ts"
+    "dev": "tsx src/sdk/index.ts",
+    "dev:frontend": "tsx src/frontend/server.ts"
   },
   "repository": {
     "type": "git",
