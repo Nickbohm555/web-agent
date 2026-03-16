@@ -100,7 +100,7 @@ This phase adds a local dev-console frontend that keeps SDK calls server-side, e
 |------|------|-------------------|--------|
 | 1 - Core Retrieval Engine | Execute normalized `search`/`fetch` core behavior | 2 | Complete |
 | 2 - Retrieval Controls and Cost Tuning | Control retrieval scope, latency, and freshness | 4 | Complete |
-| 3 - Reliability and Usage Transparency | Predictable failures and inspectable usage/timing | 2 | Pending |
+| 3 - Reliability and Usage Transparency | Predictable failures and inspectable usage/timing | 2 | Complete |
 | 4 - Fetch Safety and Compliance Guardrails | Safe, robots-aware fetch behavior | 2 | Pending |
 | 5 - Frontend Validation Surface | Display `search` and `fetch` calls and outputs clearly | 0 | Planned |
 
