@@ -3,7 +3,8 @@ import { callSerperSearch } from "../providers/serper/client.js";
 import {
   type SearchOptions,
   type SearchResponse,
-  normalizeSearchRequest,
+  normalizeSearchOptions,
+  normalizeSearchQuery,
   normalizeSearchResponse,
 } from "./contracts/search.js";
 
@@ -11,11 +12,12 @@ export async function search(
   query: string,
   options?: SearchOptions,
 ): Promise<SearchResponse> {
-  const request = normalizeSearchRequest(query, options);
-  const { payload } = await callSerperSearch(request.query, request.options);
+  const normalizedQuery = normalizeSearchQuery(query);
+  const normalizedOptions = normalizeSearchOptions(options);
+  const { payload } = await callSerperSearch(normalizedQuery, normalizedOptions);
   const response = mapSerperOrganicToSearchResponse(payload, {
-    query: request.query,
-    limit: request.options.maxResults,
+    query: normalizedQuery,
+    limit: normalizedOptions.maxResults,
   });
 
   return normalizeSearchResponse(response);

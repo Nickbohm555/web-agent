@@ -9,15 +9,17 @@ export const SearchOptionsSchema = SearchControlsInputSchema.transform((input) =
   resolveSearchControls(input),
 );
 
+export const SearchQuerySchema = z.string().trim().min(1);
+
 export const SearchRequestSchema = z
   .object({
-    query: z.string().trim().min(1),
-    options: SearchOptionsSchema.optional(),
+    query: SearchQuerySchema,
+    options: SearchControlsInputSchema.optional(),
   })
   .strict()
   .transform((input) => ({
-    query: input.query,
-    options: input.options ?? normalizeSearchOptions(),
+    query: normalizeSearchQuery(input.query),
+    options: normalizeSearchOptions(input.options),
   }));
 
 export const SearchRankSchema = z
@@ -57,6 +59,10 @@ export type SearchResponse = z.output<typeof SearchResponseSchema>;
 
 export function normalizeSearchOptions(input?: unknown): NormalizedSearchOptions {
   return SearchOptionsSchema.parse(input ?? {});
+}
+
+export function normalizeSearchQuery(input: string): string {
+  return SearchQuerySchema.parse(input);
 }
 
 export function normalizeSearchRequest(

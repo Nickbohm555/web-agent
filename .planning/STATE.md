@@ -4,12 +4,12 @@
 
 - **Project:** Web Search Core Engine
 - **Core value:** Lowest-cost path to production-grade `search` + `fetch` context for agent systems through reliable core retrieval logic.
-- **Current focus:** Execute Phase 2 plan 02-01 in task order.
+- **Current focus:** Execute Phase 2 plan 02-02 in task order.
 
 ## Current Position
 
 - **Current phase:** 2 - Retrieval Controls and Cost Tuning
-- **Current plan:** 02-01 - Retrieval Controls Foundation
+- **Current plan:** 02-02 - Search Controls and Serper Mapping
 - **Next phase:** 5 - Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
 - **Overall status:** In progress
 - **Progress:** 1/5 phases complete (20%)
@@ -37,8 +37,8 @@
 
 ### TODOs
 
-- Continue Phase 2 plan `02-01` in task order.
-- Preserve Phase 01 normalized behavior while layering shared retrieval controls.
+- Continue Phase 2 plan `02-02` in task order.
+- Preserve Phase 01 normalized behavior while layering shared retrieval controls into the search path.
 
 ### Blockers
 
@@ -46,15 +46,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented Phase 2 plan `02-01` task 3 policy tests and advanced the implementation plan to Section 15.
-- **Next command:** Execute Section 15 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Start Phase 2 plan `02-01` summary creation.
+- **Last completed step:** Implemented Phase 2 plan `02-02` task 1 search control normalization and advanced the implementation plan to Section 17.
+- **Next command:** Execute Section 17 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Start Phase 2 plan `02-02` task 2 provider mapping and domain enforcement.
 
 ## Execution Tracking
 
 - **phase:** 02-retrieval-controls-and-cost-tuning
-- **plan:** 02-01
-- **task:** 3
+- **plan:** 02-02
+- **task:** 1
 - **status:** implemented
 
 ---
