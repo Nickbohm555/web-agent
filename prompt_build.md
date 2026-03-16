@@ -11,7 +11,7 @@
    Do not include labels, bullets, explanations, markdown, or extra lines in `.loop-commit-msg`.
 5. If the current section is a testing section, update the corresponding test-plan result notes before stopping. When the source test markdown is a file such as `01-02-tests.md`, write the actual outcome back into that file too and keep the plan notes aligned. 
 6. Before stopping, make sure `Current section to work on` in `@IMPLEMENTATION_PLAN.md` has been moved forward by one if this section completed and that update has not already been made.
-9. Do not end the iteration with uncommitted changes.
+9. Do not end the iteration with uncommitted changes. commit from loop-commit-msg as the message.
 10. Stop after completing that section and return 20 thumbs up so the user knows we finished.
 
 Keep `@AGENTS.md` operational only.

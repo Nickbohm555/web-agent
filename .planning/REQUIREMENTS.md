@@ -20,10 +20,6 @@
 - [ ] **SAFE-01**: User is protected from unsafe outbound fetch behavior via URL and network safety policies (including SSRF guardrails).
 - [ ] **SAFE-02**: User gets robots/compliance-aware fetch behavior with explicit allow/deny outcomes.
 
-### Developer Experience
-- [ ] **DX-01**: User integrates through a TypeScript SDK as the primary public developer surface.
-- [ ] **DX-02**: User receives stable, documented TypeScript types for request options and response payloads.
-
 ## v2 Requirements (Deferred)
 
 ### Cost/Quality Differentiators
@@ -42,6 +38,7 @@
 ## Out of Scope
 
 - Multi-provider search in v1 (non-Serper providers) — delayed to keep v1 fast and cost-focused.
+- Public SDK packaging in current phases — deferred until core retrieval behavior is validated.
 - Full crawl/map/research platform endpoints in v1 — outside the two-tool `search`/`fetch` scope.
 - Browser-action automation flows in core v1 — too costly and operationally heavy for the initial wedge.
 - Default built-in answer generation/summarization in v1 — retrieval primitives stay explicit and predictable.
@@ -52,8 +49,8 @@
 
 | Requirement ID | Phase | Status |
 |----------------|-------|--------|
-| CORE-01 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
-| CORE-02 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
+| CORE-01 | Phase 1 - Core Retrieval Engine | Pending |
+| CORE-02 | Phase 1 - Core Retrieval Engine | Pending |
 | CTRL-01 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
 | CTRL-02 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
 | CTRL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
@@ -62,8 +59,6 @@
 | REL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
 | SAFE-01 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
 | SAFE-02 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
-| DX-01 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
-| DX-02 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
 
 ---
-*Last updated: 2026-03-15 after requirements definition*
+*Last updated: 2026-03-15 after scope pivot to core logic*

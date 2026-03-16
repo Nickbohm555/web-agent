@@ -2,31 +2,28 @@
 
 ## Overview
 
-This roadmap is derived directly from the v1 requirements and organizes delivery into coherent user-visible capability boundaries. It keeps the SDK-first product surface (`search` and `fetch`) central while sequencing controls, reliability, and safety so each phase produces testable outcomes. All v1 requirements are mapped exactly once.
+This roadmap is derived directly from the v1 requirements and organizes delivery into coherent capability boundaries for core retrieval logic. It keeps `search` and `fetch` engine behavior central while sequencing controls, reliability, and safety so each phase produces testable outcomes. All v1 requirements are mapped exactly once.
 
 **Depth:** comprehensive  
-**Total v1 requirements:** 12  
-**Coverage:** 12/12 mapped
+**Total v1 requirements:** 10  
+**Coverage:** 10/10 mapped
 
 ## Phases
 
-### Phase 1 - SDK Foundation and Core Retrieval
+### Phase 1 - Core Retrieval Engine
 
-**Goal:** Developers can integrate the TypeScript SDK and immediately perform normalized `search` and `fetch` operations.
+**Goal:** Systems can execute normalized `search` and `fetch` operations through stable core logic.
 
 **Dependencies:** None
 
 **Requirements:**
-- DX-01
-- DX-02
 - CORE-01
 - CORE-02
 
 **Success Criteria:**
-1. A developer can install and initialize the TypeScript SDK without custom wrappers.
-2. A developer can call `search(query, options)` and receive normalized results containing `title`, `url`, `snippet`, and rank metadata.
-3. A developer can call `fetch(url, options)` and receive clean content in a consistent response shape.
-4. SDK request/response types are stable and usable directly in TypeScript code with editor autocomplete and type checking.
+1. A caller can execute `search(query, options)` and receive normalized results containing `title`, `url`, `snippet`, and rank metadata.
+2. A caller can execute `fetch(url, options)` and receive clean content in a consistent response shape.
+3. Core request/response behavior remains stable across repeated runs for equivalent inputs.
 
 ### Phase 2 - Retrieval Controls and Cost Tuning
 
@@ -80,7 +77,7 @@ This roadmap is derived directly from the v1 requirements and organizes delivery
 
 | Phase | Goal | Requirement Count | Status |
 |------|------|-------------------|--------|
-| 1 - SDK Foundation and Core Retrieval | Integrate SDK and run normalized `search`/`fetch` | 4 | Pending |
+| 1 - Core Retrieval Engine | Execute normalized `search`/`fetch` core behavior | 2 | Pending |
 | 2 - Retrieval Controls and Cost Tuning | Control retrieval scope, latency, and freshness | 4 | Pending |
 | 3 - Reliability and Usage Transparency | Predictable failures and inspectable usage/timing | 2 | Pending |
 | 4 - Fetch Safety and Compliance Guardrails | Safe, robots-aware fetch behavior | 2 | Pending |

@@ -2,13 +2,13 @@
 
 ## Project Reference
 
-- **Project:** Web Search SDK
-- **Core value:** Lowest-cost path to production-grade `search` + `fetch` context for agent systems, without sacrificing developer usability.
-- **Current focus:** Begin execution with Phase 1 baseline SDK contracts and core retrieval primitives.
+- **Project:** Web Search Core Engine
+- **Core value:** Lowest-cost path to production-grade `search` + `fetch` context for agent systems through reliable core retrieval logic.
+- **Current focus:** Begin execution with Phase 1 core retrieval engine behavior.
 
 ## Current Position
 
-- **Current phase:** 1 - SDK Foundation and Core Retrieval
+- **Current phase:** 1 - Core Retrieval Engine
 - **Current plan:** Not created yet
 - **Overall status:** Ready for phase planning
 - **Progress:** 0/4 phases complete (0%)
@@ -19,13 +19,13 @@
 - **Completed phases:** 0
 - **Pending phases:** 4
 - **Blocked phases:** 0
-- **Requirement coverage:** 12/12 mapped in roadmap
+- **Requirement coverage:** 10/10 mapped in roadmap
 
 ## Accumulated Context
 
 ### Decisions
 
-- v1 remains SDK-first with TypeScript as the primary integration surface.
+- SDK packaging is out of scope for current phases; focus is core logic first.
 - v1 scope is constrained to the `search` and `fetch` primitives.
 - Serper remains the only search provider in v1.
 
