@@ -4,12 +4,12 @@
 
 - **Project:** Web Search Core Engine
 - **Core value:** Lowest-cost path to production-grade `search` + `fetch` context for agent systems through reliable core retrieval logic.
-- **Current focus:** Execute Phase 1 plan 01-02 in task order.
+- **Current focus:** Execute Phase 1 plan 01-03 in task order.
 
 ## Current Position
 
 - **Current phase:** 1 - Core Retrieval Engine
-- **Current plan:** 01-02 - Search Serper Slice
+- **Current plan:** 01-03 - Fetch HTTP-First Slice
 - **Next phase:** 5 - Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
 - **Overall status:** In progress
 - **Progress:** 0/5 phases complete (0%)
@@ -36,7 +36,7 @@
 
 ### TODOs
 
-- Continue Phase 1 plan `01-02` in task order.
+- Continue Phase 1 plan `01-03` in task order.
 - Continue Phase 1 success criteria verification after each section.
 
 ### Blockers
@@ -45,15 +45,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented `01-02` task 3 SDK `search(...)` orchestration with public integration coverage.
-- **Next command:** Execute Section 7 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Continue with Phase 1 plan `01-02` summary creation.
+- **Last completed step:** Implemented `01-03` task 1 robots/politeness gate and HTTP worker with typed fetch outcomes.
+- **Next command:** Execute Section 9 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Continue with Phase 1 plan `01-03` task 2 execution.
 
 ## Execution Tracking
 
 - **phase:** 01-core-retrieval-engine
-- **plan:** 01-02
-- **task:** 3
+- **plan:** 01-03
+- **task:** 1
 - **status:** implemented
 
 ---
