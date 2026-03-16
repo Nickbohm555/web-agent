@@ -36,7 +36,7 @@
 
 ### TODOs
 
-- Implement Phase 1 plan 01-01 task 2.
+- Create the Phase 1 plan `01-01` summary.
 - Continue Phase 1 success criteria verification after each section.
 
 ### Blockers
@@ -45,15 +45,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented `01-01` task 1 bootstrap workspace and baseline SDK/test scaffold.
-- **Next command:** Execute Section 2 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Continue with Phase 1 plan `01-01`, task 2 contract definitions.
+- **Last completed step:** Implemented `01-01` task 2 strict SDK boundary contracts and normalization helpers.
+- **Next command:** Execute Section 3 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Continue with Phase 1 plan `01-01` summary creation.
 
 ## Execution Tracking
 
 - **phase:** 01-core-retrieval-engine
 - **plan:** 01-01
-- **task:** 1
+- **task:** 2
 - **status:** implemented
 
 ---
