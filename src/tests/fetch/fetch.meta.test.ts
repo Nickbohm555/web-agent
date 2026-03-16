@@ -65,6 +65,60 @@ describe("fetch metadata", () => {
     expect(response.meta.timings.extractionMs).toBeGreaterThanOrEqual(0);
   });
 
+  it("emits stable cache-hit metadata on repeated successful fetch responses", async () => {
+    const { fetch } = await import("../../sdk/index.js");
+
+    runFetchOrchestratorMock.mockResolvedValueOnce(
+      createFetchResponse("https://example.com/cached", {
+        text: "Cacheable article body",
+        markdown: "# Cacheable article body",
+        timings: {
+          robotsMs: 1,
+          httpMs: 9,
+          extractionMs: 2,
+        },
+      }),
+    );
+
+    const first = await fetch("https://example.com/cached");
+    const second = await fetch("https://example.com/cached");
+
+    expect(first.meta).toMatchObject({
+      operation: "fetch",
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+    });
+    expect(second).toMatchObject({
+      url: "https://example.com/cached",
+      text: "Cacheable article body",
+      markdown: "# Cacheable article body",
+      meta: {
+        operation: "fetch",
+        attempts: 1,
+        retries: 0,
+        cacheHit: true,
+        usage: {
+          content: {
+            textChars: 22,
+            markdownChars: 24,
+          },
+        },
+      },
+      metadata: {
+        finalUrl: "https://example.com/cached",
+        contentType: "text/html; charset=utf-8",
+        statusCode: 200,
+      },
+      fallbackReason: null,
+    });
+    expect(second.meta.timings.cacheReadMs).toBeGreaterThanOrEqual(0);
+    expect(second.meta.timings.robotsMs).toBeGreaterThanOrEqual(0);
+    expect(second.meta.timings.httpMs).toBeGreaterThanOrEqual(0);
+    expect(second.meta.timings.extractionMs).toBeGreaterThanOrEqual(0);
+    expect(runFetchOrchestratorMock).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves typed fetch failures with stable fetch-specific context", async () => {
     const { fetch } = await import("../../sdk/index.js");
 
