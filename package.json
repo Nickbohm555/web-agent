@@ -1,10 +1,16 @@
 {
   "name": "web-agent",
   "version": "1.0.0",
-  "description": "Lightweight local agent workflow for building and iterating on web apps with Codex.",
-  "main": "index.js",
+  "description": "TypeScript retrieval SDK with search and fetch primitives.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "tsdown src/sdk/index.ts --format esm --dts",
+    "dev": "tsx src/sdk/index.ts"
   },
   "repository": {
     "type": "git",
