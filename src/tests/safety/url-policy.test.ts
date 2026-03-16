@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createFetchSafetyError } from "../../core/errors/fetch-safety-error.js";
 import { evaluateSafetyPreflight } from "../../core/policy/safety-decision.js";
 import { evaluateUrlPolicy } from "../../core/policy/url-policy.js";
 
@@ -80,6 +81,76 @@ describe("url preflight policy", () => {
         scheme: "http",
         hostname: ".",
         port: 80,
+      },
+    });
+  });
+
+  it("maps deny decisions to typed public fetch errors without changing machine-readable fields", () => {
+    const decision = evaluateSafetyPreflight("https://user:secret@example.com/report");
+
+    expect(decision.outcome).toBe("deny");
+
+    if (decision.outcome !== "deny") {
+      throw new Error("expected deny decision");
+    }
+
+    const error = createFetchSafetyError({
+      decision,
+      attempts: 1,
+      retries: 0,
+      timings: {
+        safetyMs: 2,
+      },
+    });
+
+    expect(error).toMatchObject({
+      name: "SdkError",
+      kind: "policy_denied",
+      retryable: false,
+      code: "POLICY_DENIED",
+      operation: "fetch",
+      stage: "url_preflight",
+      reason: "URL_HAS_CREDENTIALS",
+      decision: {
+        stage: "url_preflight",
+        outcome: "deny",
+        reason: "URL_HAS_CREDENTIALS",
+        target: {
+          url: "https://user:secret@example.com/report",
+          scheme: "https",
+          hostname: "example.com",
+          port: 443,
+        },
+      },
+      fallbackReason: null,
+      meta: {
+        operation: "fetch",
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        durationMs: expect.any(Number),
+        timings: {
+          safetyMs: 2,
+        },
+      },
+      metadata: {
+        finalUrl: "https://user:secret@example.com/report",
+        contentType: null,
+        statusCode: null,
+        decisions: {
+          safety: {
+            stage: "url_preflight",
+            outcome: "deny",
+            reason: "URL_HAS_CREDENTIALS",
+            target: {
+              url: "https://user:secret@example.com/report",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
+          compliance: null,
+        },
       },
     });
   });
