@@ -4,6 +4,7 @@ import {
   type FetchResponse,
 } from "../sdk/contracts/fetch.js";
 import { normalizeUrl } from "../sdk/contracts/fetch.js";
+import { createEmptyFetchDecisionMetadata } from "../sdk/contracts/safety.js";
 import { createSdkError, type SdkError } from "../core/errors/sdk-error.js";
 import { buildCallMeta, startCallTimer } from "../core/telemetry/call-meta.js";
 import {
@@ -191,6 +192,7 @@ function createResponse(
       finalUrl: input.finalUrl,
       contentType: input.contentType,
       statusCode: input.statusCode,
+      decisions: createEmptyFetchDecisionMetadata(),
     },
     fallbackReason: input.fallbackReason,
   };
@@ -268,6 +270,7 @@ function createFetchMetadata(
     finalUrl,
     contentType,
     statusCode,
+    decisions: createEmptyFetchDecisionMetadata(),
   };
 }
 

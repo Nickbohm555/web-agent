@@ -5,6 +5,7 @@ import {
   createFetchCacheKey,
 } from "./fetch-cache.js";
 import { normalizeFetchRequest, type FetchResponse } from "../../sdk/contracts/fetch.js";
+import { createEmptyFetchDecisionMetadata } from "../../sdk/contracts/safety.js";
 
 describe("fetch cache", () => {
   it("uses normalized fetch requests for stable cache keying", () => {
@@ -123,6 +124,7 @@ function createResponse(text: string): FetchResponse {
       finalUrl: "https://example.com/article",
       contentType: "text/html",
       statusCode: 200,
+      decisions: createEmptyFetchDecisionMetadata(),
     },
     fallbackReason: null,
   };

@@ -269,6 +269,10 @@ describe("fetch task 1 primitives", () => {
         finalUrl: "https://example.com/thin",
         contentType: "text/html",
         statusCode: 200,
+        decisions: {
+          safety: null,
+          compliance: null,
+        },
       },
       fallbackReason: "low-content-quality",
     });

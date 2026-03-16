@@ -5,6 +5,7 @@ import {
   resolveFetchControls,
   type ResolvedFetchControls,
 } from "../../core/policy/retrieval-controls.js";
+import { FetchDecisionMetadataSchema } from "./safety.js";
 
 const FetchUrlSchema = z.string().trim().url();
 
@@ -45,6 +46,7 @@ export const FetchResponseSchema = z
         finalUrl: FetchUrlSchema.transform(normalizeUrl),
         contentType: z.string().trim().min(1).nullable(),
         statusCode: z.number().int().min(100).max(599).nullable(),
+        decisions: FetchDecisionMetadataSchema,
       })
       .strict(),
     fallbackReason: FetchFallbackReasonSchema.nullable(),

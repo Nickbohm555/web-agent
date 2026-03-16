@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FetchResponse } from "../../sdk/contracts/fetch.js";
+import { createEmptyFetchDecisionMetadata } from "../../sdk/contracts/safety.js";
 
 const runFetchOrchestratorMock = vi.fn<
   (url: string, options?: { http?: { timeoutMs?: number } }) => Promise<FetchResponse>
@@ -205,6 +206,7 @@ function createFetchResponse(
       finalUrl: url,
       contentType: "text/html; charset=utf-8",
       statusCode: 200,
+      decisions: createEmptyFetchDecisionMetadata(),
     },
     fallbackReason: null,
   };

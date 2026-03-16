@@ -161,6 +161,10 @@ describe("fetch stability", () => {
         finalUrl: "https://example.com/articles/thin",
         contentType: "text/html; charset=utf-8",
         statusCode: 200,
+        decisions: {
+          safety: null,
+          compliance: null,
+        },
       },
       fallbackReason: "low-content-quality",
     });
