@@ -76,9 +76,9 @@ This roadmap is derived directly from the v1 requirements and organizes delivery
 **Plans:** 3 plans
 
 Plans:
-- [ ] `04-01-safety-decision-contracts-PLAN.md` — establish typed safety/compliance contracts and URL preflight policy gate
-- [ ] `04-02-ssrf-network-guardrails-PLAN.md` — implement DNS/IP SSRF controls and redirect revalidation
-- [ ] `04-03-robots-compliance-fetch-wiring-PLAN.md` — wire robots outcomes into fetch orchestration with phase integration tests
+- [x] `04-01-safety-decision-contracts-PLAN.md` — establish typed safety/compliance contracts and URL preflight policy gate
+- [x] `04-02-ssrf-network-guardrails-PLAN.md` — implement DNS/IP SSRF controls and redirect revalidation
+- [x] `04-03-robots-compliance-fetch-wiring-PLAN.md` — wire robots outcomes into fetch orchestration with phase integration tests
 
 ### Phase 5: Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
 
@@ -101,8 +101,8 @@ This phase adds a local dev-console frontend that keeps SDK calls server-side, e
 | 1 - Core Retrieval Engine | Execute normalized `search`/`fetch` core behavior | 2 | Complete |
 | 2 - Retrieval Controls and Cost Tuning | Control retrieval scope, latency, and freshness | 4 | Complete |
 | 3 - Reliability and Usage Transparency | Predictable failures and inspectable usage/timing | 2 | Complete |
-| 4 - Fetch Safety and Compliance Guardrails | Safe, robots-aware fetch behavior | 2 | Pending |
-| 5 - Frontend Validation Surface | Display `search` and `fetch` calls and outputs clearly | 0 | Planned |
+| 4 - Fetch Safety and Compliance Guardrails | Safe, robots-aware fetch behavior | 2 | Complete |
+| 5 - Frontend Validation Surface | Display `search` and `fetch` calls and outputs clearly | 0 | In Progress |
 
 ---
-*Last updated: 2026-03-15*
+*Last updated: 2026-03-16*
