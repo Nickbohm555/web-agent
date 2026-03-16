@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Deterministic Fixture Article</title>
+    <style>
+      .hidden {
+        display: none;
+      }
+    </style>
+    <script>
+      window.unused = true;
+    </script>
+  </head>
+  <body>
+    <header>
+      <nav>Home / Testing / Fetch</nav>
+    </header>
+    <main>
+      <article>
+        <h1>Deterministic Fixture Article</h1>
+        <p>
+          This fixture exists to verify that repeated fetch runs preserve one
+          normalized response shape across equivalent executions.
+        </p>
+        <p>
+          The article content is intentionally long enough to clear the minimum
+          extraction threshold and stable enough for repeated assertions.
+        </p>
+        <section>
+          <h2>Stable Output</h2>
+          <p>
+            Scripts, styles, and other noisy elements should not affect the
+            normalized text or markdown fields returned by the SDK.
+          </p>
+        </section>
+      </article>
+    </main>
+    <footer class="hidden">Hidden footer content</footer>
+  </body>
+</html>

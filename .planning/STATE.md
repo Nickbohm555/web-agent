@@ -45,15 +45,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented `01-03` task 2 extraction pipeline, HTTP-first orchestrator, and SDK fetch wiring with explicit fallback reasons.
-- **Next command:** Execute Section 10 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Continue with Phase 1 plan `01-03` task 3 execution.
+- **Last completed step:** Implemented `01-03` task 3 fixture-based fetch stability tests and verified deterministic fallback behavior.
+- **Next command:** Execute Section 11 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Continue with Phase 1 plan `01-03` summary creation.
 
 ## Execution Tracking
 
 - **phase:** 01-core-retrieval-engine
 - **plan:** 01-03
-- **task:** 2
+- **task:** 3
 - **status:** implemented
 
 ---
