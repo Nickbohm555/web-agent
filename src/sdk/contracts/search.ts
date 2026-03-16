@@ -32,6 +32,7 @@ export const SearchRequestSchema = z
 export const SearchRankSchema = z
   .object({
     position: z.number().int().positive(),
+    providerPosition: z.number().int().positive().optional(),
   })
   .strict();
 

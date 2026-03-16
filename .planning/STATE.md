@@ -45,15 +45,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented `01-02` task 1 Serper transport retry/timeout boundary and mocked retry coverage.
-- **Next command:** Execute Section 5 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Continue with Phase 1 plan `01-02` task 2 deterministic Serper mapping.
+- **Last completed step:** Implemented `01-02` task 2 deterministic Serper mapping with fixture-backed normalization coverage.
+- **Next command:** Execute Section 6 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Continue with Phase 1 plan `01-02` task 3 SDK `search(...)` orchestration.
 
 ## Execution Tracking
 
 - **phase:** 01-core-retrieval-engine
 - **plan:** 01-02
-- **task:** 1
+- **task:** 2
 - **status:** implemented
 
 ---
