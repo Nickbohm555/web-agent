@@ -6,9 +6,9 @@ import { executeWithRetry } from "../../core/retry.js";
 import {
   normalizeSearchRequest,
   type SearchOptions,
-  type SearchRequest,
 } from "../../sdk/contracts/search.js";
 import type { ResolvedSearchControls } from "../../core/policy/retrieval-controls.js";
+import { buildSerperSearchRequest } from "./search-request.js";
 
 const SERPER_API_URL = "https://google.serper.dev/search";
 const SERPER_TIMEOUT_MS = 5_000;
@@ -73,13 +73,19 @@ export async function callSerperSearch(
   try {
     const result = await executeWithRetry(
       async () => {
+        const signal = AbortSignal.timeout(
+          clientOptions.timeoutMs ?? normalizedRequest.options.timeoutMs,
+        );
         const response = await requestFn(clientOptions.endpoint ?? SERPER_API_URL, {
           method: "POST",
           headers: {
             "content-type": "application/json",
             "x-api-key": apiKey,
           },
-          body: JSON.stringify(toSerperRequestBody(normalizedRequest)),
+          body: JSON.stringify(
+            buildSerperSearchRequest(normalizedRequest.query, normalizedRequest.options),
+          ),
+          signal,
           headersTimeout: clientOptions.timeoutMs ?? SERPER_TIMEOUT_MS,
           bodyTimeout: clientOptions.timeoutMs ?? SERPER_TIMEOUT_MS,
           ...(clientOptions.dispatcher ? { dispatcher: clientOptions.dispatcher } : {}),
@@ -169,15 +175,6 @@ function isResolvedSearchControls(
   return typeof value === "object" && value !== null && "domainScope" in value;
 }
 
-function toSerperRequestBody(request: SearchRequest): Record<string, unknown> {
-  return {
-    q: request.query,
-    num: request.options.maxResults,
-    gl: request.options.country.toLowerCase(),
-    hl: request.options.language,
-  };
-}
-
 function isRetryableTransportError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -188,6 +185,7 @@ function isRetryableTransportError(error: unknown): boolean {
     "ECONNREFUSED",
     "EPIPE",
     "ETIMEDOUT",
+    "ABORT_ERR",
     "UND_ERR_CONNECT_TIMEOUT",
     "UND_ERR_HEADERS_TIMEOUT",
     "UND_ERR_BODY_TIMEOUT",

@@ -46,15 +46,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented Phase 2 plan `02-02` task 1 search control normalization and advanced the implementation plan to Section 17.
-- **Next command:** Execute Section 17 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Start Phase 2 plan `02-02` task 2 provider mapping and domain enforcement.
+- **Last completed step:** Implemented Phase 2 plan `02-02` task 2 provider mapping and domain enforcement and advanced the implementation plan to Section 18.
+- **Next command:** Execute Section 18 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Start Phase 2 plan `02-02` task 3 search controls integration coverage expansion.
 
 ## Execution Tracking
 
 - **phase:** 02-retrieval-controls-and-cost-tuning
 - **plan:** 02-02
-- **task:** 1
+- **task:** 2
 - **status:** implemented
 
 ---
