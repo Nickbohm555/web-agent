@@ -46,15 +46,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented Phase 2 plan `02-01` task 2 domain scope normalization and advanced the implementation plan to Section 14.
-- **Next command:** Execute Section 14 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Start Phase 2 plan `02-01` task 3 policy tests.
+- **Last completed step:** Implemented Phase 2 plan `02-01` task 3 policy tests and advanced the implementation plan to Section 15.
+- **Next command:** Execute Section 15 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Start Phase 2 plan `02-01` summary creation.
 
 ## Execution Tracking
 
 - **phase:** 02-retrieval-controls-and-cost-tuning
 - **plan:** 02-01
-- **task:** 2
+- **task:** 3
 - **status:** implemented
 
 ---
