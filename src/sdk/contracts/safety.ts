@@ -12,6 +12,7 @@ export const SafetyDenyReasonSchema = z.enum([
   "INVALID_HOST",
   "MALFORMED_URL",
   "SSRF_BLOCKED_IP",
+  "DNS_RESOLUTION_FAILED",
   "UNSAFE_REDIRECT",
   "POLICY_DENIED",
 ]);
