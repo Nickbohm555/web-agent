@@ -25,6 +25,29 @@ build_codex_exec_command() {
   printf '%s' "$cmd"
 }
 
+create_git_guard() {
+  local guard_dir="$1"
+  local real_git
+  real_git="$(command -v git)"
+
+  mkdir -p "$guard_dir"
+  cat >"$guard_dir/git" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+REAL_GIT="$real_git"
+cmd="\${1:-}"
+case "\$cmd" in
+  commit|merge|rebase|cherry-pick|reset|push|am)
+    echo "Error: loop guard blocked 'git \$cmd' during agent execution." >&2
+    echo "Write .loop-commit-msg; loop.sh is responsible for history changes." >&2
+    exit 97
+    ;;
+esac
+exec "\$REAL_GIT" "\$@"
+EOF
+  chmod +x "$guard_dir/git"
+}
+
 if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
   MAX_ITERATIONS="$1"
 elif [ -n "${1:-}" ]; then
@@ -72,8 +95,12 @@ while :; do
   LOOP_STATE_DIR="$REPO_ROOT/.git/ralph-loop"
   LOOP_MSG="$REPO_ROOT/.loop-commit-msg"
   LOOP_FULL="$REPO_ROOT/.loop-commit-msg.full"
+  LOOP_INPUT="$LOOP_STATE_DIR/agent-input.txt"
+  GIT_GUARD_DIR="$LOOP_STATE_DIR/git-guard-bin"
   mkdir -p "$LOOP_STATE_DIR"
-  rm -f "$LOOP_MSG" "$LOOP_FULL"
+  rm -f "$LOOP_MSG" "$LOOP_FULL" "$LOOP_INPUT"
+  rm -rf "$GIT_GUARD_DIR"
+  create_git_guard "$GIT_GUARD_DIR"
   echo "=================================================="
   echo "Ralph loop iteration: $ITERATION"
   echo "Prompt: $PROMPT_FILE"
@@ -84,7 +111,9 @@ while :; do
   [ "$MAX_ITERATIONS" -gt 0 ] && echo "Max iterations: $MAX_ITERATIONS"
   echo "=================================================="
 
-  cat "$PROMPT_FILE" "$AGENTS_FILE" | eval "$(build_codex_exec_command)"
+  cat "$PROMPT_FILE" "$AGENTS_FILE" >"$LOOP_INPUT"
+  AGENT_EXEC_CMD="$(build_codex_exec_command)"
+  PATH="$GIT_GUARD_DIR:$PATH" eval "$AGENT_EXEC_CMD" <"$LOOP_INPUT"
 
   END_HEAD="$(git rev-parse --verify HEAD 2>/dev/null || true)"
   if [ "$START_HEAD" != "$END_HEAD" ]; then
