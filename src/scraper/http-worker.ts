@@ -1,12 +1,17 @@
 import pino from "pino";
 import { request, type Dispatcher } from "undici";
 
+import { createFetchSafetyError, type FetchSafetyError } from "../core/errors/fetch-safety-error.js";
 import { mapError } from "../core/errors/map-error.js";
 import type { SdkErrorKind } from "../core/errors/sdk-error.js";
+import {
+  validateRedirectTarget,
+} from "../core/network/redirect-guard.js";
 import { executeWithRetry } from "../core/reliability/execute-with-retry.js";
 import type { RetryPolicy } from "../core/reliability/execute-with-retry.js";
 
 type RequestLike = typeof request;
+type ValidateRedirectTargetFn = typeof validateRedirectTarget;
 
 export type HttpWorkerState =
   | "OK"
@@ -20,6 +25,8 @@ export interface RunHttpWorkerOptions {
   timeoutMs?: number;
   maxBytes?: number;
   retryPolicy?: RetryPolicy;
+  maxRedirects?: number;
+  validateRedirectTargetFn?: ValidateRedirectTargetFn;
 }
 
 export interface HttpWorkerMeta {
@@ -74,6 +81,7 @@ export interface HttpWorkerUnsupportedStatusResult {
   errorClass: string;
   errorKind: SdkErrorKind;
   retryable: boolean;
+  safetyDecision?: FetchSafetyError["decision"];
   meta: HttpWorkerMeta;
 }
 
@@ -85,6 +93,7 @@ export type HttpWorkerResult =
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_BYTES = 1_000_000;
+const DEFAULT_MAX_REDIRECTS = 5;
 const logger = pino({ level: process.env.LOG_LEVEL ?? "silent" });
 
 export async function runHttpWorker(
@@ -93,47 +102,21 @@ export async function runHttpWorker(
 ): Promise<HttpWorkerResult> {
   const normalizedUrl = new URL(url).toString();
   const requestFn = options.requestFn ?? request;
+  const validateRedirectTargetFn =
+    options.validateRedirectTargetFn ?? validateRedirectTarget;
   const startedAt = Date.now();
 
   try {
     const result = await executeWithRetry(
       async () => {
-        const response = await requestFn(normalizedUrl, {
-          method: "GET",
-          headersTimeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-          bodyTimeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        return runHttpRequestChain(normalizedUrl, {
+          requestFn,
+          timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          maxBytes: options.maxBytes ?? DEFAULT_MAX_BYTES,
+          maxRedirects: options.maxRedirects ?? DEFAULT_MAX_REDIRECTS,
+          validateRedirectTargetFn,
           ...(options.dispatcher ? { dispatcher: options.dispatcher } : {}),
         });
-
-        if (response.statusCode === 429 || response.statusCode >= 500) {
-          throw {
-            statusCode: response.statusCode,
-            retryAfter: readHeader(response.headers?.["retry-after"]),
-          };
-        }
-
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw {
-            statusCode: response.statusCode,
-          };
-        }
-
-        const contentType = readHeader(response.headers["content-type"]);
-        const body = await response.body.text();
-
-        if (Buffer.byteLength(body, "utf8") > (options.maxBytes ?? DEFAULT_MAX_BYTES)) {
-          throw {
-            statusCode: response.statusCode,
-            code: "BODY_TOO_LARGE",
-          };
-        }
-
-        return {
-          finalUrl: normalizedUrl,
-          statusCode: response.statusCode,
-          contentType,
-          body,
-        };
       },
       options.retryPolicy,
     );
@@ -182,6 +165,8 @@ function toFailureResult(
   meta: HttpWorkerMeta,
 ): HttpWorkerNetworkErrorResult | HttpWorkerStatusErrorResult | HttpWorkerUnsupportedStatusResult {
   const sdkError = mapError(unwrapAbortCause(error));
+  const failureMetadata = readFailureMetadata(error);
+  const safetyDecision = readSafetyDecision(error);
   const failureBase = {
     errorClass: sdkError.name,
     errorKind: sdkError.kind,
@@ -209,10 +194,11 @@ function toFailureResult(
     return {
       state: "HTTP_STATUS_UNSUPPORTED",
       url,
-      finalUrl: url,
-      statusCode: sdkError.statusCode ?? 400,
-      contentType: null,
+      finalUrl: failureMetadata.finalUrl ?? url,
+      statusCode: sdkError.statusCode ?? failureMetadata.statusCode ?? 400,
+      contentType: failureMetadata.contentType,
       body: null,
+      ...(safetyDecision ? { safetyDecision } : {}),
       ...failureBase,
     };
   }
@@ -270,4 +256,185 @@ function readHeader(headerValue: string | string[] | undefined): string | null {
   }
 
   return typeof headerValue === "string" && headerValue.length > 0 ? headerValue : null;
+}
+
+async function runHttpRequestChain(
+  url: string,
+  options: {
+    requestFn: RequestLike;
+    dispatcher?: Dispatcher;
+    timeoutMs: number;
+    maxBytes: number;
+    maxRedirects: number;
+    validateRedirectTargetFn: ValidateRedirectTargetFn;
+  },
+): Promise<{
+  finalUrl: string;
+  statusCode: number;
+  contentType: string | null;
+  body: string;
+}> {
+  let currentUrl = url;
+  let redirectCount = 0;
+
+  while (true) {
+    const response = await options.requestFn(currentUrl, {
+      method: "GET",
+      headersTimeout: options.timeoutMs,
+      bodyTimeout: options.timeoutMs,
+      ...(options.dispatcher ? { dispatcher: options.dispatcher } : {}),
+    });
+
+    if (isRedirectStatus(response.statusCode)) {
+      const location = readHeader(response.headers?.location);
+
+      if (!location) {
+        throw createRedirectSafetyError(currentUrl, "UNSAFE_REDIRECT");
+      }
+
+      if (redirectCount >= options.maxRedirects) {
+        throw createRedirectSafetyError(new URL(location, currentUrl).toString(), "UNSAFE_REDIRECT");
+      }
+
+      const redirectDecision = await options.validateRedirectTargetFn(currentUrl, location);
+
+      if (redirectDecision.outcome === "deny") {
+        throw createFetchSafetyError({
+          decision: redirectDecision.decision,
+        });
+      }
+
+      currentUrl = redirectDecision.redirectUrl;
+      redirectCount += 1;
+      continue;
+    }
+
+    if (response.statusCode === 429 || response.statusCode >= 500) {
+      throw {
+        statusCode: response.statusCode,
+        retryAfter: readHeader(response.headers?.["retry-after"]),
+      };
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw {
+        statusCode: response.statusCode,
+      };
+    }
+
+    const contentType = readHeader(response.headers["content-type"]);
+    const body = await response.body.text();
+
+    if (Buffer.byteLength(body, "utf8") > options.maxBytes) {
+      throw {
+        statusCode: response.statusCode,
+        code: "BODY_TOO_LARGE",
+      };
+    }
+
+    return {
+      finalUrl: currentUrl,
+      statusCode: response.statusCode,
+      contentType,
+      body,
+    };
+  }
+}
+
+function isRedirectStatus(statusCode: number): boolean {
+  return [301, 302, 303, 307, 308].includes(statusCode);
+}
+
+function createRedirectSafetyError(
+  redirectUrl: string,
+  reason: "UNSAFE_REDIRECT",
+): FetchSafetyError {
+  const parsedUrl = new URL(redirectUrl);
+
+  return createFetchSafetyError({
+    decision: {
+      stage: "redirect_preflight",
+      outcome: "deny",
+      reason,
+      target: {
+        url: redirectUrl,
+        scheme: parsedUrl.protocol.replace(/:$/, ""),
+        hostname: parsedUrl.hostname || null,
+        port: readPort(parsedUrl),
+      },
+    },
+  });
+}
+
+function readFailureMetadata(error: unknown): {
+  finalUrl: string | null;
+  contentType: string | null;
+  statusCode: number | null;
+} {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "metadata" in error &&
+    typeof error.metadata === "object" &&
+    error.metadata !== null
+  ) {
+    const metadata = error.metadata as {
+      finalUrl?: unknown;
+      contentType?: unknown;
+      statusCode?: unknown;
+    };
+
+    return {
+      finalUrl: typeof metadata.finalUrl === "string" ? metadata.finalUrl : null,
+      contentType: typeof metadata.contentType === "string" ? metadata.contentType : null,
+      statusCode:
+        typeof metadata.statusCode === "number" && Number.isInteger(metadata.statusCode)
+          ? metadata.statusCode
+          : null,
+    };
+  }
+
+  return {
+    finalUrl: null,
+    contentType: null,
+    statusCode: null,
+  };
+}
+
+function readSafetyDecision(error: unknown): FetchSafetyError["decision"] | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "decision" in error
+  ) {
+    const decision = (error as { decision?: unknown }).decision;
+
+    if (
+      typeof decision === "object" &&
+      decision !== null &&
+      "outcome" in decision &&
+      "stage" in decision &&
+      "target" in decision
+    ) {
+      return decision as FetchSafetyError["decision"];
+    }
+  }
+
+  return undefined;
+}
+
+function readPort(url: URL): number | null {
+  if (url.port) {
+    return Number(url.port);
+  }
+
+  if (url.protocol === "http:") {
+    return 80;
+  }
+
+  if (url.protocol === "https:") {
+    return 443;
+  }
+
+  return null;
 }

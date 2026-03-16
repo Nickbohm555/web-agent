@@ -1,10 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   evaluateIpAddressPolicy,
   isDisallowedIpAddress,
 } from "../../core/network/ip-policy.js";
+import {
+  validateRedirectTarget,
+  type RedirectTargetValidationResult,
+} from "../../core/network/redirect-guard.js";
 import { resolveAndClassifyTarget } from "../../core/network/resolve-and-classify.js";
+import { runHttpWorker } from "../../scraper/http-worker.js";
 
 describe("ssrf ip guardrails", () => {
   it("allows globally routable public addresses deterministically", () => {
@@ -288,5 +293,91 @@ describe("ssrf ip guardrails", () => {
       resolvedAddresses: [],
       resolverErrorCode: "ENOTFOUND",
     });
+  });
+
+  it("revalidates redirect targets and denies private-network hops with redirect-stage metadata", async () => {
+    const result = await validateRedirectTarget(
+      "https://example.com/start",
+      "https://metadata.google.internal/computeMetadata/v1",
+      {
+        lookupFn: async () => [{ address: "169.254.169.254", family: 4 }],
+      },
+    );
+
+    expect(result).toEqual({
+      outcome: "deny",
+      redirectUrl: "https://metadata.google.internal/computeMetadata/v1",
+      decision: {
+        stage: "redirect_preflight",
+        outcome: "deny",
+        reason: "SSRF_BLOCKED_IP",
+        target: {
+          url: "https://metadata.google.internal/computeMetadata/v1",
+          scheme: "https",
+          hostname: "metadata.google.internal",
+          port: 443,
+        },
+      },
+      resolverErrorCode: null,
+    });
+  });
+
+  it("prevents redirect-based SSRF bypasses in the http worker", async () => {
+    const requestFn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        statusCode: 302,
+        headers: {
+          location: "https://metadata.google.internal/computeMetadata/v1",
+        },
+        body: {
+          text: async () => "",
+        },
+      });
+
+    const result = await runHttpWorker("https://example.com/start", {
+      requestFn: requestFn as never,
+      validateRedirectTargetFn: vi.fn(async (): Promise<RedirectTargetValidationResult> => ({
+        outcome: "deny",
+        redirectUrl: "https://metadata.google.internal/computeMetadata/v1",
+        decision: {
+          stage: "redirect_preflight",
+          outcome: "deny",
+          reason: "SSRF_BLOCKED_IP",
+          target: {
+            url: "https://metadata.google.internal/computeMetadata/v1",
+            scheme: "https",
+            hostname: "metadata.google.internal",
+            port: 443,
+          },
+        },
+        resolverErrorCode: null,
+      })),
+    });
+
+    expect(result).toMatchObject({
+      state: "HTTP_STATUS_UNSUPPORTED",
+      url: "https://example.com/start",
+      finalUrl: "https://metadata.google.internal/computeMetadata/v1",
+      statusCode: 400,
+      errorKind: "policy_denied",
+      retryable: false,
+      safetyDecision: {
+        stage: "redirect_preflight",
+        outcome: "deny",
+        reason: "SSRF_BLOCKED_IP",
+        target: {
+          url: "https://metadata.google.internal/computeMetadata/v1",
+          scheme: "https",
+          hostname: "metadata.google.internal",
+          port: 443,
+        },
+      },
+      meta: {
+        attempts: 1,
+        retries: 0,
+      },
+    });
+    expect(requestFn).toHaveBeenCalledTimes(1);
   });
 });
