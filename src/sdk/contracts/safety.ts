@@ -18,8 +18,8 @@ export const SafetyDenyReasonSchema = z.enum([
 
 export const SafetyTargetMetadataSchema = z
   .object({
-    url: z.string().trim().url(),
-    scheme: z.string().trim().min(1),
+    url: z.string(),
+    scheme: z.string(),
     hostname: z.string().trim().min(1).nullable(),
     port: z.number().int().min(1).max(65535).nullable(),
   })
@@ -111,6 +111,7 @@ export const FetchDecisionMetadataSchema = z
   });
 
 export type SafetyDenyReason = z.output<typeof SafetyDenyReasonSchema>;
+export type SafetyDecisionStage = z.output<typeof SafetyDecisionStageSchema>;
 export type SafetyTargetMetadata = z.output<typeof SafetyTargetMetadataSchema>;
 export type SafetyDecision = z.output<typeof SafetyDecisionSchema>;
 export type ComplianceDecisionReason = z.output<typeof ComplianceDecisionReasonSchema>;
