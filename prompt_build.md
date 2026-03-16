@@ -1,5 +1,5 @@
 1. Go to the current section you are working on in `@IMPLEMENTATION_PLAN.md`. Focus only on that section.
-1B. Reminder: do NOT commit anything directly. you are only allowed to add and put the commit message here: `.loop-commit-msg`.
+1B. Reminder: do NOT commit anything directly. you are only allowed to add and put the commit message here: `.loop-commit-msg`. ONE commit per entire turn, at the end.
 2. Implement only the current section. Do not skip ahead. Read the current section, gain context, and read instructions from `@AGENTS.md` on how to build / test.
 3. Before editing, inspect the existing code so you do not rebuild something that already exists.
 4. Complete all the steps in the current section. Do not skip any.
