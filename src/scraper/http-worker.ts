@@ -1,7 +1,10 @@
 import pino from "pino";
 import { request, type Dispatcher } from "undici";
 
+import { mapError } from "../core/errors/map-error.js";
+import type { SdkErrorKind } from "../core/errors/sdk-error.js";
 import { executeWithRetry } from "../core/reliability/execute-with-retry.js";
+import type { RetryPolicy } from "../core/reliability/execute-with-retry.js";
 
 type RequestLike = typeof request;
 
@@ -16,6 +19,7 @@ export interface RunHttpWorkerOptions {
   dispatcher?: Dispatcher;
   timeoutMs?: number;
   maxBytes?: number;
+  retryPolicy?: RetryPolicy;
 }
 
 export interface HttpWorkerMeta {
@@ -42,6 +46,8 @@ export interface HttpWorkerNetworkErrorResult {
   contentType: null;
   body: null;
   errorClass: string;
+  errorKind: SdkErrorKind;
+  retryable: boolean;
   meta: HttpWorkerMeta;
 }
 
@@ -53,6 +59,8 @@ export interface HttpWorkerStatusErrorResult {
   contentType: string | null;
   body: null;
   errorClass: string;
+  errorKind: SdkErrorKind;
+  retryable: boolean;
   meta: HttpWorkerMeta;
 }
 
@@ -64,6 +72,8 @@ export interface HttpWorkerUnsupportedStatusResult {
   contentType: string | null;
   body: null;
   errorClass: string;
+  errorKind: SdkErrorKind;
+  retryable: boolean;
   meta: HttpWorkerMeta;
 }
 
@@ -96,21 +106,26 @@ export async function runHttpWorker(
         });
 
         if (response.statusCode === 429 || response.statusCode >= 500) {
-          throw new RetryableHttpStatusError(
-            response.statusCode,
-            readHeader(response.headers?.["retry-after"]),
-          );
+          throw {
+            statusCode: response.statusCode,
+            retryAfter: readHeader(response.headers?.["retry-after"]),
+          };
         }
 
         if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw new NonRetryableHttpStatusError(response.statusCode);
+          throw {
+            statusCode: response.statusCode,
+          };
         }
 
         const contentType = readHeader(response.headers["content-type"]);
         const body = await response.body.text();
 
         if (Buffer.byteLength(body, "utf8") > (options.maxBytes ?? DEFAULT_MAX_BYTES)) {
-          throw new NonRetryableHttpStatusError(response.statusCode, "BodyTooLarge");
+          throw {
+            statusCode: response.statusCode,
+            code: "BODY_TOO_LARGE",
+          };
         }
 
         return {
@@ -120,6 +135,7 @@ export async function runHttpWorker(
           body,
         };
       },
+      options.retryPolicy,
     );
 
     const meta = createMeta(startedAt, result.attempts, result.retries);
@@ -165,37 +181,41 @@ function toFailureResult(
   error: unknown,
   meta: HttpWorkerMeta,
 ): HttpWorkerNetworkErrorResult | HttpWorkerStatusErrorResult | HttpWorkerUnsupportedStatusResult {
-  const unwrappedError = unwrapAbortCause(error);
+  const sdkError = mapError(unwrapAbortCause(error));
+  const failureBase = {
+    errorClass: sdkError.name,
+    errorKind: sdkError.kind,
+    retryable: sdkError.retryable,
+    meta,
+  } as const;
 
-  if (unwrappedError instanceof RetryableHttpStatusError) {
+  if (sdkError.kind === "rate_limited" || sdkError.kind === "provider_unavailable") {
     return {
       state: "HTTP_STATUS_ERROR",
       url,
       finalUrl: url,
-      statusCode: unwrappedError.statusCode,
+      statusCode: sdkError.statusCode ?? 503,
       contentType: null,
       body: null,
-      errorClass: unwrappedError.name,
-      meta,
+      ...failureBase,
     };
   }
 
-  if (unwrappedError instanceof NonRetryableHttpStatusError) {
+  if (
+    sdkError.kind === "invalid_request" ||
+    sdkError.kind === "policy_denied" ||
+    sdkError.kind === "content_unavailable"
+  ) {
     return {
-      state: unwrappedError.statusCode >= 400 ? "HTTP_STATUS_UNSUPPORTED" : "HTTP_STATUS_ERROR",
+      state: "HTTP_STATUS_UNSUPPORTED",
       url,
       finalUrl: url,
-      statusCode: unwrappedError.statusCode,
+      statusCode: sdkError.statusCode ?? 400,
       contentType: null,
       body: null,
-      errorClass: unwrappedError.name,
-      meta,
+      ...failureBase,
     };
   }
-
-  const resolvedErrorClass = unwrappedError instanceof Error
-    ? unwrappedError.constructor.name
-    : "UnknownError";
 
   return {
     state: "NETWORK_ERROR",
@@ -204,8 +224,7 @@ function toFailureResult(
     statusCode: null,
     contentType: null,
     body: null,
-    errorClass: resolvedErrorClass,
-    meta,
+    ...failureBase,
   };
 }
 
@@ -251,24 +270,4 @@ function readHeader(headerValue: string | string[] | undefined): string | null {
   }
 
   return typeof headerValue === "string" && headerValue.length > 0 ? headerValue : null;
-}
-
-class RetryableHttpStatusError extends Error {
-  constructor(
-    readonly statusCode: number,
-    readonly retryAfter?: string | null,
-  ) {
-    super(`Retryable HTTP status ${statusCode}`);
-    this.name = "RetryableHttpStatusError";
-  }
-}
-
-class NonRetryableHttpStatusError extends Error {
-  constructor(
-    readonly statusCode: number,
-    name = "NonRetryableHttpStatusError",
-  ) {
-    super(`Non-retryable HTTP status ${statusCode}`);
-    this.name = name;
-  }
 }

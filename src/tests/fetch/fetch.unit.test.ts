@@ -101,7 +101,9 @@ describe("fetch task 1 primitives", () => {
       statusCode: 403,
       contentType: null,
       body: null,
-      errorClass: "NonRetryableHttpStatusError",
+      errorClass: "SdkError",
+      errorKind: "invalid_request",
+      retryable: false,
     });
     expect(result.meta).toMatchObject({
       attempts: 1,
@@ -177,7 +179,9 @@ describe("fetch task 1 primitives", () => {
       statusCode: null,
       contentType: null,
       body: null,
-      errorClass: "Error",
+      errorClass: "SdkError",
+      errorKind: "network" as const,
+      retryable: true,
       meta: {
         attempts: 3,
         retries: 2,
