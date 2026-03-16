@@ -2,7 +2,7 @@ import pino from "pino";
 import { request, type Dispatcher } from "undici";
 import { z } from "zod";
 
-import { executeWithRetry } from "../../core/retry.js";
+import { executeWithRetry } from "../../core/reliability/execute-with-retry.js";
 import {
   normalizeSearchRequest,
   type SearchOptions,
@@ -97,6 +97,7 @@ export async function callSerperSearch(
           throw new SerperHttpError(
             `Retryable Serper status ${response.statusCode}`,
             response.statusCode,
+            readHeader(response.headers?.["retry-after"]),
           );
         }
 
@@ -108,33 +109,6 @@ export async function callSerperSearch(
         }
 
         return SerperSearchResponseSchema.parse(payload);
-      },
-      (error) => {
-        if (error instanceof NonRetryableSerperError) {
-          return {
-            retryable: false,
-            reason: "non-retryable-status",
-          };
-        }
-
-        if (error instanceof SerperHttpError) {
-          return {
-            retryable: true,
-            reason: "retryable-status",
-          };
-        }
-
-        if (error instanceof z.ZodError) {
-          return {
-            retryable: false,
-            reason: "invalid-provider-payload",
-          };
-        }
-
-        return {
-          retryable: isRetryableTransportError(error),
-          reason: "transport-error",
-        };
       },
     );
 
@@ -175,26 +149,6 @@ function isResolvedSearchControls(
   return typeof value === "object" && value !== null && "domainScope" in value;
 }
 
-function isRetryableTransportError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const transportErrorCodes = new Set([
-    "ECONNRESET",
-    "ECONNREFUSED",
-    "EPIPE",
-    "ETIMEDOUT",
-    "ABORT_ERR",
-    "UND_ERR_CONNECT_TIMEOUT",
-    "UND_ERR_HEADERS_TIMEOUT",
-    "UND_ERR_BODY_TIMEOUT",
-  ]);
-
-  const code = "code" in error ? error.code : undefined;
-  return typeof code === "string" && transportErrorCodes.has(code);
-}
-
 function unwrapAbortCause(error: unknown): unknown {
   if (error instanceof Error && "originalError" in error) {
     return error.originalError;
@@ -207,10 +161,19 @@ function unwrapAbortCause(error: unknown): unknown {
   return error;
 }
 
+function readHeader(headerValue: string | string[] | undefined): string | null {
+  if (Array.isArray(headerValue)) {
+    return headerValue[0] ?? null;
+  }
+
+  return typeof headerValue === "string" && headerValue.length > 0 ? headerValue : null;
+}
+
 class SerperHttpError extends Error {
   constructor(
     message: string,
     readonly statusCode: number,
+    readonly retryAfter?: string | null,
   ) {
     super(message);
     this.name = "SerperHttpError";

@@ -1,7 +1,7 @@
 import pino from "pino";
 import { request, type Dispatcher } from "undici";
 
-import { executeWithRetry } from "../core/retry.js";
+import { executeWithRetry } from "../core/reliability/execute-with-retry.js";
 
 type RequestLike = typeof request;
 
@@ -96,7 +96,10 @@ export async function runHttpWorker(
         });
 
         if (response.statusCode === 429 || response.statusCode >= 500) {
-          throw new RetryableHttpStatusError(response.statusCode);
+          throw new RetryableHttpStatusError(
+            response.statusCode,
+            readHeader(response.headers?.["retry-after"]),
+          );
         }
 
         if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -115,26 +118,6 @@ export async function runHttpWorker(
           statusCode: response.statusCode,
           contentType,
           body,
-        };
-      },
-      (error) => {
-        if (error instanceof RetryableHttpStatusError) {
-          return {
-            retryable: true,
-            reason: "retryable-status",
-          };
-        }
-
-        if (error instanceof NonRetryableHttpStatusError) {
-          return {
-            retryable: false,
-            reason: "non-retryable-status",
-          };
-        }
-
-        return {
-          retryable: isRetryableTransportError(error),
-          reason: "transport-error",
         };
       },
     );
@@ -250,24 +233,6 @@ function getAttempts(error: unknown): number {
   return 1;
 }
 
-function isRetryableTransportError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const code = "code" in error ? error.code : undefined;
-
-  return typeof code === "string" && new Set([
-    "ECONNRESET",
-    "ECONNREFUSED",
-    "EPIPE",
-    "ETIMEDOUT",
-    "UND_ERR_CONNECT_TIMEOUT",
-    "UND_ERR_HEADERS_TIMEOUT",
-    "UND_ERR_BODY_TIMEOUT",
-  ]).has(code);
-}
-
 function unwrapAbortCause(error: unknown): unknown {
   if (error instanceof Error && "originalError" in error) {
     return error.originalError;
@@ -289,7 +254,10 @@ function readHeader(headerValue: string | string[] | undefined): string | null {
 }
 
 class RetryableHttpStatusError extends Error {
-  constructor(readonly statusCode: number) {
+  constructor(
+    readonly statusCode: number,
+    readonly retryAfter?: string | null,
+  ) {
     super(`Retryable HTTP status ${statusCode}`);
     this.name = "RetryableHttpStatusError";
   }

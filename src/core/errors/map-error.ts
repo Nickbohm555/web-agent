@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 
+import { parseRetryAfter } from "../reliability/retry-after.js";
 import { createSdkError, isSdkError, type SdkError } from "./sdk-error.js";
 
 const TIMEOUT_ERROR_CODES = new Set([
@@ -176,11 +177,7 @@ function toRetryAfterMs(value: unknown): number | undefined {
   }
 
   if (typeof value === "string") {
-    const seconds = Number(value);
-
-    if (Number.isFinite(seconds) && seconds >= 0) {
-      return seconds * 1_000;
-    }
+    return parseRetryAfter(value);
   }
 
   return undefined;
