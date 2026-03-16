@@ -139,6 +139,22 @@ describe("sdk search", () => {
           },
         },
       ],
+      meta: {
+        operation: "search",
+        durationMs: expect.any(Number),
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {
+          providerMs: expect.any(Number),
+          mappingMs: expect.any(Number),
+        },
+        usage: {
+          provider: {
+            organicResults: 2,
+          },
+        },
+      },
       metadata: {
         resultCount: 2,
       },
@@ -188,7 +204,50 @@ describe("sdk search", () => {
       language: "en",
     });
 
-    expect(first).toEqual(second);
+    expect(first).toMatchObject({
+      query: "Example Query",
+      results: [
+        {
+          title: "Result",
+          url: "https://example.com/path",
+          snippet: "Snippet",
+          rank: {
+            position: 1,
+            providerPosition: 3,
+          },
+        },
+      ],
+      metadata: {
+        resultCount: 1,
+      },
+    });
+    expect(first.meta).toMatchObject({
+      operation: "search",
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+      timings: {
+        providerMs: expect.any(Number),
+        mappingMs: expect.any(Number),
+      },
+    });
+    expect(second).toMatchObject({
+      query: "Example Query",
+      results: first.results,
+      metadata: {
+        resultCount: 1,
+      },
+    });
+    expect(second.meta).toMatchObject({
+      operation: "search",
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+      timings: {
+        providerMs: expect.any(Number),
+        mappingMs: expect.any(Number),
+      },
+    });
     expect(requestMock).toHaveBeenCalledTimes(2);
   });
 });

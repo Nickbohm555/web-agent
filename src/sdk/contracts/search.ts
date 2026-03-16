@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CallMetaSchema } from "../../core/telemetry/call-meta.js";
 import {
   resolveSearchControls,
   SearchControlsInputSchema,
@@ -42,6 +43,7 @@ export const SearchResponseSchema = z
   .object({
     query: z.string().trim().min(1),
     results: z.array(SearchResultItemSchema),
+    meta: CallMetaSchema,
     metadata: z
       .object({
         resultCount: z.number().int().nonnegative(),

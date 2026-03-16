@@ -51,7 +51,30 @@ describe("fetch stability", () => {
     expect(responses).toHaveLength(5);
     expect(responses.every((response) => response.fallbackReason === null)).toBe(true);
     expect(responses.every((response) => response.text.length >= 120)).toBe(true);
-    expect(responses).toEqual(Array.from({ length: 5 }, () => responses[0]));
+    responses.forEach((response) => {
+      expect(response).toMatchObject({
+        url: "https://example.com/articles/deterministic",
+        text: responses[0]?.text,
+        markdown: responses[0]?.markdown,
+        metadata: {
+          finalUrl: "https://example.com/articles/deterministic",
+          contentType: "text/html; charset=utf-8",
+          statusCode: 200,
+        },
+        fallbackReason: null,
+      });
+      expect(response.meta).toMatchObject({
+        operation: "fetch",
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {
+          robotsMs: expect.any(Number),
+          httpMs: expect.any(Number),
+          extractionMs: expect.any(Number),
+        },
+      });
+    });
   });
 
   it("keeps low-content fallback deterministic across repeated thin-content runs", async () => {
@@ -88,11 +111,46 @@ describe("fetch stability", () => {
       Array.from({ length: 5 }, () => runOnce()),
     );
 
-    expect(responses).toEqual(Array.from({ length: 5 }, () => responses[0]));
+    responses.forEach((response) => {
+      expect(response).toMatchObject({
+        url: "https://example.com/articles/thin",
+        text: "Too short.",
+        markdown: "Too short.",
+        metadata: {
+          finalUrl: "https://example.com/articles/thin",
+          contentType: "text/html; charset=utf-8",
+          statusCode: 200,
+        },
+        fallbackReason: "low-content-quality",
+      });
+      expect(response.meta).toMatchObject({
+        operation: "fetch",
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {
+          robotsMs: expect.any(Number),
+          httpMs: expect.any(Number),
+          extractionMs: expect.any(Number),
+        },
+      });
+    });
     expect(responses[0]).toEqual({
       url: "https://example.com/articles/thin",
       text: "Too short.",
       markdown: "Too short.",
+      meta: {
+        operation: "fetch",
+        durationMs: expect.any(Number),
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {
+          robotsMs: expect.any(Number),
+          httpMs: expect.any(Number),
+          extractionMs: expect.any(Number),
+        },
+      },
       metadata: {
         finalUrl: "https://example.com/articles/thin",
         contentType: "text/html; charset=utf-8",

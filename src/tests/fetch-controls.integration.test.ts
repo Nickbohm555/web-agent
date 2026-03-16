@@ -39,8 +39,40 @@ describe("fetch controls integration", () => {
       maxAgeMs: 1_000,
     });
 
-    expect(first).toEqual(createFetchResponse("https://example.com/article", "cached article"));
-    expect(second).toEqual(first);
+    expect(first).toMatchObject({
+      url: "https://example.com/article",
+      text: "cached article",
+      markdown: "cached article",
+      metadata: {
+        finalUrl: "https://example.com/article",
+        contentType: "text/html; charset=utf-8",
+        statusCode: 200,
+      },
+      fallbackReason: null,
+    });
+    expect(first.meta).toMatchObject({
+      operation: "fetch",
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+    });
+    expect(second).toMatchObject({
+      url: "https://example.com/article",
+      text: "cached article",
+      markdown: "cached article",
+      metadata: {
+        finalUrl: "https://example.com/article",
+        contentType: "text/html; charset=utf-8",
+        statusCode: 200,
+      },
+      fallbackReason: null,
+    });
+    expect(second.meta).toMatchObject({
+      operation: "fetch",
+      attempts: 1,
+      retries: 0,
+      cacheHit: true,
+    });
     expect(runFetchOrchestratorMock).toHaveBeenCalledTimes(1);
     expect(runFetchOrchestratorMock).toHaveBeenCalledWith(
       "https://example.com/article",
@@ -108,7 +140,24 @@ describe("fetch controls integration", () => {
 
     expect(initial.text).toBe("initial article");
     expect(fresh.text).toBe("fresh article");
-    expect(cachedAfterFresh).toEqual(fresh);
+    expect(fresh.meta.cacheHit).toBe(false);
+    expect(cachedAfterFresh).toMatchObject({
+      url: "https://example.com/article",
+      text: "fresh article",
+      markdown: "fresh article",
+      metadata: {
+        finalUrl: "https://example.com/article",
+        contentType: "text/html; charset=utf-8",
+        statusCode: 200,
+      },
+      fallbackReason: null,
+    });
+    expect(cachedAfterFresh.meta).toMatchObject({
+      operation: "fetch",
+      attempts: 1,
+      retries: 0,
+      cacheHit: true,
+    });
     expect(runFetchOrchestratorMock).toHaveBeenCalledTimes(2);
   });
 });
@@ -118,6 +167,16 @@ function createFetchResponse(url: string, text: string): FetchResponse {
     url,
     text,
     markdown: text,
+    meta: {
+      operation: "fetch",
+      durationMs: 5,
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+      timings: {
+        networkMs: 5,
+      },
+    },
     metadata: {
       finalUrl: url,
       contentType: "text/html; charset=utf-8",

@@ -146,6 +146,13 @@ describe("fetch task 1 primitives", () => {
 
     expect(response).toMatchObject({
       url: "https://example.com/article",
+      meta: {
+        operation: "fetch",
+        durationMs: expect.any(Number),
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+      },
       metadata: {
         finalUrl: "https://example.com/article",
         contentType: "text/html; charset=utf-8",
@@ -187,6 +194,17 @@ describe("fetch task 1 primitives", () => {
       url: "https://example.com/article",
       text: "",
       markdown: "",
+      meta: {
+        operation: "fetch",
+        durationMs: expect.any(Number),
+        attempts: 3,
+        retries: 2,
+        cacheHit: false,
+        timings: {
+          robotsMs: expect.any(Number),
+          httpMs: expect.any(Number),
+        },
+      },
       metadata: {
         finalUrl: "https://example.com/article",
         contentType: null,
@@ -223,6 +241,18 @@ describe("fetch task 1 primitives", () => {
       url: "https://example.com/thin",
       text: "Too short.",
       markdown: "Too short.",
+      meta: {
+        operation: "fetch",
+        durationMs: expect.any(Number),
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {
+          robotsMs: expect.any(Number),
+          httpMs: expect.any(Number),
+          extractionMs: expect.any(Number),
+        },
+      },
       metadata: {
         finalUrl: "https://example.com/thin",
         contentType: "text/html",

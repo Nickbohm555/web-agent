@@ -109,6 +109,16 @@ function createResponse(text: string): FetchResponse {
     url: "https://example.com/article",
     text,
     markdown: text,
+    meta: {
+      operation: "fetch",
+      durationMs: 5,
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+      timings: {
+        networkMs: 5,
+      },
+    },
     metadata: {
       finalUrl: "https://example.com/article",
       contentType: "text/html",

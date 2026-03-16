@@ -1,5 +1,6 @@
 import type { FetchFallbackReason, FetchResponse } from "../sdk/contracts/fetch.js";
 import { normalizeUrl } from "../sdk/contracts/fetch.js";
+import { buildCallMeta, startCallTimer } from "../core/telemetry/call-meta.js";
 import {
   extractContent,
   type ExtractContentResult,
@@ -42,6 +43,8 @@ export async function runFetchOrchestrator(
   options: RunFetchOrchestratorOptions = {},
 ): Promise<FetchResponse> {
   const normalizedUrl = normalizeUrl(url);
+  const startedAt = startCallTimer();
+  const robotsStartedAt = startCallTimer();
   const evaluateRobotsFn = options.evaluateRobotsFn ?? evaluateRobots;
   const runHttpWorkerFn = options.runHttpWorkerFn ?? runHttpWorker;
   const extractContentFn = options.extractContentFn ?? extractContent;
@@ -53,6 +56,13 @@ export async function runFetchOrchestrator(
 
   if (!robots.canFetch) {
     return createResponse(normalizedUrl, {
+      startedAt,
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+      timings: {
+        robotsMs: startCallTimer() - robotsStartedAt,
+      },
       finalUrl: normalizedUrl,
       contentType: null,
       statusCode: null,
@@ -60,10 +70,20 @@ export async function runFetchOrchestrator(
     });
   }
 
+  const httpStartedAt = startCallTimer();
   const httpResult = await runHttpWorkerFn(normalizedUrl, options.http);
+  const httpDurationMs = startCallTimer() - httpStartedAt;
 
   if (httpResult.state !== "OK") {
     return createResponse(normalizedUrl, {
+      startedAt,
+      attempts: httpResult.meta.attempts,
+      retries: httpResult.meta.retries,
+      cacheHit: false,
+      timings: {
+        robotsMs: startCallTimer() - robotsStartedAt,
+        httpMs: httpDurationMs,
+      },
       finalUrl: httpResult.finalUrl ?? normalizedUrl,
       contentType: httpResult.contentType,
       statusCode: httpResult.statusCode,
@@ -71,10 +91,21 @@ export async function runFetchOrchestrator(
     });
   }
 
+  const extractionStartedAt = startCallTimer();
   const extraction = extractContentFn(httpResult.body, httpResult.contentType, options.extraction);
+  const extractionDurationMs = startCallTimer() - extractionStartedAt;
 
   if (extraction.state === "UNSUPPORTED_CONTENT_TYPE") {
     return createResponse(normalizedUrl, {
+      startedAt,
+      attempts: httpResult.meta.attempts,
+      retries: httpResult.meta.retries,
+      cacheHit: false,
+      timings: {
+        robotsMs: startCallTimer() - robotsStartedAt,
+        httpMs: httpDurationMs,
+        extractionMs: extractionDurationMs,
+      },
       finalUrl: httpResult.finalUrl,
       contentType: httpResult.contentType,
       statusCode: httpResult.statusCode,
@@ -84,6 +115,15 @@ export async function runFetchOrchestrator(
 
   if (extraction.state === "LOW_CONTENT_QUALITY") {
     return createResponse(normalizedUrl, {
+      startedAt,
+      attempts: httpResult.meta.attempts,
+      retries: httpResult.meta.retries,
+      cacheHit: false,
+      timings: {
+        robotsMs: startCallTimer() - robotsStartedAt,
+        httpMs: httpDurationMs,
+        extractionMs: extractionDurationMs,
+      },
       finalUrl: httpResult.finalUrl,
       contentType: httpResult.contentType,
       statusCode: httpResult.statusCode,
@@ -94,6 +134,15 @@ export async function runFetchOrchestrator(
   }
 
   return createResponse(normalizedUrl, {
+    startedAt,
+    attempts: httpResult.meta.attempts,
+    retries: httpResult.meta.retries,
+    cacheHit: false,
+    timings: {
+      robotsMs: startCallTimer() - robotsStartedAt,
+      httpMs: httpDurationMs,
+      extractionMs: extractionDurationMs,
+    },
     finalUrl: httpResult.finalUrl,
     contentType: httpResult.contentType,
     statusCode: httpResult.statusCode,
@@ -106,6 +155,11 @@ export async function runFetchOrchestrator(
 function createResponse(
   url: string,
   input: {
+    startedAt: number;
+    attempts: number;
+    retries: number;
+    cacheHit: boolean;
+    timings: Record<string, number>;
     finalUrl: string;
     contentType: string | null;
     statusCode: number | null;
@@ -118,6 +172,14 @@ function createResponse(
     url,
     text: input.text ?? "",
     markdown: input.markdown ?? "",
+    meta: buildCallMeta({
+      operation: "fetch",
+      startedAt: input.startedAt,
+      attempts: input.attempts,
+      retries: input.retries,
+      cacheHit: input.cacheHit,
+      timings: input.timings,
+    }),
     metadata: {
       finalUrl: input.finalUrl,
       contentType: input.contentType,

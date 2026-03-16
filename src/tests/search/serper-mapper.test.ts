@@ -45,6 +45,14 @@ describe("Serper mapper", () => {
           },
         },
       ],
+      meta: {
+        operation: "search",
+        durationMs: 0,
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {},
+      },
       metadata: {
         resultCount: 3,
       },

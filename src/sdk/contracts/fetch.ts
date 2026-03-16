@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CallMetaSchema } from "../../core/telemetry/call-meta.js";
 import {
   FetchControlsInputSchema,
   resolveFetchControls,
@@ -38,6 +39,7 @@ export const FetchResponseSchema = z
     url: FetchUrlSchema.transform(normalizeUrl),
     text: z.string(),
     markdown: z.string(),
+    meta: CallMetaSchema,
     metadata: z
       .object({
         finalUrl: FetchUrlSchema.transform(normalizeUrl),

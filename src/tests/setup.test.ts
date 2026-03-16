@@ -48,6 +48,14 @@ describe("sdk foundation", () => {
             },
           },
         ],
+        meta: {
+          operation: "search",
+          durationMs: 1,
+          attempts: 1,
+          retries: 0,
+          cacheHit: false,
+          timings: {},
+        },
         metadata: {
           resultCount: 1,
         },
@@ -59,6 +67,14 @@ describe("sdk foundation", () => {
         url: "https://example.com",
         text: "",
         markdown: "",
+        meta: {
+          operation: "fetch",
+          durationMs: 1,
+          attempts: 1,
+          retries: 0,
+          cacheHit: false,
+          timings: {},
+        },
         metadata: {
           finalUrl: "https://example.com",
           contentType: null,

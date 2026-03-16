@@ -3,6 +3,7 @@ import {
   normalizeSearchResponse,
   type SearchResponse,
 } from "../../sdk/contracts/search.js";
+import { buildCallMeta } from "../../core/telemetry/call-meta.js";
 import type { SerperSearchResponse } from "./client.js";
 
 export interface MapSerperOrganicOptions {
@@ -29,6 +30,15 @@ export function mapSerperOrganicToSearchResponse(
   return normalizeSearchResponse({
     query: options.query,
     results,
+    meta: buildCallMeta({
+      operation: "search",
+      startedAt: 0,
+      endedAt: 0,
+      attempts: 1,
+      retries: 0,
+      cacheHit: false,
+      timings: {},
+    }),
     metadata: {
       resultCount: results.length,
     },

@@ -48,6 +48,22 @@ describe("search controls integration", () => {
           },
         },
       ],
+      meta: {
+        operation: "search",
+        durationMs: expect.any(Number),
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {
+          providerMs: expect.any(Number),
+          mappingMs: expect.any(Number),
+        },
+        usage: {
+          provider: {
+            organicResults: 3,
+          },
+        },
+      },
       metadata: {
         resultCount: 1,
       },
@@ -203,6 +219,22 @@ describe("search controls integration", () => {
           },
         },
       ],
+      meta: {
+        operation: "search",
+        durationMs: expect.any(Number),
+        attempts: 1,
+        retries: 0,
+        cacheHit: false,
+        timings: {
+          providerMs: expect.any(Number),
+          mappingMs: expect.any(Number),
+        },
+        usage: {
+          provider: {
+            organicResults: 3,
+          },
+        },
+      },
       metadata: {
         resultCount: 1,
       },
