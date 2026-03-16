@@ -9,6 +9,7 @@ vi.mock("undici", () => ({
 describe("Serper transport", () => {
   beforeEach(() => {
     requestMock.mockReset();
+    vi.resetModules();
   });
 
   it("retries 429 and succeeds with validated provider payload", async () => {
@@ -78,6 +79,117 @@ describe("Serper transport", () => {
     ).rejects.toThrow();
 
     expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("sdk search", () => {
+  beforeEach(() => {
+    requestMock.mockReset();
+    vi.resetModules();
+    process.env.SERPER_API_KEY = "test-key";
+  });
+
+  it("returns normalized search results without leaking provider fields", async () => {
+    const { search } = await import("../../sdk/index.js");
+
+    requestMock.mockResolvedValueOnce(
+      createResponse(200, {
+        organic: [
+          {
+            title: "  Example Domain  ",
+            link: "https://example.com",
+            snippet: "  Example snippet  ",
+            position: 7,
+            sitelinks: [{ title: "Ignored child" }],
+          },
+          {
+            title: "Second Result",
+            link: "https://example.org/docs",
+          },
+        ],
+        credits: 1,
+      }),
+    );
+
+    await expect(
+      search("  Example Query  ", {
+        limit: 5,
+        country: "us",
+        language: "EN",
+      }),
+    ).resolves.toEqual({
+      query: "Example Query",
+      results: [
+        {
+          title: "Example Domain",
+          url: "https://example.com/",
+          snippet: "Example snippet",
+          rank: {
+            position: 1,
+            providerPosition: 7,
+          },
+        },
+        {
+          title: "Second Result",
+          url: "https://example.org/docs",
+          snippet: "",
+          rank: {
+            position: 2,
+            providerPosition: 2,
+          },
+        },
+      ],
+      metadata: {
+        resultCount: 2,
+      },
+    });
+
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(requestMock).toHaveBeenCalledWith(
+      "https://google.serper.dev/search",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "content-type": "application/json",
+          "x-api-key": "test-key",
+        }),
+        body: JSON.stringify({
+          q: "Example Query",
+          num: 5,
+          gl: "us",
+          hl: "en",
+        }),
+      }),
+    );
+  });
+
+  it("produces identical normalized output for equivalent input and option shapes", async () => {
+    const { search } = await import("../../sdk/index.js");
+
+    requestMock.mockResolvedValue(createResponse(200, {
+      organic: [
+        {
+          title: "Result",
+          link: "https://example.com/path",
+          snippet: "Snippet",
+          position: 3,
+        },
+      ],
+    }));
+
+    const first = await search(" Example Query ", {
+      limit: 1,
+      country: "us",
+      language: "EN",
+    });
+    const second = await search("Example Query", {
+      limit: 1,
+      country: "US",
+      language: "en",
+    });
+
+    expect(first).toEqual(second);
+    expect(requestMock).toHaveBeenCalledTimes(2);
   });
 });
 

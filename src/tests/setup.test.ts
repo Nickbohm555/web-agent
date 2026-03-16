@@ -8,19 +8,14 @@ import {
   fetch,
   normalizeFetchRequest,
   normalizeSearchRequest,
-  search,
 } from "../sdk/index.js";
 
 describe("sdk foundation", () => {
   it("exports stable search and fetch entry points", async () => {
-    await expect(search("baseline query")).resolves.toEqual({
-      query: "baseline query",
-      results: [],
-      metadata: {
-        resultCount: 0,
-      },
-    });
+    const sdk = await import("../sdk/index.js");
 
+    expect(typeof sdk.search).toBe("function");
+    expect(typeof sdk.fetch).toBe("function");
     await expect(fetch("https://example.com")).resolves.toEqual({
       url: "https://example.com/",
       text: "",
