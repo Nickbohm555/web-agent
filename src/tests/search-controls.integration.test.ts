@@ -181,7 +181,11 @@ describe("search controls integration", () => {
       search("agents", {
         timeoutMs: 250,
       }),
-    ).rejects.toSatisfy((error) => error instanceof DOMException && error.name === "TimeoutError");
+    ).rejects.toMatchObject({
+      name: "SdkError",
+      kind: "unknown",
+      retryable: false,
+    });
   });
 
   it("enforces mixed include and exclude precedence on final normalized results", async () => {

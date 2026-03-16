@@ -2,6 +2,7 @@ import pino from "pino";
 import { request, type Dispatcher } from "undici";
 import { z } from "zod";
 
+import { isSdkError } from "../../core/errors/sdk-error.js";
 import { executeWithRetry } from "../../core/reliability/execute-with-retry.js";
 import {
   normalizeSearchRequest,
@@ -76,20 +77,30 @@ export async function callSerperSearch(
         const signal = AbortSignal.timeout(
           clientOptions.timeoutMs ?? normalizedRequest.options.timeoutMs,
         );
-        const response = await requestFn(clientOptions.endpoint ?? SERPER_API_URL, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-api-key": apiKey,
-          },
-          body: JSON.stringify(
-            buildSerperSearchRequest(normalizedRequest.query, normalizedRequest.options),
-          ),
-          signal,
-          headersTimeout: clientOptions.timeoutMs ?? SERPER_TIMEOUT_MS,
-          bodyTimeout: clientOptions.timeoutMs ?? SERPER_TIMEOUT_MS,
-          ...(clientOptions.dispatcher ? { dispatcher: clientOptions.dispatcher } : {}),
-        });
+        let response;
+
+        try {
+          response = await requestFn(clientOptions.endpoint ?? SERPER_API_URL, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-api-key": apiKey,
+            },
+            body: JSON.stringify(
+              buildSerperSearchRequest(normalizedRequest.query, normalizedRequest.options),
+            ),
+            signal,
+            headersTimeout: clientOptions.timeoutMs ?? SERPER_TIMEOUT_MS,
+            bodyTimeout: clientOptions.timeoutMs ?? SERPER_TIMEOUT_MS,
+            ...(clientOptions.dispatcher ? { dispatcher: clientOptions.dispatcher } : {}),
+          });
+        } catch (error) {
+          if (signal.aborted) {
+            throw signal.reason ?? error;
+          }
+
+          throw error;
+        }
 
         const payload = await response.body.json();
 
@@ -150,6 +161,10 @@ function isResolvedSearchControls(
 }
 
 function unwrapAbortCause(error: unknown): unknown {
+  if (isSdkError(error)) {
+    return error;
+  }
+
   if (error instanceof Error && "originalError" in error) {
     return error.originalError;
   }

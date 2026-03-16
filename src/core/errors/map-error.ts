@@ -48,6 +48,22 @@ export function mapError(error: unknown): SdkError {
     return error;
   }
 
+  if (error instanceof DOMException) {
+    if (error.name === "TimeoutError") {
+      return createSdkError({
+        kind: "timeout",
+        cause: error,
+      });
+    }
+
+    if (error.name === "AbortError") {
+      return createSdkError({
+        kind: "timeout",
+        cause: error,
+      });
+    }
+  }
+
   if (error instanceof ZodError) {
     return createSdkError({
       kind: "invalid_request",
@@ -59,6 +75,15 @@ export function mapError(error: unknown): SdkError {
   const code = typeof errorLike.code === "string" ? errorLike.code : undefined;
   const statusCode = toStatusCode(errorLike.statusCode);
   const retryAfterMs = toRetryAfterMs(errorLike.retryAfterMs ?? errorLike.retryAfter);
+  const errorName = typeof errorLike.name === "string" ? errorLike.name : undefined;
+
+  if (errorName === "TimeoutError" || errorName === "AbortError") {
+    return createSdkError({
+      kind: "timeout",
+      ...(statusCode !== undefined ? { statusCode } : {}),
+      cause: error,
+    });
+  }
 
   if (statusCode === 429) {
     return createSdkError({

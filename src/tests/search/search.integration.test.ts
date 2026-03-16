@@ -64,7 +64,13 @@ describe("Serper transport", () => {
 
     await expect(
       callSerperSearch("test query", undefined, { apiKey: "test-key" }),
-    ).rejects.toThrow("Non-retryable Serper status 400");
+    ).rejects.toMatchObject({
+      name: "SdkError",
+      kind: "invalid_request",
+      retryable: false,
+      statusCode: 400,
+      attemptNumber: 1,
+    });
 
     expect(requestMock).toHaveBeenCalledTimes(1);
   });
