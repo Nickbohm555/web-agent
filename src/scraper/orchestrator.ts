@@ -4,18 +4,27 @@ import {
   type FetchResponse,
 } from "../sdk/contracts/fetch.js";
 import { normalizeUrl } from "../sdk/contracts/fetch.js";
-import { createEmptyFetchDecisionMetadata } from "../sdk/contracts/safety.js";
+import {
+  type ComplianceDecision,
+  type SafetyDecision,
+} from "../sdk/contracts/safety.js";
+import {
+  createFetchSafetyError,
+  type BlockedFetchDecision,
+} from "../core/errors/fetch-safety-error.js";
 import { createSdkError, type SdkError } from "../core/errors/sdk-error.js";
+import { resolveAndClassifyTarget } from "../core/network/resolve-and-classify.js";
+import { evaluateSafetyPreflight } from "../core/policy/safety-decision.js";
 import { buildCallMeta, startCallTimer } from "../core/telemetry/call-meta.js";
 import {
   extractContent,
   type ExtractContentResult,
 } from "./extract.js";
 import {
-  evaluateRobots,
-  type EvaluateRobotsOptions,
-  type RobotsPolicyResult,
-} from "./robots.js";
+  evaluateRobotsCompliance,
+  type EvaluateRobotsComplianceOptions,
+  type RobotsComplianceResult,
+} from "./robots/evaluator.js";
 import {
   runHttpWorker,
   type HttpWorkerResult,
@@ -24,15 +33,17 @@ import {
 
 export interface RunFetchOrchestratorOptions {
   userAgent?: string;
-  robots?: Omit<EvaluateRobotsOptions, "userAgent">;
+  robots?: Omit<EvaluateRobotsComplianceOptions, "userAgent">;
   http?: RunHttpWorkerOptions;
   extraction?: {
     minTextLength?: number;
   };
-  evaluateRobotsFn?: (
+  evaluateSafetyPreflightFn?: typeof evaluateSafetyPreflight;
+  resolveAndClassifyTargetFn?: typeof resolveAndClassifyTarget;
+  evaluateRobotsComplianceFn?: (
     targetUrl: string,
-    options?: EvaluateRobotsOptions,
-  ) => Promise<RobotsPolicyResult>;
+    options?: EvaluateRobotsComplianceOptions,
+  ) => Promise<RobotsComplianceResult>;
   runHttpWorkerFn?: (
     targetUrl: string,
     options?: RunHttpWorkerOptions,
@@ -50,29 +61,69 @@ export async function runFetchOrchestrator(
 ): Promise<FetchResponse> {
   const normalizedUrl = normalizeUrl(url);
   const startedAt = startCallTimer();
-  const robotsStartedAt = startCallTimer();
-  const evaluateRobotsFn = options.evaluateRobotsFn ?? evaluateRobots;
+  const safetyStartedAt = startCallTimer();
+  const evaluateSafetyPreflightFn =
+    options.evaluateSafetyPreflightFn ?? evaluateSafetyPreflight;
+  const resolveAndClassifyTargetFn =
+    options.resolveAndClassifyTargetFn ?? resolveAndClassifyTarget;
+  const evaluateRobotsComplianceFn =
+    options.evaluateRobotsComplianceFn ?? evaluateRobotsCompliance;
   const runHttpWorkerFn = options.runHttpWorkerFn ?? runHttpWorker;
   const extractContentFn = options.extractContentFn ?? extractContent;
+  const urlDecision = evaluateSafetyPreflightFn(normalizedUrl);
 
-  const robots = await evaluateRobotsFn(normalizedUrl, {
+  if (urlDecision.outcome === "deny") {
+    throw createFetchSafetyError({
+      decision: urlDecision,
+      timings: {
+        safetyMs: startCallTimer() - safetyStartedAt,
+      },
+      startedAt,
+      attempts: 1,
+      retries: 0,
+    });
+  }
+
+  const networkDecision = await resolveAndClassifyTargetFn(urlDecision.target);
+
+  if (networkDecision.outcome === "deny") {
+    throw createFetchSafetyError({
+      decision: networkDecision.decision,
+      safetyDecision: networkDecision.decision,
+      timings: {
+        safetyMs: startCallTimer() - safetyStartedAt,
+      },
+      startedAt,
+      attempts: 1,
+      retries: 0,
+    });
+  }
+
+  const safetyDurationMs = startCallTimer() - safetyStartedAt;
+  const robotsStartedAt = startCallTimer();
+  const robots = await evaluateRobotsComplianceFn(normalizedUrl, {
     ...options.robots,
     ...(options.userAgent ? { userAgent: options.userAgent } : {}),
   });
 
-  if (!robots.canFetch) {
-    throw createFetchError({
-      kind: "policy_denied",
+  if (robots.outcome === "DENY" || robots.outcome === "UNAVAILABLE") {
+    const blockedDecision = robots.decision as BlockedFetchDecision;
+    const complianceDecision = robots.decision as Extract<
+      ComplianceDecision,
+      { outcome: "deny" | "unavailable" }
+    >;
+
+    throw createFetchSafetyError({
+      decision: blockedDecision,
+      safetyDecision: networkDecision.decision,
+      complianceDecision,
       startedAt,
       attempts: 1,
       retries: 0,
       timings: {
+        safetyMs: safetyDurationMs,
         robotsMs: startCallTimer() - robotsStartedAt,
       },
-      finalUrl: normalizedUrl,
-      contentType: null,
-      statusCode: null,
-      fallbackReason: null,
     });
   }
 
@@ -87,6 +138,7 @@ export async function runFetchOrchestrator(
       attempts: httpResult.meta.attempts,
       retries: httpResult.meta.retries,
       timings: {
+        safetyMs: safetyDurationMs,
         robotsMs: startCallTimer() - robotsStartedAt,
         httpMs: httpDurationMs,
       },
@@ -94,6 +146,8 @@ export async function runFetchOrchestrator(
       contentType: httpResult.contentType,
       statusCode: httpResult.statusCode,
       fallbackReason: mapHttpFailureToFallbackReason(httpResult.state),
+      safetyDecision: networkDecision.decision,
+      complianceDecision: robots.decision,
     });
   }
 
@@ -107,6 +161,7 @@ export async function runFetchOrchestrator(
       attempts: httpResult.meta.attempts,
       retries: httpResult.meta.retries,
       timings: {
+        safetyMs: safetyDurationMs,
         robotsMs: startCallTimer() - robotsStartedAt,
         httpMs: httpDurationMs,
         extractionMs: extractionDurationMs,
@@ -115,6 +170,8 @@ export async function runFetchOrchestrator(
       contentType: httpResult.contentType,
       statusCode: httpResult.statusCode,
       fallbackReason: "browser-required",
+      safetyDecision: networkDecision.decision,
+      complianceDecision: robots.decision,
     });
   }
 
@@ -124,6 +181,7 @@ export async function runFetchOrchestrator(
       attempts: httpResult.meta.attempts,
       retries: httpResult.meta.retries,
       timings: {
+        safetyMs: safetyDurationMs,
         robotsMs: startCallTimer() - robotsStartedAt,
         httpMs: httpDurationMs,
         extractionMs: extractionDurationMs,
@@ -134,6 +192,8 @@ export async function runFetchOrchestrator(
       text: extraction.text,
       markdown: extraction.markdown,
       fallbackReason: "low-content-quality",
+      safetyDecision: networkDecision.decision,
+      complianceDecision: robots.decision,
     });
   }
 
@@ -142,6 +202,7 @@ export async function runFetchOrchestrator(
     attempts: httpResult.meta.attempts,
     retries: httpResult.meta.retries,
     timings: {
+      safetyMs: safetyDurationMs,
       robotsMs: startCallTimer() - robotsStartedAt,
       httpMs: httpDurationMs,
       extractionMs: extractionDurationMs,
@@ -152,6 +213,8 @@ export async function runFetchOrchestrator(
     text: extraction.text,
     markdown: extraction.markdown,
     fallbackReason: null,
+    safetyDecision: networkDecision.decision,
+    complianceDecision: robots.decision,
   });
 }
 
@@ -168,6 +231,8 @@ function createResponse(
     text?: string;
     markdown?: string;
     fallbackReason: FetchFallbackReason | null;
+    safetyDecision?: SafetyDecision | null;
+    complianceDecision?: ComplianceDecision | null;
   },
 ): FetchResponse {
   return {
@@ -192,7 +257,10 @@ function createResponse(
       finalUrl: input.finalUrl,
       contentType: input.contentType,
       statusCode: input.statusCode,
-      decisions: createEmptyFetchDecisionMetadata(),
+      decisions: {
+        safety: input.safetyDecision ?? null,
+        compliance: input.complianceDecision ?? null,
+      },
     },
     fallbackReason: input.fallbackReason,
   };
@@ -208,6 +276,8 @@ function createFetchError(input: {
   contentType: string | null;
   statusCode: number | null;
   fallbackReason: FetchFallbackReason | null;
+  safetyDecision?: SafetyDecision | null;
+  complianceDecision?: ComplianceDecision | null;
 }): SdkError {
   const error = createSdkError({
     kind: input.kind,
@@ -251,6 +321,8 @@ function createFetchError(input: {
         input.finalUrl,
         input.contentType,
         input.statusCode,
+        input.safetyDecision ?? null,
+        input.complianceDecision ?? null,
       ),
       enumerable: true,
       writable: false,
@@ -265,12 +337,17 @@ function createFetchMetadata(
   finalUrl: string,
   contentType: string | null,
   statusCode: number | null,
+  safetyDecision: SafetyDecision | null = null,
+  complianceDecision: ComplianceDecision | null = null,
 ): FetchMetadata {
   return {
     finalUrl,
     contentType,
     statusCode,
-    decisions: createEmptyFetchDecisionMetadata(),
+    decisions: {
+      safety: safetyDecision,
+      compliance: complianceDecision,
+    },
   };
 }
 

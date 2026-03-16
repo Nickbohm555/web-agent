@@ -4,31 +4,20 @@ import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { runFetchOrchestrator } from "../../scraper/orchestrator.js";
+import type { RobotsComplianceResult } from "../../scraper/robots/evaluator.js";
 
 const articleFixture = readFileSync(
   resolve(process.cwd(), "src/tests/fixtures/fetch/article.html"),
   "utf8",
 );
 
-const allowedRobotsResult = {
-  state: "ALLOWED" as const,
-  canFetch: true,
-  targetUrl: "",
-  robotsUrl: "",
-  userAgent: "web-agent-bot",
-  crawlDelaySeconds: null,
-  reason: "allowed" as const,
-};
-
 describe("fetch stability", () => {
   it("returns the same normalized response across repeated equivalent article runs", async () => {
     const runOnce = () =>
       runFetchOrchestrator("https://example.com/articles/deterministic", {
-        evaluateRobotsFn: vi.fn(async () => ({
-          ...allowedRobotsResult,
-          targetUrl: "https://example.com/articles/deterministic",
-          robotsUrl: "https://example.com/robots.txt",
-        })),
+        evaluateRobotsComplianceFn: vi.fn(
+          async () => createAllowedRobotsResult("https://example.com/articles/deterministic"),
+        ),
         runHttpWorkerFn: vi.fn(async () => ({
           state: "OK" as const,
           url: "https://example.com/articles/deterministic",
@@ -69,6 +58,7 @@ describe("fetch stability", () => {
         retries: 0,
         cacheHit: false,
         timings: {
+          safetyMs: expect.any(Number),
           robotsMs: expect.any(Number),
           httpMs: expect.any(Number),
           extractionMs: expect.any(Number),
@@ -87,11 +77,9 @@ describe("fetch stability", () => {
 
     const runOnce = () =>
       runFetchOrchestrator("https://example.com/articles/thin", {
-        evaluateRobotsFn: vi.fn(async () => ({
-          ...allowedRobotsResult,
-          targetUrl: "https://example.com/articles/thin",
-          robotsUrl: "https://example.com/robots.txt",
-        })),
+        evaluateRobotsComplianceFn: vi.fn(
+          async () => createAllowedRobotsResult("https://example.com/articles/thin"),
+        ),
         runHttpWorkerFn: vi.fn(async () => ({
           state: "OK" as const,
           url: "https://example.com/articles/thin",
@@ -129,6 +117,7 @@ describe("fetch stability", () => {
         retries: 0,
         cacheHit: false,
         timings: {
+          safetyMs: expect.any(Number),
           robotsMs: expect.any(Number),
           httpMs: expect.any(Number),
           extractionMs: expect.any(Number),
@@ -146,6 +135,7 @@ describe("fetch stability", () => {
         retries: 0,
         cacheHit: false,
         timings: {
+          safetyMs: expect.any(Number),
           robotsMs: expect.any(Number),
           httpMs: expect.any(Number),
           extractionMs: expect.any(Number),
@@ -162,11 +152,63 @@ describe("fetch stability", () => {
         contentType: "text/html; charset=utf-8",
         statusCode: 200,
         decisions: {
-          safety: null,
-          compliance: null,
+          safety: {
+            stage: "network_preflight",
+            outcome: "allow",
+            target: {
+              url: "https://example.com/articles/thin",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
+          compliance: {
+            stage: "robots",
+            outcome: "allow",
+            reason: "ROBOTS_ALLOW",
+            target: {
+              url: "https://example.com/articles/thin",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
         },
       },
       fallbackReason: "low-content-quality",
     });
   });
 });
+
+function createAllowedRobotsResult(targetUrl: string): RobotsComplianceResult {
+  return {
+    outcome: "ALLOW",
+    decision: {
+      stage: "robots",
+      outcome: "allow",
+      reason: "ROBOTS_ALLOW",
+      target: {
+        url: targetUrl,
+        scheme: "https",
+        hostname: "example.com",
+        port: 443,
+      },
+    },
+    target: {
+      url: targetUrl,
+      scheme: "https",
+      hostname: "example.com",
+      port: 443,
+    },
+    userAgent: "web-agent-bot",
+    crawlDelaySeconds: null,
+    reason: {
+      code: "ROBOTS_ALLOW",
+      detail: "ROBOTS_RULE_ALLOW",
+      robotsUrl: "https://example.com/robots.txt",
+      httpStatus: 200,
+      fetchedAt: "2026-03-15T00:00:00.000Z",
+      errorClass: null,
+    },
+  };
+}

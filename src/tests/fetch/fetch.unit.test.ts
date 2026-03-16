@@ -3,45 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 import { extractContent } from "../../scraper/extract.js";
 import { runFetchOrchestrator } from "../../scraper/orchestrator.js";
 import { runHttpWorker } from "../../scraper/http-worker.js";
-import { evaluateRobots } from "../../scraper/robots.js";
-
-const allowedRobotsResult = {
-  state: "ALLOWED" as const,
-  canFetch: true,
-  targetUrl: "",
-  robotsUrl: "",
-  userAgent: "web-agent-bot",
-  crawlDelaySeconds: null,
-  reason: "allowed" as const,
-};
+import type { RobotsComplianceResult } from "../../scraper/robots/evaluator.js";
 
 describe("fetch task 1 primitives", () => {
   it("blocks disallowed targets before content fetch runs", async () => {
-    const robotsRequest = vi.fn(async () => ({
-      statusCode: 200,
-      headers: {},
-      body: {
-        text: async () => "User-agent: *\nDisallow: /private",
-      },
-    }));
-    const contentRequest = vi.fn();
+    const runHttpWorkerFn = vi.fn();
 
-    const policy = await evaluateRobots("https://example.com/private", {
-      requestFn: robotsRequest as never,
-      userAgent: "web-agent-bot",
+    await expect(
+      runFetchOrchestrator("https://example.com/private", {
+        evaluateRobotsComplianceFn: vi.fn(async () => createDeniedRobotsResult("https://example.com/private")),
+        runHttpWorkerFn,
+      }),
+    ).rejects.toMatchObject({
+      kind: "policy_denied",
+      stage: "robots",
+      reason: "ROBOTS_DENY",
     });
-
-    expect(policy).toEqual({
-      state: "DISALLOWED",
-      canFetch: false,
-      targetUrl: "https://example.com/private",
-      robotsUrl: "https://example.com/robots.txt",
-      userAgent: "web-agent-bot",
-      crawlDelaySeconds: null,
-      reason: "disallowed",
-    });
-    expect(robotsRequest).toHaveBeenCalledTimes(1);
-    expect(contentRequest).not.toHaveBeenCalled();
+    expect(runHttpWorkerFn).not.toHaveBeenCalled();
   });
 
   it("retries retryable transport failures with a bounded attempt count", async () => {
@@ -114,12 +92,7 @@ describe("fetch task 1 primitives", () => {
 
   it("extracts normalized text and markdown from successful HTML fetches", async () => {
     const response = await runFetchOrchestrator("https://example.com/article", {
-      evaluateRobotsFn: vi.fn(async () => ({
-        ...allowedRobotsResult,
-        canFetch: true,
-        targetUrl: "https://example.com/article",
-        robotsUrl: "https://example.com/robots.txt",
-      })),
+      evaluateRobotsComplianceFn: vi.fn(async () => createAllowedRobotsResult("https://example.com/article")),
       runHttpWorkerFn: vi.fn(async () => ({
         state: "OK" as const,
         url: "https://example.com/article",
@@ -159,6 +132,29 @@ describe("fetch task 1 primitives", () => {
         finalUrl: "https://example.com/article",
         contentType: "text/html; charset=utf-8",
         statusCode: 200,
+        decisions: {
+          safety: {
+            stage: "network_preflight",
+            outcome: "allow",
+            target: {
+              url: "https://example.com/article",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
+          compliance: {
+            stage: "robots",
+            outcome: "allow",
+            reason: "ROBOTS_ALLOW",
+            target: {
+              url: "https://example.com/article",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
+        },
       },
       fallbackReason: null,
     });
@@ -167,11 +163,9 @@ describe("fetch task 1 primitives", () => {
   });
 
   it("throws a typed fetch error when HTTP retrieval fails", async () => {
-    const evaluateRobotsFn = vi.fn(async () => ({
-      ...allowedRobotsResult,
-      targetUrl: "https://example.com/article",
-      robotsUrl: "https://example.com/robots.txt",
-    }));
+    const evaluateRobotsComplianceFn = vi.fn(
+      async () => createAllowedRobotsResult("https://example.com/article"),
+    );
     const runHttpWorkerFn = vi.fn(async () => ({
       state: "NETWORK_ERROR" as const,
       url: "https://example.com/article",
@@ -191,7 +185,7 @@ describe("fetch task 1 primitives", () => {
 
     await expect(
       runFetchOrchestrator("https://example.com/article", {
-        evaluateRobotsFn,
+        evaluateRobotsComplianceFn,
         runHttpWorkerFn,
       }),
     ).rejects.toMatchObject({
@@ -216,18 +210,37 @@ describe("fetch task 1 primitives", () => {
         finalUrl: "https://example.com/article",
         contentType: null,
         statusCode: null,
+        decisions: {
+          safety: {
+            stage: "network_preflight",
+            outcome: "allow",
+            target: {
+              url: "https://example.com/article",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
+          compliance: {
+            stage: "robots",
+            outcome: "allow",
+            reason: "ROBOTS_ALLOW",
+            target: {
+              url: "https://example.com/article",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
+        },
       },
     });
-    expect(evaluateRobotsFn).toHaveBeenCalledBefore(runHttpWorkerFn);
+    expect(evaluateRobotsComplianceFn).toHaveBeenCalledBefore(runHttpWorkerFn);
   });
 
   it("returns low-content-quality when extraction output is too thin", async () => {
     const response = await runFetchOrchestrator("https://example.com/thin", {
-      evaluateRobotsFn: vi.fn(async () => ({
-        ...allowedRobotsResult,
-        targetUrl: "https://example.com/thin",
-        robotsUrl: "https://example.com/robots.txt",
-      })),
+      evaluateRobotsComplianceFn: vi.fn(async () => createAllowedRobotsResult("https://example.com/thin")),
       runHttpWorkerFn: vi.fn(async () => ({
         state: "OK" as const,
         url: "https://example.com/thin",
@@ -254,6 +267,7 @@ describe("fetch task 1 primitives", () => {
         retries: 0,
         cacheHit: false,
         timings: {
+          safetyMs: expect.any(Number),
           robotsMs: expect.any(Number),
           httpMs: expect.any(Number),
           extractionMs: expect.any(Number),
@@ -270,8 +284,27 @@ describe("fetch task 1 primitives", () => {
         contentType: "text/html",
         statusCode: 200,
         decisions: {
-          safety: null,
-          compliance: null,
+          safety: {
+            stage: "network_preflight",
+            outcome: "allow",
+            target: {
+              url: "https://example.com/thin",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
+          compliance: {
+            stage: "robots",
+            outcome: "allow",
+            reason: "ROBOTS_ALLOW",
+            target: {
+              url: "https://example.com/thin",
+              scheme: "https",
+              hostname: "example.com",
+              port: 443,
+            },
+          },
         },
       },
       fallbackReason: "low-content-quality",
@@ -287,3 +320,69 @@ describe("fetch task 1 primitives", () => {
     });
   });
 });
+
+function createAllowedRobotsResult(targetUrl: string): RobotsComplianceResult {
+  return {
+    outcome: "ALLOW",
+    decision: {
+      stage: "robots",
+      outcome: "allow",
+      reason: "ROBOTS_ALLOW",
+      target: {
+        url: targetUrl,
+        scheme: "https",
+        hostname: "example.com",
+        port: 443,
+      },
+    },
+    target: {
+      url: targetUrl,
+      scheme: "https",
+      hostname: "example.com",
+      port: 443,
+    },
+    userAgent: "web-agent-bot",
+    crawlDelaySeconds: null,
+    reason: {
+      code: "ROBOTS_ALLOW",
+      detail: "ROBOTS_RULE_ALLOW",
+      robotsUrl: "https://example.com/robots.txt",
+      httpStatus: 200,
+      fetchedAt: "2026-03-15T00:00:00.000Z",
+      errorClass: null,
+    },
+  };
+}
+
+function createDeniedRobotsResult(targetUrl: string): RobotsComplianceResult {
+  return {
+    outcome: "DENY",
+    decision: {
+      stage: "robots",
+      outcome: "deny",
+      reason: "ROBOTS_DENY",
+      target: {
+        url: targetUrl,
+        scheme: "https",
+        hostname: "example.com",
+        port: 443,
+      },
+    },
+    target: {
+      url: targetUrl,
+      scheme: "https",
+      hostname: "example.com",
+      port: 443,
+    },
+    userAgent: "web-agent-bot",
+    crawlDelaySeconds: null,
+    reason: {
+      code: "ROBOTS_DENY",
+      detail: "ROBOTS_RULE_DENY",
+      robotsUrl: "https://example.com/robots.txt",
+      httpStatus: 200,
+      fetchedAt: "2026-03-15T00:00:00.000Z",
+      errorClass: null,
+    },
+  };
+}
