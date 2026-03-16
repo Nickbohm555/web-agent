@@ -4,7 +4,7 @@
 
 - **Project:** Web Search Core Engine
 - **Core value:** Lowest-cost path to production-grade `search` + `fetch` context for agent systems through reliable core retrieval logic.
-- **Current focus:** Execute Phase 2 plan 02-03 task 2 in task order.
+- **Current focus:** Execute Phase 2 plan 02-03 task 3 in task order.
 
 ## Current Position
 
@@ -38,7 +38,7 @@
 ### TODOs
 
 - Continue Phase 2 plan `02-03` in task order.
-- Implement the bounded fetch cache utility and tests for explicit fresh/maxAge precedence.
+- Add integration tests for fetch hit/miss/stale/bypass semantics and precedence.
 
 ### Blockers
 
@@ -46,15 +46,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented Phase 2 plan `02-03` task 1 and advanced the implementation plan to Section 21.
-- **Next command:** Execute Section 21 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Start Phase 2 plan `02-03` task 2 execution.
+- **Last completed step:** Implemented Phase 2 plan `02-03` task 2 and advanced the implementation plan to Section 22.
+- **Next command:** Execute Section 22 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Start Phase 2 plan `02-03` task 3 execution.
 
 ## Execution Tracking
 
 - **phase:** 02-retrieval-controls-and-cost-tuning
 - **plan:** 02-03
-- **task:** 1
+- **task:** 2
 - **status:** implemented
 
 ---

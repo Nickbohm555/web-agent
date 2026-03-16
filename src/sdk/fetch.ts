@@ -5,7 +5,13 @@ import {
   normalizeFetchRequest,
   normalizeFetchResponse,
 } from "./contracts/fetch.js";
+import {
+  createFetchCache,
+  type FetchCacheReadPolicy,
+} from "../core/cache/fetch-cache.js";
 import { runFetchOrchestrator } from "../scraper/orchestrator.js";
+
+const fetchCache = createFetchCache();
 
 export async function fetch(
   url: string,
@@ -13,14 +19,16 @@ export async function fetch(
 ): Promise<FetchResponse> {
   const request = normalizeFetchRequest(url, options);
   const cacheReadPolicy = resolveFetchCacheReadPolicy(request.options);
-  const response = await executeFetchRequest(request.url, request.options.timeoutMs, cacheReadPolicy);
+  const cached = fetchCache.read(request, cacheReadPolicy);
+
+  if (cached.kind === "hit") {
+    return normalizeFetchResponse(cached.entry.response);
+  }
+
+  const response = await executeFetchRequest(request.url, request.options.timeoutMs);
+  fetchCache.write(request, response);
 
   return normalizeFetchResponse(response);
-}
-
-interface FetchCacheReadPolicy {
-  mode: "eligible" | "bypass";
-  maxAgeMs: number;
 }
 
 function resolveFetchCacheReadPolicy(
@@ -44,12 +52,7 @@ function resolveFetchCacheReadPolicy(
 async function executeFetchRequest(
   url: string,
   timeoutMs: number,
-  cacheReadPolicy: FetchCacheReadPolicy,
 ): Promise<FetchResponse> {
-  // Section 20 establishes precedence before retrieval begins; Section 21 adds
-  // the concrete cache utility that consumes this policy.
-  void cacheReadPolicy;
-
   return runFetchOrchestrator(url, {
     http: {
       timeoutMs,
