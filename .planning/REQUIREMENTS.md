@@ -50,9 +50,20 @@
 
 ## Traceability
 
-| Requirement ID | Phase |
-|----------------|-------|
-| (to be assigned in roadmap) | — |
+| Requirement ID | Phase | Status |
+|----------------|-------|--------|
+| CORE-01 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
+| CORE-02 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
+| CTRL-01 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
+| CTRL-02 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
+| CTRL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
+| REL-01 | Phase 3 - Reliability and Usage Transparency | Pending |
+| REL-02 | Phase 3 - Reliability and Usage Transparency | Pending |
+| REL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
+| SAFE-01 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
+| SAFE-02 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
+| DX-01 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
+| DX-02 | Phase 1 - SDK Foundation and Core Retrieval | Pending |
 
 ---
 *Last updated: 2026-03-15 after requirements definition*
