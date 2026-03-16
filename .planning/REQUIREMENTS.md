@@ -3,18 +3,18 @@
 ## v1 Requirements
 
 ### Core Retrieval
-- [ ] **CORE-01**: User can call `search(query, options)` and receive normalized results with `title`, `url`, `snippet`, and rank metadata.
-- [ ] **CORE-02**: User can call `fetch(url, options)` and receive clean page content (`text` and/or `markdown`) with consistent response structure.
+- [x] **CORE-01**: User can call `search(query, options)` and receive normalized results with `title`, `url`, `snippet`, and rank metadata.
+- [x] **CORE-02**: User can call `fetch(url, options)` and receive clean page content (`text` and/or `markdown`) with consistent response structure.
 
 ### Retrieval Controls
-- [ ] **CTRL-01**: User can control search cost and latency using `maxResults` and timeout options.
-- [ ] **CTRL-02**: User can constrain search scope with `includeDomains` and `excludeDomains`.
-- [ ] **CTRL-03**: User can tune relevance with locale/freshness controls, with US + English defaults.
+- [x] **CTRL-01**: User can control search cost and latency using `maxResults` and timeout options.
+- [x] **CTRL-02**: User can constrain search scope with `includeDomains` and `excludeDomains`.
+- [x] **CTRL-03**: User can tune relevance with locale/freshness controls, with US + English defaults.
 
 ### Reliability and Cost Transparency
 - [ ] **REL-01**: User gets deterministic retry/backoff behavior for retryable errors (including rate-limit responses) with typed error outputs.
 - [ ] **REL-02**: User can inspect per-call usage and timing metadata for both search and fetch operations.
-- [ ] **REL-03**: User can control fetch freshness/cost tradeoffs with cache options (for example, `maxAge` and force-fresh behavior).
+- [x] **REL-03**: User can control fetch freshness/cost tradeoffs with cache options (for example, `maxAge` and force-fresh behavior).
 
 ### Safety and Compliance
 - [ ] **SAFE-01**: User is protected from unsafe outbound fetch behavior via URL and network safety policies (including SSRF guardrails).
@@ -49,14 +49,14 @@
 
 | Requirement ID | Phase | Status |
 |----------------|-------|--------|
-| CORE-01 | Phase 1 - Core Retrieval Engine | Pending |
-| CORE-02 | Phase 1 - Core Retrieval Engine | Pending |
-| CTRL-01 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
-| CTRL-02 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
-| CTRL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
+| CORE-01 | Phase 1 - Core Retrieval Engine | Complete |
+| CORE-02 | Phase 1 - Core Retrieval Engine | Complete |
+| CTRL-01 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
+| CTRL-02 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
+| CTRL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
 | REL-01 | Phase 3 - Reliability and Usage Transparency | Pending |
 | REL-02 | Phase 3 - Reliability and Usage Transparency | Pending |
-| REL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Pending |
+| REL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
 | SAFE-01 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
 | SAFE-02 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
 
