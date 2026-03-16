@@ -16,17 +16,7 @@ describe("sdk foundation", () => {
 
     expect(typeof sdk.search).toBe("function");
     expect(typeof sdk.fetch).toBe("function");
-    await expect(fetch("https://example.com")).resolves.toEqual({
-      url: "https://example.com/",
-      text: "",
-      markdown: "",
-      metadata: {
-        finalUrl: "https://example.com/",
-        contentType: null,
-        statusCode: null,
-      },
-      fallbackReason: null,
-    });
+    expect(fetch).toBe(sdk.fetch);
   });
 
   it("rejects malformed contract inputs", () => {

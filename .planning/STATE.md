@@ -45,15 +45,15 @@
 
 ## Session Continuity
 
-- **Last completed step:** Implemented `01-03` task 1 robots/politeness gate and HTTP worker with typed fetch outcomes.
-- **Next command:** Execute Section 9 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Continue with Phase 1 plan `01-03` task 2 execution.
+- **Last completed step:** Implemented `01-03` task 2 extraction pipeline, HTTP-first orchestrator, and SDK fetch wiring with explicit fallback reasons.
+- **Next command:** Execute Section 10 in `IMPLEMENTATION_PLAN.md`
+- **Resume point:** Continue with Phase 1 plan `01-03` task 3 execution.
 
 ## Execution Tracking
 
 - **phase:** 01-core-retrieval-engine
 - **plan:** 01-03
-- **task:** 1
+- **task:** 2
 - **status:** implemented
 
 ---
