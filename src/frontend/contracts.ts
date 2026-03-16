@@ -1,0 +1,303 @@
+import { ZodError, z } from "zod";
+import { measureDurationMs, startCallTimer } from "../core/telemetry/call-meta.js";
+import {
+  isSdkError,
+  type SdkError,
+  type SdkErrorKind,
+} from "../core/errors/sdk-error.js";
+import {
+  type FetchSafetyError,
+} from "../core/errors/fetch-safety-error.js";
+import {
+  FetchRequestSchema,
+  FetchResponseSchema,
+  type FetchOptions,
+} from "../sdk/contracts/fetch.js";
+import {
+  SearchRequestSchema,
+  SearchResponseSchema,
+  type SearchOptions,
+} from "../sdk/contracts/search.js";
+import {
+  FetchControlsInputSchema,
+  SearchControlsInputSchema,
+} from "../core/policy/retrieval-controls.js";
+
+export const FrontendOperationSchema = z.enum(["search", "fetch"]);
+
+export const FrontendErrorCodeSchema = z.enum([
+  "VALIDATION_ERROR",
+  "RATE_LIMITED",
+  "TIMEOUT",
+  "NETWORK_ERROR",
+  "PROVIDER_UNAVAILABLE",
+  "INVALID_REQUEST",
+  "POLICY_DENIED",
+  "CONTENT_UNAVAILABLE",
+  "INTERNAL_ERROR",
+]);
+
+export const FrontendValidationErrorDetailsSchema = z
+  .object({
+    formErrors: z.array(z.string()),
+    fieldErrors: z.record(z.string(), z.array(z.string())),
+  })
+  .strict();
+
+export const FrontendSdkErrorDetailsSchema = z
+  .object({
+    kind: z.string(),
+    retryable: z.boolean(),
+    statusCode: z.number().int().positive().optional(),
+    retryAfterMs: z.number().nonnegative().optional(),
+    stage: z.string().optional(),
+    reason: z.string().optional(),
+    fallbackReason: z.string().nullable().optional(),
+    meta: z.unknown().optional(),
+    metadata: z.unknown().optional(),
+  })
+  .strict();
+
+export const FrontendErrorSchema = z
+  .object({
+    code: FrontendErrorCodeSchema,
+    message: z.string().min(1),
+    details: z
+      .union([
+        FrontendValidationErrorDetailsSchema,
+        FrontendSdkErrorDetailsSchema,
+      ])
+      .optional(),
+  })
+  .strict();
+
+const NormalizedSearchApiRequestSchema = z
+  .object({
+    query: z.string().min(1),
+    options: z.object({
+      maxResults: z.number().int().min(1).max(10),
+      timeoutMs: z.number().int().min(1000).max(10000),
+      country: z.string().length(2),
+      language: z.string().length(2),
+      freshness: z.enum(["day", "week", "month", "year", "any"]),
+      domainScope: z.object({
+        includeDomains: z.array(z.string()),
+        excludeDomains: z.array(z.string()),
+      }).strict(),
+    }).strict(),
+  })
+  .strict();
+
+const NormalizedFetchApiRequestSchema = z
+  .object({
+    url: z.string().url(),
+    options: z.object({
+      timeoutMs: z.number().int().min(1000).max(10000),
+      maxAgeMs: z.number().int().min(0).max(86_400_000),
+      fresh: z.boolean(),
+    }).strict(),
+  })
+  .strict();
+
+const SearchApiSuccessEnvelopeSchema = z
+  .object({
+    ok: z.literal(true),
+    operation: z.literal("search"),
+    durationMs: z.number().nonnegative(),
+    request: NormalizedSearchApiRequestSchema,
+    data: SearchResponseSchema,
+  })
+  .strict();
+
+const SearchApiErrorEnvelopeSchema = z
+  .object({
+    ok: z.literal(false),
+    operation: z.literal("search"),
+    durationMs: z.number().nonnegative(),
+    request: NormalizedSearchApiRequestSchema.nullable(),
+    error: FrontendErrorSchema,
+  })
+  .strict();
+
+const FetchApiSuccessEnvelopeSchema = z
+  .object({
+    ok: z.literal(true),
+    operation: z.literal("fetch"),
+    durationMs: z.number().nonnegative(),
+    request: NormalizedFetchApiRequestSchema,
+    data: FetchResponseSchema,
+  })
+  .strict();
+
+const FetchApiErrorEnvelopeSchema = z
+  .object({
+    ok: z.literal(false),
+    operation: z.literal("fetch"),
+    durationMs: z.number().nonnegative(),
+    request: NormalizedFetchApiRequestSchema.nullable(),
+    error: FrontendErrorSchema,
+  })
+  .strict();
+
+export const SearchApiEnvelopeSchema = z.union([
+  SearchApiSuccessEnvelopeSchema,
+  SearchApiErrorEnvelopeSchema,
+]);
+
+export const FetchApiEnvelopeSchema = z.union([
+  FetchApiSuccessEnvelopeSchema,
+  FetchApiErrorEnvelopeSchema,
+]);
+
+export type SearchApiRequest = z.output<typeof SearchRequestSchema>;
+export type FetchApiRequest = z.output<typeof FetchRequestSchema>;
+export type FrontendErrorCode = z.output<typeof FrontendErrorCodeSchema>;
+export type FrontendError = z.output<typeof FrontendErrorSchema>;
+export type SearchApiEnvelope = z.output<typeof SearchApiEnvelopeSchema>;
+export type FetchApiEnvelope = z.output<typeof FetchApiEnvelopeSchema>;
+
+export interface ErrorEnvelopeInput<TRequest> {
+  operation: "search" | "fetch";
+  request: TRequest | null;
+  startedAt: number;
+  error: unknown;
+}
+
+export function parseSearchApiRequest(input: unknown): SearchApiRequest {
+  return SearchRequestSchema.parse(input);
+}
+
+export function parseFetchApiRequest(input: unknown): FetchApiRequest {
+  return FetchRequestSchema.parse(input);
+}
+
+export function parseSearchSdkOptions(input: unknown): SearchOptions | undefined {
+  return SearchControlsInputSchema.optional().parse(asRecord(input).options);
+}
+
+export function parseFetchSdkOptions(input: unknown): FetchOptions | undefined {
+  return FetchControlsInputSchema.optional().parse(asRecord(input).options);
+}
+
+export function createSearchSuccessEnvelope(input: {
+  request: SearchApiRequest;
+  data: z.output<typeof SearchResponseSchema>;
+  startedAt: number;
+}): SearchApiEnvelope {
+  return SearchApiEnvelopeSchema.parse({
+    ok: true,
+    operation: "search",
+    durationMs: measureDurationMs(input.startedAt),
+    request: input.request,
+    data: input.data,
+  });
+}
+
+export function createFetchSuccessEnvelope(input: {
+  request: FetchApiRequest;
+  data: z.output<typeof FetchResponseSchema>;
+  startedAt: number;
+}): FetchApiEnvelope {
+  return FetchApiEnvelopeSchema.parse({
+    ok: true,
+    operation: "fetch",
+    durationMs: measureDurationMs(input.startedAt),
+    request: input.request,
+    data: input.data,
+  });
+}
+
+export function createErrorEnvelope<TRequest>(
+  input: ErrorEnvelopeInput<TRequest>,
+): SearchApiEnvelope | FetchApiEnvelope {
+  const envelope = {
+    ok: false,
+    operation: input.operation,
+    durationMs: measureDurationMs(input.startedAt),
+    request: input.request,
+    error: normalizeFrontendError(input.error),
+  };
+
+  return input.operation === "search"
+    ? SearchApiEnvelopeSchema.parse(envelope)
+    : FetchApiEnvelopeSchema.parse(envelope);
+}
+
+export function normalizeFrontendError(error: unknown): FrontendError {
+  if (error instanceof ZodError) {
+    return FrontendErrorSchema.parse({
+      code: "VALIDATION_ERROR",
+      message: "Request payload failed validation.",
+      details: error.flatten(),
+    });
+  }
+
+  if (isSdkError(error)) {
+    return FrontendErrorSchema.parse({
+      code: mapSdkErrorCode(error.kind),
+      message: error.message,
+      details: createSdkErrorDetails(error),
+    });
+  }
+
+  return FrontendErrorSchema.parse({
+    code: "INTERNAL_ERROR",
+    message: "Unexpected error while executing request.",
+  });
+}
+
+export function createRequestTimer(): number {
+  return startCallTimer();
+}
+
+function mapSdkErrorCode(kind: SdkErrorKind): FrontendErrorCode {
+  switch (kind) {
+    case "rate_limited":
+      return "RATE_LIMITED";
+    case "timeout":
+      return "TIMEOUT";
+    case "network":
+      return "NETWORK_ERROR";
+    case "provider_unavailable":
+      return "PROVIDER_UNAVAILABLE";
+    case "invalid_request":
+      return "INVALID_REQUEST";
+    case "policy_denied":
+      return "POLICY_DENIED";
+    case "content_unavailable":
+      return "CONTENT_UNAVAILABLE";
+    case "unknown":
+      return "INTERNAL_ERROR";
+  }
+}
+
+function createSdkErrorDetails(error: SdkError): z.output<typeof FrontendSdkErrorDetailsSchema> {
+  const details: z.input<typeof FrontendSdkErrorDetailsSchema> = {
+    kind: error.kind,
+    retryable: error.retryable,
+    ...(error.statusCode !== undefined ? { statusCode: error.statusCode } : {}),
+    ...(error.retryAfterMs !== undefined ? { retryAfterMs: error.retryAfterMs } : {}),
+  };
+
+  if (isFetchSafetyError(error)) {
+    details.stage = error.stage;
+    details.reason = error.reason;
+    details.fallbackReason = error.fallbackReason;
+    details.meta = error.meta;
+    details.metadata = error.metadata;
+  }
+
+  return FrontendSdkErrorDetailsSchema.parse(details);
+}
+
+function isFetchSafetyError(error: SdkError): error is FetchSafetyError {
+  return "operation" in error && error.operation === "fetch" && "stage" in error;
+}
+
+function asRecord(input: unknown): Record<string, unknown> {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return {};
+  }
+
+  return input as Record<string, unknown>;
+}

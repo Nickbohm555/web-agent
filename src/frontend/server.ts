@@ -1,10 +1,11 @@
 import express, {
   type Application,
   Router,
-  type RequestHandler,
 } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createFetchRouter } from "./routes/fetch.js";
+import { createSearchRouter } from "./routes/search.js";
 
 const DEFAULT_PORT = 3000;
 const JSON_LIMIT = "100kb";
@@ -13,24 +14,11 @@ const projectRoot = path.resolve(__dirname, "../..");
 const publicDir = path.join(projectRoot, "public");
 const publicIndexPath = path.join(publicDir, "index.html");
 
-function createPendingRoute(operation: "search" | "fetch"): RequestHandler {
-  return (_req, res) => {
-    res.status(501).json({
-      ok: false,
-      operation,
-      error: {
-        code: "NOT_IMPLEMENTED",
-        message: `${operation} API route is scaffolded but not implemented yet.`,
-      },
-    });
-  };
-}
-
 function createApiRouter(): Router {
   const router = Router();
 
-  router.use("/search", createPendingRoute("search"));
-  router.use("/fetch", createPendingRoute("fetch"));
+  router.use("/search", createSearchRouter());
+  router.use("/fetch", createFetchRouter());
 
   return router;
 }
