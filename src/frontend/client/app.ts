@@ -81,6 +81,8 @@ function statusLabel(currentState: RunState): string {
       return "Starting";
     case "running":
       return "Running";
+    case "completed":
+      return "Completed";
     case "failed":
       return "Failed";
   }
@@ -96,6 +98,8 @@ function detailsLabel(currentState: RunState): string {
       return currentState.activeRunId === null
         ? "Run active."
         : `Run ${currentState.activeRunId} is active.`;
+    case "completed":
+      return currentState.finalAnswer ?? "Run completed.";
     case "failed":
       return currentState.error ?? "Run could not be started.";
   }

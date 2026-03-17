@@ -72,5 +72,5 @@ Resume file: None
 
 phase=04-frontend-prompt-execution-surface
 plan=04-02
-task=1
+task=2
 status=implemented
