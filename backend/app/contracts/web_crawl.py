@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from .tool_errors import ToolErrorEnvelope, ToolMeta
 
 CrawlFallbackReason = Literal["network-error", "low-content-quality", "unsupported-content-type"]
+ExtractionState = Literal["ok", "low-content-quality", "unsupported-content-type", "network-error"]
 
 
 class WebCrawlInput(BaseModel):
@@ -43,3 +44,16 @@ class WebCrawlSuccess(BaseModel):
 class WebCrawlError(ToolErrorEnvelope):
     model_config = ConfigDict(extra="forbid", strict=True)
 
+
+class ExtractionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    state: ExtractionState
+    text: str
+    markdown: str
+    fallback_reason: Optional[CrawlFallbackReason] = None
+
+    @field_validator("text", "markdown")
+    @classmethod
+    def normalize_output(cls, value: str) -> str:
+        return value.strip()
