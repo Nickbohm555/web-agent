@@ -1,62 +1,63 @@
-# Web Search Core Engine
+# Python LangGraph Web Agent Demo
 
 ## What This Is
 
-This project is a core web retrieval engine for startup teams building agentic products. It combines a Serper-backed search provider with an in-house web scraper so systems can move from search snippets to full-page context quickly and cheaply. The initial product focus is robust core logic behind two primitives, `search(...)` and `fetch(...)`, without committing to a public SDK in the current phases.
+A local-first demo app that runs a single ReAct-style LangGraph agent in Python with two tools: web search and in-house web crawl. It is built to make backend tool behavior easy to inspect from a simple TypeScript frontend and Docker logs. The target user is the builder (you) validating agent behavior quickly during a large TypeScript-to-Python backend refactor.
 
 ## Core Value
 
-Deliver the lowest-cost path to production-grade search plus page retrieval context for agent systems through reliable core retrieval logic.
+A user can run one prompt from a simple UI and clearly see how the agent invokes search and crawl tools end-to-end.
 
 ## Requirements
 
 ### Validated
 
-<!-- Shipped and confirmed valuable. -->
-
 (None yet — ship to validate)
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
-
-- [ ] Agent developers can call a `search(query, options)` tool that returns relevant, normalized search results using Serper.
-- [ ] Agent developers can call a `fetch(url, options)` tool that returns clean, parseable page content from an in-house scraper.
-- [ ] The system is optimized for low cost per call and transparent usage tradeoffs suitable for startup-scale budgets.
-- [ ] The initial implementation ships only core retrieval logic for `search` and `fetch`, independent of SDK packaging.
-- [ ] The architecture leaves room for an optional Go hosted service later if direct backend control is needed for speed/cost optimization.
-- [ ] The initial implementation targets US + English usage patterns.
+- [ ] Build Python backend using LangGraph ReAct-style agent with two tools (`web_search`, `web_crawl`).
+- [ ] Integrate Serper for search using `SERPER_API_KEY` from environment variables.
+- [ ] Use OpenAI model provider with `OPENAI_API_KEY` from environment variables.
+- [ ] Build an in-house crawler tool in Python (simple v1 implementation).
+- [ ] Provide a TypeScript frontend with a minimal UI to run the agent.
+- [ ] Show full tool inputs and outputs in UI/logging for debugging and validation.
+- [ ] Run locally with Docker Compose and inspect behavior through Docker logs.
+- [ ] Replace current TypeScript backend path with Python backend for this v1.
 
 ### Out of Scope
 
-<!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
-
-- Multiple search providers beyond Serper in v1 — single-provider focus reduces complexity and supports faster cost optimization.
-- Public SDK productization in current phases — focus is core engine behavior first, packaging/integration layers can follow.
-- Enterprise multi-tenant/compliance platform features — not required for first-party validation in startup environments.
+- User authentication/authorization — excluded to keep v1 focused on tool execution observability.
+- Advanced crawler sophistication (deep compliance and browser automation) — deferred to keep v1 implementation simple.
+- Multi-agent orchestration — excluded because v1 scope is one simple agent with two tools.
+- Deployment/production hardening — deferred; local Docker Compose is sufficient for initial validation.
 
 ## Context
 
-The project is inspired by Onyx's split between search providers and web scraping, where search snippets alone are not sufficient for complete answer context. The key user pain to address is high API cost for search and scraping workflows used in agent systems. The initial success bar is internal production confidence: the creator can depend on this stack in their own products before broader commercialization.
+This repository already contains substantial TypeScript implementation and tests, but the current goal is to shift the agent/tool backend path to Python while keeping a TypeScript frontend for quick testing. The key need is observability: understanding exactly what inputs are sent to each tool and what outputs are returned, not polishing product UX. Serper will power search, and an in-house crawler will fetch/extract content similarly to the tool split used by modern internet-search agent systems.
 
 ## Constraints
 
-- **Provider**: Serper is the only search provider in v1 — cost and implementation focus.
-- **Architecture**: Core retrieval engine first, optional Go service later — keeps v1 focused while preserving a path to hosted optimization.
-- **Interface**: Two primary primitives (`search`, `fetch`) — keep behavior focused and composable.
-- **Market**: Startup teams first — optimize for practical integration and cost sensitivity.
-- **Region/Language**: US + English first — avoid premature global complexity.
+- **Stack**: Python backend + LangGraph agent + TypeScript frontend — required to align with refactor target and UI needs.
+- **Model provider**: OpenAI — chosen explicitly by user for v1.
+- **Search provider**: Serper — selected tool API with environment-provided key.
+- **Runtime**: Local Docker Compose — required for local development and log visibility.
+- **Observability**: Full tool inputs/outputs visible — needed to validate how agent tools run.
+- **Scope**: Keep implementation simple (no auth, minimal UI) — prevents scope creep during major refactor.
+- **Delivery**: Balanced speed/quality — not throwaway, but avoid overengineering.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Expose two primitives: `search` and `fetch` | Clear separation of concerns mirrors retrieval pipeline needs | — Pending |
-| Use Serper for search provider | Cost-effective baseline and quick path to implementation | — Pending |
-| Build in-house scraper | Control over query privacy and per-call cost profile | — Pending |
-| Prioritize lowest cost in v1 | Primary differentiation goal versus existing search tools | — Pending |
-| SDK packaging is deferred | Core retrieval logic must be correct and cost-efficient before interface packaging | — Pending |
-| Go service is optional and deferred | Build only if hosted backend control is needed for better speed/cost economics | — Pending |
+| Use Python backend with LangGraph ReAct-style agent | Align with full backend refactor target | — Pending |
+| Keep exactly two v1 tools: search + crawl | Mirrors intended agent behavior and keeps tool surface focused | — Pending |
+| Use OpenAI + Serper via env keys | Explicit user choice and existing key setup | — Pending |
+| Replace TypeScript backend now | User requested immediate cutover strategy | — Pending |
+| Local Docker Compose only for v1 | Simplifies execution and debugging loop | — Pending |
+| Minimal TypeScript UI with clear run visibility | Primary value is backend observability, not feature-rich frontend | — Pending |
+| Full tool input/output visibility | Needed to verify agent behavior and debug rapidly | — Pending |
+| Exclude auth and other platform features | Keeps v1 tightly focused and achievable | — Pending |
 
 ---
-*Last updated: 2026-03-15 after scope pivot to core logic*
+*Last updated: 2026-03-17 after initialization*
