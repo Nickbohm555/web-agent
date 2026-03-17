@@ -116,13 +116,13 @@ function parseWithReadability(html: string): {
   const domParser = (globalThis as {
     DOMParser?: {
       new (): {
-        parseFromString: (input: string, mimeType: string) => unknown;
+        parseFromString: (input: string, mimeType: DOMParserSupportedType) => Document;
       };
     };
   }).DOMParser as
     | {
         new (): {
-          parseFromString: (input: string, mimeType: string) => unknown;
+          parseFromString: (input: string, mimeType: DOMParserSupportedType) => Document;
         };
       }
     | undefined;

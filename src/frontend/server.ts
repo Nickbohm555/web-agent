@@ -2,8 +2,10 @@ import express, {
   type Application,
   Router,
 } from "express";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { createFetchRouter } from "./routes/fetch.js";
 import { createRunsRouter } from "./routes/runs.js";
 import { createSearchRouter } from "./routes/search.js";
@@ -14,6 +16,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "../..");
 const publicDir = path.join(projectRoot, "public");
 const publicIndexPath = path.join(publicDir, "index.html");
+const clientSourceDir = path.join(projectRoot, "src", "frontend", "client");
 
 function createApiRouter(): Router {
   const router = Router();
@@ -30,6 +33,29 @@ export function createFrontendServerApp(): Application {
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: JSON_LIMIT }));
+  app.get("/client/:moduleName.js", async (req, res, next) => {
+    const sourcePath = path.join(clientSourceDir, `${req.params.moduleName}.ts`);
+
+    if (!sourcePath.startsWith(clientSourceDir)) {
+      next();
+      return;
+    }
+
+    try {
+      const source = await readFile(sourcePath, "utf8");
+      const output = ts.transpileModule(source, {
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          target: ts.ScriptTarget.ES2022,
+        },
+        fileName: sourcePath,
+      });
+
+      res.type("application/javascript").send(output.outputText);
+    } catch (error: unknown) {
+      next(error);
+    }
+  });
   app.get("/healthz", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });

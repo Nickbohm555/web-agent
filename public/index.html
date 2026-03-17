@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web Agent</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Iowan Old Style", "Palatino Linotype", serif;
+        background:
+          radial-gradient(circle at top, rgba(236, 233, 225, 0.9), transparent 48%),
+          linear-gradient(180deg, #f7f3eb 0%, #efe5d4 100%);
+        color: #1f1a14;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      main {
+        width: min(100%, 760px);
+        padding: 32px;
+        border: 1px solid rgba(62, 45, 30, 0.16);
+        border-radius: 24px;
+        background: rgba(255, 251, 244, 0.84);
+        box-shadow: 0 24px 80px rgba(77, 55, 31, 0.12);
+        backdrop-filter: blur(14px);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 5vw, 3.4rem);
+        line-height: 0.95;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .lede {
+        color: rgba(31, 26, 20, 0.72);
+        max-width: 54ch;
+      }
+
+      form {
+        margin-top: 28px;
+      }
+
+      label,
+      .status-label {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(31, 26, 20, 0.66);
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 180px;
+        padding: 18px;
+        border: 1px solid rgba(62, 45, 30, 0.18);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.76);
+        color: inherit;
+        resize: vertical;
+        font: inherit;
+      }
+
+      textarea:focus,
+      button:focus-visible {
+        outline: 2px solid #b76635;
+        outline-offset: 3px;
+      }
+
+      .controls {
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 14px 22px;
+        background: #1f1a14;
+        color: #f7f3eb;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button[disabled] {
+        opacity: 0.55;
+        cursor: wait;
+      }
+
+      .error {
+        min-height: 1.4em;
+        margin-top: 8px;
+        color: #9d3b1f;
+      }
+
+      .status-panel {
+        margin-top: 28px;
+        padding: 18px;
+        border-radius: 18px;
+        background: rgba(114, 82, 49, 0.08);
+      }
+
+      .status-value {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.25rem;
+        padding: 0 14px;
+        border-radius: 999px;
+        background: rgba(31, 26, 20, 0.08);
+        font-size: 0.95rem;
+      }
+
+      .status-value[data-phase="running"] {
+        background: rgba(38, 91, 54, 0.14);
+      }
+
+      .status-value[data-phase="failed"] {
+        background: rgba(157, 59, 31, 0.12);
+      }
+
+      .status-value[data-phase="starting"] {
+        background: rgba(183, 102, 53, 0.12);
+      }
+
+      #run-details {
+        margin-top: 12px;
+        color: rgba(31, 26, 20, 0.72);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="status-label">Phase 04 / Run Surface</p>
+      <h1>Prompt the agent.</h1>
+      <p class="lede">
+        Start one run at a time from this minimal shell. Live tool streaming comes next; this screen only owns prompt submission and run-start state.
+      </p>
+
+      <form id="run-form">
+        <label for="prompt-input">Prompt</label>
+        <textarea
+          id="prompt-input"
+          name="prompt"
+          placeholder="Find the most reliable sources about..."
+        ></textarea>
+        <p id="prompt-error" class="error" role="alert"></p>
+        <div class="controls">
+          <button id="run-submit" type="submit">Start run</button>
+        </div>
+      </form>
+
+      <section class="status-panel" aria-live="polite">
+        <p class="status-label">Run status</p>
+        <div id="run-status" class="status-value" data-phase="idle">Idle</div>
+        <p id="run-details">Enter a prompt to start one run.</p>
+      </section>
+    </main>
+
+    <script type="module" src="/client/app.js"></script>
+  </body>
+</html>

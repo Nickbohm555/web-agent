@@ -5,7 +5,7 @@
     "outDir": "./dist",
     "module": "nodenext",
     "target": "es2022",
-    "lib": ["es2022"],
+    "lib": ["es2022", "dom", "dom.iterable"],
     "types": ["node", "vitest/globals"],
     "sourceMap": true,
     "declaration": true,
