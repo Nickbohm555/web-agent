@@ -1,6 +1,22 @@
 import { ZodError, z } from "zod";
 import { measureDurationMs, startCallTimer } from "../core/telemetry/call-meta.js";
 import {
+  createEmptyRunEventSafety,
+  createRunEventKey,
+  parseOrderedRunEventList,
+  parseRunEvent,
+  parseRunEventList,
+  RunEventListSchema,
+  RunEventSchema,
+  type RunEvent,
+  type RunEventJson,
+  type RunEventPayloadSafety,
+  type RunEventPayloadSignal,
+  type RunEventSafety,
+  type RunEventToolName as CanonicalRunEventToolNameType,
+  type RunEventType,
+} from "./contracts/run-events.js";
+import {
   isSdkError,
   type SdkError,
   type SdkErrorKind,
@@ -252,6 +268,13 @@ export type SearchApiRequest = z.output<typeof SearchRequestSchema>;
 export type FetchApiRequest = z.output<typeof FetchRequestSchema>;
 export type RunStartRequest = z.output<typeof RunStartRequestSchema>;
 export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
+export type CanonicalRunEvent = RunEvent;
+export type CanonicalRunEventType = RunEventType;
+export type CanonicalRunEventToolName = CanonicalRunEventToolNameType;
+export type CanonicalRunEventJson = RunEventJson;
+export type CanonicalRunEventPayloadSignal = RunEventPayloadSignal;
+export type CanonicalRunEventPayloadSafety = RunEventPayloadSafety;
+export type CanonicalRunEventSafety = RunEventSafety;
 export type RunStreamEventName = z.output<typeof RunStreamEventNameSchema>;
 export type RunEventToolName = z.output<typeof RunEventToolNameSchema>;
 export type RunStateEvent = z.output<typeof RunStateEventSchema>;
@@ -325,6 +348,16 @@ export function createRunStartResponse(
 ): RunStartResponse {
   return RunStartResponseSchema.parse(input);
 }
+
+export {
+  createEmptyRunEventSafety,
+  createRunEventKey,
+  parseOrderedRunEventList,
+  parseRunEvent,
+  parseRunEventList,
+  RunEventListSchema,
+  RunEventSchema,
+};
 
 export function parseRunStreamEvent(input: unknown): RunStreamEvent {
   return RunStreamEventSchema.parse(input);
