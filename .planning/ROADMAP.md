@@ -28,11 +28,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. User can start backend and frontend together using Docker Compose without manual service bootstrapping.
   2. Backend starts with `OPENAI_API_KEY` and `SERPER_API_KEY` loaded from environment variables and fails clearly when missing.
   3. User can confirm both services are reachable locally after stack startup.
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Define Docker Compose services and shared runtime wiring
-- [ ] 01-02: Implement environment configuration loading and startup validation
+- [ ] 01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md — Define Docker Compose services and shared runtime wiring
+- [ ] 01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md — Implement environment configuration loading and startup validation
 
 ### Phase 2: Search and Crawl Tool Capability
 **Goal**: Agent runtime has working Python `web_search` and `web_crawl` tools that return usable results.
@@ -42,11 +42,11 @@ Plans:
   1. Search tool can query Serper and return normalized links/snippets for agent use.
   2. Crawl tool can fetch a URL and return extracted content in a consistent response shape.
   3. Tool failures return explicit, debuggable errors rather than silent or empty failures.
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Implement Serper-backed `web_search` tool in Python
-- [ ] 02-02: Implement in-house Python `web_crawl` extraction flow
+- [ ] 02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md — Implement Serper-backed `web_search` tool in Python
+- [ ] 02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md — Implement in-house Python `web_crawl` extraction flow
 
 ### Phase 3: Agent Execution Loop and API
 **Goal**: User prompts are executed by a ReAct-style LangGraph agent that iterates through tools before answering.
@@ -71,11 +71,12 @@ Plans:
   1. User can enter a prompt and start a run from one simple frontend interface.
   2. Frontend successfully calls backend execution API and displays run state transitions.
   3. User can see each tool call with status and duration as the run progresses.
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] 04-01: Build minimal prompt/run UI and API client wiring
-- [ ] 04-02: Render per-tool status and duration in run timeline
+- [ ] 04-02: Add SSE event contracts + reducer-safe run state handling
+- [ ] 04-03: Render per-tool status and duration in run timeline
 
 ### Phase 5: End-to-End Observability and Run History
 **Goal**: User can inspect full tool I/O, backend event logs, and final-answer history in one debugging flow.
@@ -103,5 +104,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Local Runtime Foundation | 0/2 | Not started | - |
 | 2. Search and Crawl Tool Capability | 0/2 | Not started | - |
 | 3. Agent Execution Loop and API | 0/2 | Not started | - |
-| 4. Frontend Prompt Execution Surface | 0/2 | Not started | - |
+| 4. Frontend Prompt Execution Surface | 0/3 | Not started | - |
 | 5. End-to-End Observability and Run History | 0/3 | Not started | - |

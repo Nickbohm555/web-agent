@@ -1,797 +1,299 @@
-Tasks are in **required implementation order** (1...n). Each section = one context window. Complete one section at a time.
-Current section to work on: section 50. (move +1 after each turn)
-
-## Summary Creation Instructions
-
-### Ralph Loop Commit Contract (Required)
-- The executor must **not** run `git commit` or `git push` directly.
-- `.loop-commit-msg` must contain exactly one non-empty line.
-- Section commit subjects must use exactly one of:
-  - Task sections: `{phase}-{plan}-task{task-number}`
-  - Summary sections: `{phase}-{plan}-summary`
-
-Use this guide any time a section references `SUMMARY.md` creation.
-
-**Purpose**
-- Execute a phase prompt (`PLAN.md`) and create the outcome summary (`SUMMARY.md`).
-
-**Required reading before writing**
-- Read `.planning/STATE.md` to load project context.
-- Read `.planning/config.json` for planning behavior settings.
-
-**How to create a good summary**
-1. Identify the plan and summary file path: `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`.
-2. Read the executed `*-PLAN.md` and extract objective, tasks, verification requirements, success criteria, and output intent.
-3. Gather execution evidence from git history (not memory):
-   - `git log --oneline --grep="^<plan-id>-task[0-9]+$"`
-   - `git show --stat --name-status <commit>` for each matching task commit.
-4. Write the summary title as `# Phase [X] Plan [Y]: [Name] Summary`.
-5. Add a substantive one-line outcome under the title.
-6. Populate frontmatter from execution context:
-   - `phase`, `plan`, `subsystem`, `tags`
-   - `requires`, `provides`, `affects`
-   - `tech-stack.added`, `tech-stack.patterns`
-   - `key-files.created`, `key-files.modified`
-   - `key-decisions`
-   - `duration` (from `$DURATION`), `completed` (from `$PLAN_END_TIME`, `YYYY-MM-DD`)
-7. Ensure claims map to evidence from task commits, and preserve task-to-commit traceability.
-8. Include a deviations section:
-   - If none: state the plan executed as written.
-   - If present: list rule triggered, change made, verification performed, and commit hash.
-9. Keep the summary focused on what was actually delivered, verified, and learned.
-
-## Section 1 — 01-core-retrieval-engine — 01-01 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-01-foundation-and-contracts-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: bootstrap Node 24 + TypeScript workspace, scripts/dependencies, `src/sdk/index.ts` export surface, and baseline `src/tests/setup.test.ts`.
-3. Run verify checks one by one: `npm install && npm run typecheck && npm run test -- src/tests/setup.test.ts`.
-4. Confirm done condition: repo installs, typechecks, and baseline tests run with stable SDK export surface.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-task1`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-01` / `task=1` / `status=implemented`.
-
-## Section 2 — 01-core-retrieval-engine — 01-01 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-01-foundation-and-contracts-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: create strict zod contracts/types for search/fetch inputs/outputs and normalization helpers for canonical defaults.
-3. Run verify checks one by one: `npm run test -- src/tests/setup.test.ts`.
-4. Confirm done condition: public contract source of truth exists for CORE-01/CORE-02 and is importable by adapters and SDK methods.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-task2`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-01` / `task=2` / `status=implemented`.
-
-## Section 3 — 01-core-retrieval-engine — 01-01 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-01-foundation-and-contracts-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/01-core-retrieval-engine/01-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-summary`.
-
-## Section 4 — 01-core-retrieval-engine — 01-02 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-02-search-serper-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: implement bounded Serper transport with timeout/retry and adapter-boundary payload validation.
-3. Run verify checks one by one: `npm run test -- src/tests/search/search.integration.test.ts` with mocked 429/5xx retry and non-retryable 4xx abort cases.
-4. Confirm done condition: Serper client performs deterministic bounded retries and returns adapter-internal payload for mapping.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-task1`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-02` / `task=1` / `status=implemented`.
-
-## Section 5 — 01-core-retrieval-engine — 01-02 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-02-search-serper-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement deterministic `organic[]` mapping to normalized search contract with stable rank metadata and URL filtering.
-3. Run verify checks one by one: `npm run test -- src/tests/search/serper-mapper.test.ts`.
-4. Confirm done condition: equivalent provider payloads map to identical normalized outputs with stable rank metadata.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-task2`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-02` / `task=2` / `status=implemented`.
-
-## Section 6 — 01-core-retrieval-engine — 01-02 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-02-search-serper-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: wire full SDK `search(...)` orchestration (parse input, call client, map, validate output) and integration tests.
-3. Run verify checks one by one: `npm run test -- src/tests/search/search.integration.test.ts` then `npm run typecheck`.
-4. Confirm done condition: `search(query, options)` satisfies CORE-01 with deterministic normalized outputs and provider payload isolation.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-task3`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-02` / `task=3` / `status=implemented`.
-
-## Section 7 — 01-core-retrieval-engine — 01-02 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-02-search-serper-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/01-core-retrieval-engine/01-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-summary`.
-
-## Section 8 — 01-core-retrieval-engine — 01-03 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-03-fetch-http-first-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: build robots/politeness gate and HTTP worker with explicit typed states and bounded timeout/retry.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.unit.test.ts`.
-4. Confirm done condition: deterministic preflight gating and HTTP retrieval behavior exist with explicit typed outcomes.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-03-task1`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-03` / `task=1` / `status=implemented`.
-
-## Section 9 — 01-core-retrieval-engine — 01-03 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-03-fetch-http-first-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement extraction + HTTP-first orchestrator and replace placeholder SDK `fetch.ts` wiring with explicit fallback reasons.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.unit.test.ts`.
-4. Confirm done condition: `fetch(url, options)` returns clean consistent shape and enforces HTTP-first orchestration.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-03-task2`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-03` / `task=2` / `status=implemented`.
-
-## Section 10 — 01-core-retrieval-engine — 01-03 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-03-fetch-http-first-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: add fixture-based repeated-run stability tests for deterministic fetch structure and fallback reasons.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.stability.test.ts && npm run typecheck && npm run build`.
-4. Confirm done condition: CORE-02 plus fetch stability requirement verified through deterministic fixture tests.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-03-task3`.
-7. Update `.planning/STATE.md` with `phase=01-core-retrieval-engine` / `plan=01-03` / `task=3` / `status=implemented`.
-
-## Section 11 — 01-core-retrieval-engine — 01-03 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/01-core-retrieval-engine/01-03-fetch-http-first-slice-PLAN.md`
-- Phase research: `.planning/phases/01-core-retrieval-engine/01-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/01-core-retrieval-engine/01-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `01-03-summary`.
-3. Because this is the final plan in Phase 01, also update roadmap/state progress to reflect Phase 01 completion.
-
-## Section 12 — 02-retrieval-controls-and-cost-tuning — 02-01 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-01-retrieval-controls-foundation-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: build shared retrieval controls resolver with deterministic defaults/bounds and provider-agnostic normalized output.
-3. Run verify checks one by one: `npm run typecheck`.
-4. Confirm done condition: single reusable RetrievalControls normalization source exists for search and fetch.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-task1`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-01` / `task=1` / `status=implemented`.
-
-## Section 13 — 02-retrieval-controls-and-cost-tuning — 02-01 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-01-retrieval-controls-foundation-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement canonical domain scope normalization (dedupe/lowercase/conflict precedence exclude-wins) and wire into control resolution.
-3. Run verify checks one by one: `npm run typecheck`.
-4. Confirm done condition: canonical domain policy output is deterministic and suitable for query/post-filter enforcement.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-task2`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-01` / `task=2` / `status=implemented`.
-
-## Section 14 — 02-retrieval-controls-and-cost-tuning — 02-01 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-01-retrieval-controls-foundation-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: add focused policy tests for defaults, bounds, freshness semantics, and domain canonicalization stability.
-3. Run verify checks one by one: `npm run test -- src/core/policy/retrieval-controls.test.ts`.
-4. Confirm done condition: policy behavior is executable-spec documented and safe for dependent plans.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-task3`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-01` / `task=3` / `status=implemented`.
-
-## Section 15 — 02-retrieval-controls-and-cost-tuning — 02-01 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-01-retrieval-controls-foundation-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/02-retrieval-controls-and-cost-tuning/02-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-summary`.
-
-## Section 16 — 02-retrieval-controls-and-cost-tuning — 02-02 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-02-search-controls-and-serper-mapping-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: extend search contracts/SDK flow for normalized controls and deterministic defaults.
-3. Run verify checks one by one: `npm run typecheck`.
-4. Confirm done condition: search entrypoint accepts controls with deterministic defaults via shared policy output.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-task1`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-02` / `task=1` / `status=implemented`.
-
-## Section 17 — 02-retrieval-controls-and-cost-tuning — 02-02 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-02-search-controls-and-serper-mapping-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: map normalized controls to Serper request and enforce post-result domain filtering with timeout control.
-3. Run verify checks one by one: `npm run test -- src/tests/search-controls.integration.test.ts`.
-4. Confirm done condition: controls enforced pre/post provider call and provider-specific details remain adapter-internal.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-task2`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-02` / `task=2` / `status=implemented`.
-
-## Section 18 — 02-retrieval-controls-and-cost-tuning — 02-02 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-02-search-controls-and-serper-mapping-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: add integration tests for maxResults, timeout, domain include/exclude, locale defaults, and freshness mapping.
-3. Run verify checks one by one: `npm run test -- src/tests/search-controls.integration.test.ts`.
-4. Confirm done condition: CTRL-01/02/03 search requirements are validated by repeatable tests.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-task3`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-02` / `task=3` / `status=implemented`.
-
-## Section 19 — 02-retrieval-controls-and-cost-tuning — 02-02 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-02-search-controls-and-serper-mapping-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/02-retrieval-controls-and-cost-tuning/02-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-summary`.
-
-## Section 20 — 02-retrieval-controls-and-cost-tuning — 02-03 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-03-fetch-cache-policy-and-freshness-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: add fetch cache controls to contracts and SDK with explicit precedence (`fresh=true` bypasses reads).
-3. Run verify checks one by one: `npm run typecheck`.
-4. Confirm done condition: fetch callers can pass cache controls and SDK applies deterministic precedence before retrieval.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-03-task1`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-03` / `task=1` / `status=implemented`.
-
-## Section 21 — 02-retrieval-controls-and-cost-tuning — 02-03 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-03-fetch-cache-policy-and-freshness-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement bounded fetch cache utility with normalized keying, maxAge checks, force-fresh bypass, and write-after-fetch behavior.
-3. Run verify checks one by one: `npm run test -- src/core/cache/fetch-cache.test.ts`.
-4. Confirm done condition: cache behavior is deterministic, bounded, and reusable from fetch orchestration.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-03-task2`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-03` / `task=2` / `status=implemented`.
-
-## Section 22 — 02-retrieval-controls-and-cost-tuning — 02-03 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-03-fetch-cache-policy-and-freshness-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: add integration tests for hit/miss/stale/fresh bypass semantics and precedence.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch-controls.integration.test.ts`.
-4. Confirm done condition: REL-03 behavior is validated for fetch with repeatable tests.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-03-task3`.
-7. Update `.planning/STATE.md` with `phase=02-retrieval-controls-and-cost-tuning` / `plan=02-03` / `task=3` / `status=implemented`.
-
-## Section 23 — 02-retrieval-controls-and-cost-tuning — 02-03 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-03-fetch-cache-policy-and-freshness-PLAN.md`
-- Phase research: `.planning/phases/02-retrieval-controls-and-cost-tuning/02-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/02-retrieval-controls-and-cost-tuning/02-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `02-03-summary`.
-3. Because this is the final plan in Phase 02, also update roadmap/state progress to reflect Phase 02 completion.
-
-## Section 24 — 03-reliability-and-usage-transparency — 03-01 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-01-shared-reliability-contracts-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: define canonical typed SDK error taxonomy and deterministic classifier.
-3. Run verify checks one by one: `npm run typecheck` and map-assertions in `src/tests/core/reliability/execute-with-retry.test.ts`.
-4. Confirm done condition: errors are actionable via stable discriminants and deterministic mapping.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-01-task1`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-01` / `task=1` / `status=implemented`.
-
-## Section 25 — 03-reliability-and-usage-transparency — 03-01 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-01-shared-reliability-contracts-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement shared deterministic retry executor with Retry-After precedence and non-retryable short-circuit behavior.
-3. Run verify checks one by one: `npm run test -- src/tests/core/reliability/execute-with-retry.test.ts`.
-4. Confirm done condition: one shared deterministic retry path exists for search/fetch with standards-aligned rate-limit handling.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-01-task2`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-01` / `task=2` / `status=implemented`.
-
-## Section 26 — 03-reliability-and-usage-transparency — 03-01 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-01-shared-reliability-contracts-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: add shared call metadata builder and wire required `meta` fields into search/fetch contracts.
-3. Run verify checks one by one: `npm run test -- src/tests/core/telemetry/call-meta.test.ts && npm run typecheck`.
-4. Confirm done condition: REL-02 metadata contract baseline exists for both primitives.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-01-task3`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-01` / `task=3` / `status=implemented`.
-
-## Section 27 — 03-reliability-and-usage-transparency — 03-01 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-01-shared-reliability-contracts-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/03-reliability-and-usage-transparency/03-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `03-01-summary`.
-
-## Section 28 — 03-reliability-and-usage-transparency — 03-02 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-02-search-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: route Serper calls through shared retry/error pipeline with deterministic 429/5xx behavior.
-3. Run verify checks one by one: `npm run test -- src/tests/search/search.reliability.test.ts`.
-4. Confirm done condition: search transport reliability is centralized, deterministic, and contract-stable.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-task1`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-02` / `task=1` / `status=implemented`.
-
-## Section 29 — 03-reliability-and-usage-transparency — 03-02 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-02-search-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: emit search call metadata via shared telemetry builder while preserving normalized payload boundaries.
-3. Run verify checks one by one: `npm run test -- src/tests/search/search.meta.test.ts && npm run typecheck`.
-4. Confirm done condition: successful search responses expose stable inspectable metadata satisfying REL-02 for search.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-task2`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-02` / `task=2` / `status=implemented`.
-
-## Section 30 — 03-reliability-and-usage-transparency — 03-02 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-02-search-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: validate full search reliability + metadata behavior across transient/non-retryable/success scenarios.
-3. Run verify checks one by one: `npm run test -- src/tests/search/search.reliability.test.ts src/tests/search/search.meta.test.ts`.
-4. Confirm done condition: REL-01 and REL-02 are verified for search at SDK boundary.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-task3`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-02` / `task=3` / `status=implemented`.
-
-## Section 31 — 03-reliability-and-usage-transparency — 03-02 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-02-search-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/03-reliability-and-usage-transparency/03-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-summary`.
-
-## Section 32 — 03-reliability-and-usage-transparency — 03-03 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-03-fetch-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: route fetch HTTP path through shared deterministic retry/error executor.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.reliability.test.ts`.
-4. Confirm done condition: fetch worker reliability is deterministic, bounded, and aligned to shared taxonomy.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-03-task1`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-03` / `task=1` / `status=implemented`.
-
-## Section 33 — 03-reliability-and-usage-transparency — 03-03 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-03-fetch-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: propagate typed errors + metadata through fetch orchestrator and SDK responses.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.meta.test.ts && npm run typecheck`.
-4. Confirm done condition: successful `fetch(...)` returns stable metadata and failures are typed/actionable.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-03-task2`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-03` / `task=2` / `status=implemented`.
-
-## Section 34 — 03-reliability-and-usage-transparency — 03-03 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-03-fetch-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: expand fetch reliability + metadata scenario coverage and keep deterministic assertions.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.reliability.test.ts src/tests/fetch/fetch.meta.test.ts`.
-4. Confirm done condition: REL-01/REL-02 are verified for fetch at SDK boundary.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `03-03-task3`.
-7. Update `.planning/STATE.md` with `phase=03-reliability-and-usage-transparency` / `plan=03-03` / `task=3` / `status=implemented`.
-
-## Section 35 — 03-reliability-and-usage-transparency — 03-03 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/03-reliability-and-usage-transparency/03-03-fetch-reliability-and-metadata-PLAN.md`
-- Phase research: `.planning/phases/03-reliability-and-usage-transparency/03-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/03-reliability-and-usage-transparency/03-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `03-03-summary`.
-3. Because this is the final plan in Phase 03, also update roadmap/state progress to reflect Phase 03 completion.
-
-## Section 36 — 04-fetch-safety-and-compliance-guardrails — 04-01 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-01-safety-decision-contracts-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: define typed safety/compliance contracts and wire fetch contract metadata fields.
-3. Run verify checks one by one: `npm run typecheck`.
-4. Confirm done condition: shared typed safety/compliance outcomes exist and are available to fetch orchestration.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-01-task1`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-01` / `task=1` / `status=implemented`.
-
-## Section 37 — 04-fetch-safety-and-compliance-guardrails — 04-01 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-01-safety-decision-contracts-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement deterministic fail-closed URL preflight evaluator returning typed allow/deny decisions.
-3. Run verify checks one by one: `npm run test -- src/tests/safety/url-policy.test.ts`.
-4. Confirm done condition: preflight URL policy can deterministically allow/deny before network execution.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-01-task2`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-01` / `task=2` / `status=implemented`.
-
-## Section 38 — 04-fetch-safety-and-compliance-guardrails — 04-01 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-01-safety-decision-contracts-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: map policy-deny decisions to typed public fetch errors/outcomes with machine-readable fields.
-3. Run verify checks one by one: `npm run test -- src/tests/safety/url-policy.test.ts && npm run typecheck`.
-4. Confirm done condition: policy denies surface as typed inspectable outcomes instead of opaque exceptions.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-01-task3`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-01` / `task=3` / `status=implemented`.
-
-## Section 39 — 04-fetch-safety-and-compliance-guardrails — 04-01 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-01-safety-decision-contracts-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `04-01-summary`.
-
-## Section 40 — 04-fetch-safety-and-compliance-guardrails — 04-02 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-02-ssrf-network-guardrails-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: build SSRF IP classification policy for private/internal/reserved ranges with typed deny reasons.
-3. Run verify checks one by one: `npm run test -- src/tests/safety/ssrf-guardrails.test.ts`.
-4. Confirm done condition: deterministic IP safety policy identifies disallowed ranges with typed outcomes.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-02-task1`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-02` / `task=1` / `status=implemented`.
-
-## Section 41 — 04-fetch-safety-and-compliance-guardrails — 04-02 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-02-ssrf-network-guardrails-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement DNS resolve-and-classify gate denying any disallowed resolved candidate and handling resolver failures explicitly.
-3. Run verify checks one by one: `npm run test -- src/tests/safety/ssrf-guardrails.test.ts`.
-4. Confirm done condition: hostname network preflight is deterministic before connection attempts.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-02-task2`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-02` / `task=2` / `status=implemented`.
-
-## Section 42 — 04-fetch-safety-and-compliance-guardrails — 04-02 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-02-ssrf-network-guardrails-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: enforce redirect-hop safety revalidation with hop cap and explicit unsafe-redirect deny outcomes.
-3. Run verify checks one by one: `npm run test -- src/tests/safety/ssrf-guardrails.test.ts && npm run typecheck`.
-4. Confirm done condition: redirect paths cannot bypass SSRF guardrails and every hop is validated.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-02-task3`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-02` / `task=3` / `status=implemented`.
-
-## Section 43 — 04-fetch-safety-and-compliance-guardrails — 04-02 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-02-ssrf-network-guardrails-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `04-02-summary`.
-
-## Section 44 — 04-fetch-safety-and-compliance-guardrails — 04-03 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-03-robots-compliance-fetch-wiring-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: implement robots retrieval/evaluator returning explicit ALLOW/DENY/UNKNOWN/UNAVAILABLE outcomes with reason metadata.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.safety-compliance.integration.test.ts`.
-4. Confirm done condition: robots compliance stage exists as typed first-class decision engine.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-03-task1`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-03` / `task=1` / `status=implemented`.
-
-## Section 45 — 04-fetch-safety-and-compliance-guardrails — 04-03 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-03-robots-compliance-fetch-wiring-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: wire staged pipeline safety preflight -> robots compliance -> HTTP retrieval and short-circuit on stage-specific denies.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.safety-compliance.integration.test.ts`.
-4. Confirm done condition: public `fetch(...)` exposes explicit safety/compliance outcomes and enforces preflight gating.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-03-task2`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-03` / `task=2` / `status=implemented`.
-
-## Section 46 — 04-fetch-safety-and-compliance-guardrails — 04-03 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-03-robots-compliance-fetch-wiring-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: add end-to-end SAFE-01/SAFE-02 integration coverage including deny short-circuit before downstream fetch worker.
-3. Run verify checks one by one: `npm run test -- src/tests/fetch/fetch.safety-compliance.integration.test.ts && npm run typecheck && npm run build`.
-4. Confirm done condition: SAFE-01 and SAFE-02 are verified through typed fetch outcome tests.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `04-03-task3`.
-7. Update `.planning/STATE.md` with `phase=04-fetch-safety-and-compliance-guardrails` / `plan=04-03` / `task=3` / `status=implemented`.
-
-## Section 47 — 04-fetch-safety-and-compliance-guardrails — 04-03 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-03-robots-compliance-fetch-wiring-PLAN.md`
-- Phase research: `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/04-fetch-safety-and-compliance-guardrails/04-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `04-03-summary`.
-3. Because this is the final plan in Phase 04, also update roadmap/state progress to reflect Phase 04 completion.
-
-## Section 48 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-01 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-01-frontend-dev-console-api-surface-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: scaffold frontend server entrypoint/scripts, JSON handling, `/api/*` route mounting, and static serving while keeping SDK server-side.
-3. Run verify checks one by one: `npm run typecheck` and start frontend dev script to verify `/api/search` and `/api/fetch`.
-4. Confirm done condition: local frontend process exposes stable API entrypoints for both operations.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-task1`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-01` / `task=1` / `status=implemented`.
-
-## Section 49 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-01 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-01-frontend-dev-console-api-surface-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement zod API contracts + route handlers for `search`/`fetch` with duration tracking and typed safe envelopes.
-3. Run verify checks one by one: `npm run typecheck` and manual `curl` checks for success + validation errors.
-4. Confirm done condition: both primitives are callable over local API with deterministic inspectable envelopes.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-task2`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-01` / `task=2` / `status=implemented`.
-
-## Section 50 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-01 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-01-frontend-dev-console-api-surface-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: add route-level tests for request validation, typed failures, and safety/compliance error visibility.
-3. Run verify checks one by one: `npm run test -- src/tests/frontend-api/routes.contracts.test.ts`.
-4. Confirm done condition: API behavior for both operations is validated by executable tests.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-task3`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-01` / `task=3` / `status=implemented`.
-
-## Section 51 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-01 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-01-frontend-dev-console-api-surface-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-summary`.
-
-## Section 52 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-02 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-02-frontend-ui-invocation-and-output-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: build dual-panel UI layout for independent search/fetch invocation and visible status/duration/timestamp output zones.
-3. Run verify checks one by one: manual frontend run to confirm both panels render with distinct controls/outputs.
-4. Confirm done condition: UI supports independent invocation and output inspection for both operations.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-task1`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-02` / `task=1` / `status=implemented`.
-
-## Section 53 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-02 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-02-frontend-ui-invocation-and-output-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: wire client submit handlers and explicit per-operation state machine (`idle/running/success/error`) for `/api/search` and `/api/fetch`.
-3. Run verify checks one by one: manual browser run confirms each button triggers matching API and updates state/output correctly.
-4. Confirm done condition: both operations are invokable from UI with clear state/result visibility.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-task2`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-02` / `task=2` / `status=implemented`.
-
-## Section 54 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-02 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-02-frontend-ui-invocation-and-output-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: harden rendering for debugging (pretty JSON, metadata separation, typed error blocks).
-3. Run verify checks one by one: manual success/failure tests confirm readable complete outputs without ambiguity.
-4. Confirm done condition: users can quickly understand request, response, and failure reason.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-task3`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-02` / `task=3` / `status=implemented`.
-
-## Section 55 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-02 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-02-frontend-ui-invocation-and-output-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-summary`.
-
-## Section 56 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-03 — Task 1 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-03-run-both-history-and-phase-verification-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 1 action: add deterministic `Run Both` orchestration (search then fetch) with separate visible outputs and non-crashing no-URL warning.
-3. Run verify checks one by one: manual browser test confirms single action triggers both operations and keeps outputs distinct.
-4. Confirm done condition: single-action flow exists while preserving operation-specific output clarity.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-task1`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-03` / `task=1` / `status=implemented`.
-
-## Section 57 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-03 — Task 2 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-03-run-both-history-and-phase-verification-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 2 action: implement bounded in-memory call history and replay controls for search/fetch without disk persistence.
-3. Run verify checks one by one: manual verification of history entries and successful replay for at least one search and one fetch.
-4. Confirm done condition: users can compare and rerun recent calls without retyping payloads.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-task2`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-03` / `task=2` / `status=implemented`.
-
-## Section 58 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-03 — Task 3 (Execution)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-03-run-both-history-and-phase-verification-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Load `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md` and use it as implementation reference.
-2. Execute only Task 3 action: extend route tests and add frontend smoke test for invocation/output flow with deterministic CI behavior.
-3. Run verify checks one by one: `npm run test -- src/tests/frontend-api/routes.contracts.test.ts src/tests/frontend-ui/dev-console.smoke.test.ts`, then `npm run typecheck && npm run build`.
-4. Confirm done condition: Phase 05 behavior is protected by executable verification for visible invocation/output requirements.
-5. Do not mark task complete until the done condition is satisfied.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-task3`.
-7. Update `.planning/STATE.md` with `phase=05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly` / `plan=05-03` / `task=3` / `status=implemented`.
-
-## Section 59 — 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly — 05-03 (Summary)
-**Required inputs**
-- Plan file: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-03-run-both-history-and-phase-verification-PLAN.md`
-- Phase research: `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-RESEARCH.md`
-
-**Steps**
-1. Create `.planning/phases/05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly/05-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-summary`.
-3. Because this is the final plan in Phase 05, also update roadmap/state progress to reflect Phase 05 completion.
+# Implementation Plan
+
+This plan consolidates roadmap phases 1-5 into executable sections aligned to the active phase plans in `.planning/phases/`.
+
+## Section 1: Local Compose Runtime Foundation - multi-service startup contract
+
+**Single goal:** Establish one Docker Compose entrypoint that boots backend and frontend with deterministic startup order and required environment wiring.
+
+**Details:**
+- Create a root `docker-compose.yml` with `backend` and `frontend` services, explicit ports, and health-gated `depends_on`.
+- Enforce required keys with Compose interpolation checks for `OPENAI_API_KEY` and `SERPER_API_KEY`.
+- Add healthcheck probes so frontend startup is gated on backend readiness.
+- Keep runtime local-first and avoid production-only orchestration complexity in this phase.
+
+**Tech stack and dependencies**
+- Libraries/packages: no new application libraries required for this section.
+- Tooling: Docker Compose becomes the canonical local startup path; add/update `backend/Dockerfile` and `frontend/Dockerfile`.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `docker-compose.yml` | Defines backend/frontend services, env wiring, ports, and health/dependency semantics. |
+| `backend/Dockerfile` | Provides reproducible backend container build for local runtime. |
+| `frontend/Dockerfile` | Provides reproducible frontend container build for local runtime. |
+
+**How to test:** Run `docker compose config` with and without required keys to verify failure/success behavior, then run `docker compose build backend frontend` to validate image build paths.
+
+## Section 2: Backend Environment Validation - startup-time key enforcement
+
+**Single goal:** Fail backend startup early when required provider keys are missing, and start cleanly when both keys are present.
+
+**Details:**
+- Introduce typed backend settings for required key fields and shared settings access helper.
+- Validate configuration at app startup/lifespan, not lazily inside tool calls.
+- Expose `/healthz` for runtime checks and Compose health probes.
+- Add regression tests for missing-key failure paths and valid-key startup path.
+
+**Tech stack and dependencies**
+- Libraries/packages: add `pydantic-settings` in backend dependencies if missing.
+- Tooling: re-use Docker Compose health checks to verify startup and reachability.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `backend/app/config.py` | Defines typed settings and key requirements. |
+| `backend/app/main.py` | Wires startup validation and health endpoint. |
+| `backend/requirements.txt` | Declares backend config dependency updates. |
+| `backend/tests/test_startup_settings.py` | Protects required-key startup behavior with automated tests. |
+
+**How to test:** Run `pytest backend/tests/test_startup_settings.py`, then verify Compose failure with missing keys and success with both keys exported.
+
+## Section 3: Search Tool Capability - Serper-backed normalized web search
+
+**Single goal:** Implement a reliable `web_search` tool that returns normalized results and explicit retry/error metadata.
+
+**Details:**
+- Define strict contracts for search input, normalized results, success envelope, and shared error envelope.
+- Implement Serper provider client with bounded retry on transient failures and fail-fast behavior on terminal 4xx.
+- Normalize provider output into stable fields (`title`, `url`, `snippet`, `rank`) and avoid leaking raw provider payload.
+- Expose LangChain `@tool("web_search")` adapter with deterministic success/error return contracts.
+
+**Tech stack and dependencies**
+- Libraries/packages: ensure backend has `httpx`, `tenacity`, and `pydantic` for transport, retry, and validation.
+- Tooling: no new container requirements in this section.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `backend/app/contracts/tool_errors.py` | Defines shared typed error envelope for tool failures. |
+| `backend/app/contracts/web_search.py` | Defines request/response models for normalized search output. |
+| `backend/app/core/retry.py` | Implements bounded retry policy and classification hooks. |
+| `backend/app/providers/serper_client.py` | Calls Serper and maps provider data into normalized contracts. |
+| `backend/app/tools/web_search.py` | Exposes canonical `web_search` tool adapter. |
+| `backend/tests/tools/test_web_search_tool.py` | Validates contract shape, ranking stability, and retry/failure behavior. |
+| `backend/requirements.txt` | Tracks backend dependency additions/updates for this path. |
+
+**How to test:** Run `pytest backend/tests/tools/test_web_search_tool.py` and include mocked cases for 200, 429 retry recovery, 5xx failure, and 4xx fail-fast paths.
+
+## Section 4: Crawl Tool Capability - HTTP-first content extraction
+
+**Single goal:** Implement a stable `web_crawl` tool with explicit extraction states, fallback reasons, and structured error metadata.
+
+**Details:**
+- Define strict crawl contracts covering success payload, fallback reason, metadata, and error envelope.
+- Build HTTP-first worker with timeout, redirect handling, content-type checks, and bounded retry on transient failures.
+- Implement deterministic extraction flow that outputs markdown/text and maps low-quality or unsupported content to explicit fallback states.
+- Expose LangChain `@tool("web_crawl")` adapter with stable contract output for success and failure.
+
+**Tech stack and dependencies**
+- Libraries/packages: ensure backend includes `trafilatura`, `httpx`, `tenacity`, and validation dependencies.
+- Tooling: no new orchestration tools; this section is backend implementation/test focused.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `backend/app/contracts/web_crawl.py` | Defines crawl input/output and fallback/error schema contracts. |
+| `backend/app/crawler/http_worker.py` | Performs HTTP-first retrieval with retry/error classification. |
+| `backend/app/crawler/extractor.py` | Converts fetched content into deterministic text/markdown plus quality state. |
+| `backend/app/tools/web_crawl.py` | Exposes canonical `web_crawl` tool adapter. |
+| `backend/tests/tools/test_web_crawl_tool.py` | Covers success, redirects, fallback reasons, and structured error behavior. |
+| `backend/requirements.txt` | Tracks backend dependency additions/updates for crawling path. |
+
+**How to test:** Run `pytest backend/tests/tools/test_web_crawl_tool.py` with fixture/mocked cases for rich HTML, low-quality HTML, non-HTML content, redirects, and network failures.
+
+## Section 5: Agent Runtime Loop - bounded ReAct orchestration
+
+**Single goal:** Wire one bounded runtime entrypoint that can use `web_search` and `web_crawl` in sequence and return a normalized run result.
+
+**Details:**
+- Build runtime facade (for example `run_agent_once`) that binds only canonical tool names and executes one run per prompt.
+- Add prompt instructions and loop-stop strategy for bounded agent behavior.
+- Enforce explicit iteration/recursion limits and map runtime failures into typed internal categories.
+- Return normalized internal run results (final answer + metadata) without exposing provider internals.
+
+**Tech stack and dependencies**
+- Libraries/packages: use existing LangGraph/LangChain backend stack already selected in phase research.
+- Tooling: no additional container changes; this section is runtime orchestration logic.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `backend/agent/runtime.py` | Implements bounded agent execution and tool orchestration facade. |
+| `backend/agent/prompts.py` | Defines system behavior constraints and stop strategy instructions. |
+| `backend/agent/types.py` | Defines normalized runtime result and error categories for API mapping. |
+| `backend/tests/agent/test_runtime.py` | Verifies direct-answer flow, tool-sequence flow, and bounded failure handling. |
+
+**How to test:** Run `pytest backend/tests/agent/test_runtime.py -q` including normal, recursion-limit, and tool/runtime failure scenarios.
+
+## Section 6: Agent Execution API - stable run endpoint contract
+
+**Single goal:** Expose a frontend-callable run endpoint that executes one runtime call and returns a stable final-answer envelope.
+
+**Details:**
+- Define strict API request/response contracts and explicit typed error envelope.
+- Implement `POST /api/agent/run` route that validates prompt input and calls runtime exactly once.
+- Map runtime errors to deterministic HTTP status and machine-readable error codes.
+- Keep response additive-safe with stable fields for frontend rendering (`run_id`, `status`, `final_answer`, `tool_call_count`, `elapsed_ms`).
+
+**Tech stack and dependencies**
+- Libraries/packages: no new packages required beyond existing FastAPI/Pydantic backend stack.
+- Tooling: no Docker changes in this slice.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `backend/api/contracts.py` | Defines external request/response API models. |
+| `backend/api/errors.py` | Maps runtime errors to stable HTTP/API error responses. |
+| `backend/api/routes/agent_run.py` | Implements run endpoint orchestration and response shaping. |
+| `backend/main.py` | Registers API route into backend application wiring. |
+| `backend/tests/api/test_agent_run_route.py` | Verifies request validation, success contract, and error mapping behavior. |
+
+**How to test:** Run `pytest backend/tests/api/test_agent_run_route.py -q` and one local smoke call to `POST /api/agent/run`.
+
+## Section 7: Frontend Run Start Surface - prompt input and run initiation
+
+**Single goal:** Deliver a minimal frontend UI where users enter a prompt, start a run, and observe initial state transitions.
+
+**Details:**
+- Add typed run-start contracts and route for `POST /api/runs` with strict validation.
+- Implement minimal client API call and run-state reducer (`idle -> starting -> running|failed`).
+- Build simple one-screen UI with prompt input, run trigger, and status region.
+- Keep this section focused on run initiation; defer timeline details to next section.
+
+**Tech stack and dependencies**
+- Libraries/packages: use existing TypeScript, Express, and `zod` frontend stack.
+- Tooling: no additional package manager or container changes required.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `src/frontend/contracts.ts` | Defines `POST /api/runs` request/response schemas and inferred types. |
+| `src/frontend/routes/runs.ts` | Implements run-start API route contract and validation handling. |
+| `src/frontend/server.ts` | Registers run route and server wiring. |
+| `src/frontend/client/api-client.ts` | Sends typed run-start requests from browser UI. |
+| `src/frontend/client/state.ts` | Manages run-phase transitions with reducer semantics. |
+| `src/frontend/client/app.ts` | Connects UI events to API client and reducer updates. |
+| `public/index.html` | Renders minimal prompt/run UI shell. |
+| `src/tests/frontend-api/runs.contracts.test.ts` | Validates run-start route contract and malformed input behavior. |
+
+**How to test:** Run `npm run test -- src/tests/frontend-api/runs.contracts.test.ts`, then manually submit valid/invalid prompts from the local UI.
+
+## Section 8: Frontend Live Timeline - per-tool status and duration
+
+**Single goal:** Show live tool-call progress with statuses and durations, and settle cleanly on terminal run events.
+
+**Details:**
+- Add typed SSE event schemas for run lifecycle and tool-call updates.
+- Implement EventSource subscription lifecycle and parser/validation guards.
+- Enforce idempotent reducer behavior keyed by `toolCallId` with monotonic run-state transitions.
+- Render timeline rows with provisional duration while running and backend `durationMs` as final source of truth.
+
+**Tech stack and dependencies**
+- Libraries/packages: no new dependencies required beyond current frontend runtime and tests.
+- Tooling: SSE subscription and cleanup behavior implemented in app/client code; no container updates.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `src/frontend/contracts.ts` | Adds typed run-event schemas including tool enums and duration fields. |
+| `src/frontend/routes/runs.ts` | Exposes/aligns SSE event stream shape for run progress. |
+| `src/frontend/client/api-client.ts` | Manages EventSource creation, parsing, and cleanup. |
+| `src/frontend/client/state.ts` | Applies idempotent event updates and terminal-state guards. |
+| `src/frontend/client/timeline.ts` | Maps state to timeline rows and duration formatting. |
+| `src/frontend/client/app.ts` | Renders live timeline updates and terminal run state. |
+| `public/index.html` | Hosts timeline render targets. |
+| `src/tests/frontend/state.test.ts` | Verifies reducer ordering/dedupe/terminal invariants. |
+| `src/tests/frontend/timeline.test.ts` | Verifies duration display logic and edge cases. |
+| `src/tests/frontend-api/runs.stream.test.ts` | Verifies SSE contract handling and stream parsing behavior. |
+
+**How to test:** Run `npm run test -- src/tests/frontend/state.test.ts src/tests/frontend/timeline.test.ts src/tests/frontend-api/runs.stream.test.ts` and manually confirm live timeline behavior from UI.
+
+## Section 9: Canonical RunEvent + Payload Inspector - full tool I/O in UI
+
+**Single goal:** Introduce one canonical run-event contract and UI payload inspector that shows full tool input/output with visible safety markers.
+
+**Details:**
+- Define canonical `RunEvent` schema with required correlation fields and payload slots.
+- Include redaction and truncation metadata so payload policy decisions are explicit in UI.
+- Render timeline selection and payload detail pane with ordered events by `event_seq`.
+- Cover success and failure tool events so debugging remains complete across outcomes.
+
+**Tech stack and dependencies**
+- Libraries/packages: continue schema validation with existing `zod`; no new framework requirement.
+- Tooling: browser-side rendering remains framework-agnostic and local-first.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `src/frontend/contracts/run-events.ts` | Defines canonical `RunEvent` schema/type for observability payloads. |
+| `src/frontend/contracts.ts` | Re-exports run-event contract helpers for shared frontend use. |
+| `public/index.html` | Hosts timeline + payload inspector layout. |
+| `public/app.js` | Renders selected event payload input/output and safety indicators. |
+| `src/tests/frontend-api/run-events.contracts.test.ts` | Validates schema acceptance/rejection and safety guardrail invariants. |
+
+**How to test:** Run `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts` and manually inspect one successful and one failed tool event in the payload inspector.
+
+## Section 10: Structured Backend Observability - correlated logs and parity
+
+**Single goal:** Emit structured backend events with `run_id` and `event_seq` so frontend timeline events can be correlated one-to-one with Docker logs.
+
+**Details:**
+- Add run-scoped async context initialization and monotonic sequence generation at run boundaries.
+- Implement structured observability logger with redaction and payload truncation before emission.
+- Instrument tool routes (`search`, `fetch`) with lifecycle events (`started`, `succeeded`, `failed`).
+- Add parity tests matching UI and backend events on (`run_id`, `event_seq`, `event_type`).
+
+**Tech stack and dependencies**
+- Libraries/packages: use existing `pino` and Node `AsyncLocalStorage` primitives.
+- Tooling: update `docker-compose.yml` backend logging configuration with JSON logs and rotation bounds.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `src/core/telemetry/run-context.ts` | Stores run-scoped context and event sequence generation. |
+| `src/core/telemetry/observability-logger.ts` | Emits structured/redacted/truncated observability events. |
+| `src/frontend/server.ts` | Initializes run context at request/run entrypoints. |
+| `src/frontend/routes/search.ts` | Emits structured search tool lifecycle events. |
+| `src/frontend/routes/fetch.ts` | Emits structured fetch tool lifecycle events. |
+| `docker-compose.yml` | Configures backend Docker log driver/options for local retrieval. |
+| `src/tests/frontend-api/observability-correlation.test.ts` | Ensures UI/log event parity and correlation invariants. |
+
+**How to test:** Run `npm run test -- src/tests/frontend-api/observability-correlation.test.ts` and verify `docker compose logs --timestamps backend` includes structured correlated event records.
+
+## Section 11: Cohesive Run History - final answer plus complete trace
+
+**Single goal:** Provide one run-history flow where users can inspect final answer and full ordered tool trace for current and prior runs.
+
+**Details:**
+- Build bounded in-memory history store keyed by `run_id` with retention and payload limits.
+- Preserve deterministic ordering by `event_seq` and handle duplicate/out-of-order records safely.
+- Expose run-history list/detail APIs that return answer + ordered event trace in one response model.
+- Finalize UI flow to select runs and inspect answer, timeline, and payload details on one screen.
+
+**Tech stack and dependencies**
+- Libraries/packages: no additional dependency required; implement with existing frontend/server stack.
+- Tooling: no extra container tooling beyond logging already configured in Section 10.
+
+**Files and purpose**
+
+| File | Purpose |
+|------|--------|
+| `src/frontend/run-history/store.ts` | Stores bounded run snapshots with ordering and retention rules. |
+| `src/frontend/routes/run-history.ts` | Serves run list and run detail endpoints for history inspection. |
+| `src/frontend/server.ts` | Registers run-history routes into frontend server. |
+| `public/index.html` | Hosts cohesive run detail interface regions. |
+| `public/app.js` | Renders run selector, final answer, timeline, and payload inspector together. |
+| `src/tests/frontend-api/run-history.integration.test.ts` | Verifies history contracts, ordering invariants, and bound enforcement. |
+
+**How to test:** Run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts` and manually verify a current run and a prior run both render answer + ordered trace in one view.
