@@ -145,6 +145,82 @@
         margin-top: 12px;
         color: rgba(31, 26, 20, 0.72);
       }
+
+      .timeline-panel {
+        margin-top: 18px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(62, 45, 30, 0.12);
+      }
+
+      .timeline-empty {
+        color: rgba(31, 26, 20, 0.58);
+      }
+
+      .timeline-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .timeline-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.56);
+        border: 1px solid rgba(62, 45, 30, 0.1);
+      }
+
+      .timeline-tool,
+      .timeline-duration {
+        margin: 0;
+      }
+
+      .timeline-tool {
+        font-size: 1rem;
+      }
+
+      .timeline-duration {
+        color: rgba(31, 26, 20, 0.66);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .timeline-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2rem;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: rgba(31, 26, 20, 0.08);
+        font-size: 0.85rem;
+      }
+
+      .timeline-badge[data-status="started"] {
+        background: rgba(183, 102, 53, 0.14);
+      }
+
+      .timeline-badge[data-status="completed"] {
+        background: rgba(38, 91, 54, 0.14);
+      }
+
+      .timeline-badge[data-status="failed"] {
+        background: rgba(157, 59, 31, 0.12);
+      }
+
+      @media (max-width: 640px) {
+        main {
+          padding: 24px;
+        }
+
+        .timeline-row {
+          grid-template-columns: 1fr;
+          justify-items: start;
+        }
+      }
     </style>
   </head>
   <body>
@@ -152,7 +228,7 @@
       <p class="status-label">Phase 04 / Run Surface</p>
       <h1>Prompt the agent.</h1>
       <p class="lede">
-        Start one run at a time from this minimal shell. Live tool streaming comes next; this screen only owns prompt submission and run-start state.
+        Start one run at a time from this minimal shell and watch each tool step settle into a final outcome.
       </p>
 
       <form id="run-form">
@@ -172,6 +248,14 @@
         <p class="status-label">Run status</p>
         <div id="run-status" class="status-value" data-phase="idle">Idle</div>
         <p id="run-details">Enter a prompt to start one run.</p>
+
+        <section class="timeline-panel" aria-live="polite">
+          <p class="status-label">Timeline</p>
+          <p id="timeline-empty" class="timeline-empty">
+            No tool activity yet.
+          </p>
+          <ol id="timeline-list" class="timeline-list"></ol>
+        </section>
       </section>
     </main>
 

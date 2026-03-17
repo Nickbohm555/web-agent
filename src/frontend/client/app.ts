@@ -1,5 +1,10 @@
-import { createRun } from "./api-client.js";
+import {
+  createRun,
+  subscribeToRunEvents,
+  type RunStreamSubscription,
+} from "./api-client.js";
 import { initialRunState, reduceRunState, type RunState } from "./state.js";
+import { toTimelineRows } from "./timeline.js";
 
 const promptInput = requireElement<HTMLInputElement>("prompt-input");
 const promptError = requireElement<HTMLElement>("prompt-error");
@@ -7,8 +12,12 @@ const runForm = requireElement<HTMLFormElement>("run-form");
 const runButton = requireElement<HTMLButtonElement>("run-submit");
 const runStatus = requireElement<HTMLElement>("run-status");
 const runDetails = requireElement<HTMLElement>("run-details");
+const timelineEmpty = requireElement<HTMLElement>("timeline-empty");
+const timelineList = requireElement<HTMLElement>("timeline-list");
 
 let state = initialRunState;
+let streamSubscription: RunStreamSubscription | null = null;
+let durationTimer: number | null = null;
 
 render();
 
@@ -36,6 +45,7 @@ runForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  closeRunStream();
   dispatch({ type: "run_requested" });
 
   const result = await createRun({ prompt });
@@ -44,6 +54,7 @@ runForm.addEventListener("submit", async (event) => {
       type: "run_started",
       response: result.data,
     });
+    openRunStream(result.data.runId);
     return;
   }
 
@@ -71,6 +82,8 @@ function render() {
   runStatus.dataset.phase = state.phase;
 
   runDetails.textContent = detailsLabel(state);
+  renderTimeline();
+  syncDurationTimer();
 }
 
 function statusLabel(currentState: RunState): string {
@@ -95,14 +108,113 @@ function detailsLabel(currentState: RunState): string {
     case "starting":
       return "Creating run...";
     case "running":
+      if (currentState.toolCalls.length === 0) {
+        return currentState.activeRunId === null
+          ? "Run active."
+          : `Run ${currentState.activeRunId} is active. Waiting for tool activity.`;
+      }
+
       return currentState.activeRunId === null
         ? "Run active."
-        : `Run ${currentState.activeRunId} is active.`;
+        : `Run ${currentState.activeRunId} is active. Timeline is live.`;
     case "completed":
       return currentState.finalAnswer ?? "Run completed.";
     case "failed":
       return currentState.error ?? "Run could not be started.";
   }
+}
+
+function renderTimeline() {
+  const rows = toTimelineRows(state.toolCalls, { nowMs: Date.now() });
+  timelineEmpty.hidden = rows.length > 0;
+
+  timelineList.replaceChildren(
+    ...rows.map((row) => {
+      const item = document.createElement("li");
+      item.className = "timeline-row";
+      item.dataset.status = row.status;
+
+      const toolName = document.createElement("p");
+      toolName.className = "timeline-tool";
+      toolName.textContent = row.toolName;
+
+      const status = document.createElement("span");
+      status.className = "timeline-badge";
+      status.dataset.status = row.status;
+      status.textContent = row.statusLabel;
+
+      const duration = document.createElement("p");
+      duration.className = "timeline-duration";
+      duration.textContent = row.durationLabel;
+
+      item.append(toolName, status, duration);
+      return item;
+    }),
+  );
+}
+
+function syncDurationTimer() {
+  if (state.phase === "running") {
+    if (durationTimer === null) {
+      durationTimer = window.setInterval(() => {
+        renderTimeline();
+      }, 200);
+    }
+    return;
+  }
+
+  if (durationTimer !== null) {
+    window.clearInterval(durationTimer);
+    durationTimer = null;
+  }
+}
+
+function openRunStream(runId: string) {
+  streamSubscription = subscribeToRunEvents(runId, {
+    onRunState: (event) => {
+      dispatch({
+        type: "run_state_received",
+        event,
+      });
+    },
+    onToolCall: (event) => {
+      dispatch({
+        type: "tool_call_received",
+        event,
+      });
+    },
+    onRunComplete: (event) => {
+      dispatch({
+        type: "run_completed",
+        event,
+      });
+      closeRunStream();
+    },
+    onRunError: (event) => {
+      dispatch({
+        type: "run_error_received",
+        event,
+      });
+      closeRunStream();
+    },
+    onInvalidEvent: () => {
+      dispatch({
+        type: "run_failed",
+        message: "Run stream returned an invalid event.",
+      });
+      closeRunStream();
+    },
+    onTransportError: () => {
+      if (state.phase === "running") {
+        runDetails.textContent = "Connection lost. Waiting for terminal run update.";
+      }
+    },
+  });
+}
+
+function closeRunStream() {
+  streamSubscription?.close();
+  streamSubscription = null;
 }
 
 function requireElement<TElement extends HTMLElement>(id: string): TElement {
