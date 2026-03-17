@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from pydantic import ValidationError
 
@@ -8,6 +9,11 @@ from backend.app.contracts.web_search import (
     WebSearchInput,
     WebSearchResponse,
     WebSearchResult,
+)
+from backend.app.providers.serper_client import (
+    NonRetryableSerperError,
+    RetryableSerperError,
+    SerperClient,
 )
 
 
@@ -227,3 +233,135 @@ def test_tool_error_envelope_rejects_invalid_payloads(
         ToolErrorEnvelope(**payload)
 
     assert field_name in str(exc_info.value)
+
+
+def test_serper_client_returns_normalized_results_on_success() -> None:
+    captured_request: dict[str, object] = {}
+
+    def handler(request):
+        captured_request["headers"] = dict(request.headers)
+        captured_request["json"] = request.read().decode("utf-8")
+        return _json_response(
+            200,
+            {
+                "organic": [
+                    {
+                        "title": "Second result",
+                        "link": "https://example.com/two",
+                        "snippet": "Second snippet",
+                        "position": 2,
+                    },
+                    {
+                        "title": "First result",
+                        "link": "https://example.com/one",
+                        "snippet": "First snippet",
+                        "position": 1,
+                    },
+                ]
+            },
+        )
+
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(handler),
+    )
+
+    response = client.search(query="  agents  ", max_results=2)
+
+    assert response.query == "agents"
+    assert [result.title for result in response.results] == ["First result", "Second result"]
+    assert [result.rank.position for result in response.results] == [1, 2]
+    assert [result.rank.provider_position for result in response.results] == [1, 2]
+    assert response.metadata.provider == "serper"
+    assert response.meta.attempts == 1
+    assert response.meta.retries == 0
+    assert captured_request["headers"]["x-api-key"] == "serper-test-key"
+    assert '"q":"agents"' in str(captured_request["json"])
+    assert '"num":2' in str(captured_request["json"])
+
+
+def test_serper_client_retries_429_and_recovers() -> None:
+    attempts = {"count": 0}
+
+    def handler(_request):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            return _json_response(429, {"message": "rate limited"})
+        return _json_response(
+            200,
+            {
+                "organic": [
+                    {
+                        "title": "Recovered result",
+                        "link": "https://example.com/recovered",
+                        "snippet": "Recovered snippet",
+                        "position": 1,
+                    }
+                ]
+            },
+        )
+
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(handler),
+    )
+
+    response = client.search(query="agents", max_results=1)
+
+    assert attempts["count"] == 2
+    assert response.meta.attempts == 2
+    assert response.meta.retries == 1
+    assert response.results[0].title == "Recovered result"
+
+
+def test_serper_client_retries_500_and_surfaces_terminal_error() -> None:
+    attempts = {"count": 0}
+
+    def handler(_request):
+        attempts["count"] += 1
+        return _json_response(500, {"message": "upstream failure"})
+
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(handler),
+    )
+
+    with pytest.raises(RetryableSerperError) as exc_info:
+        client.search(query="agents", max_results=1)
+
+    assert attempts["count"] == 3
+    assert exc_info.value.kind == "provider_unavailable"
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.attempt_number == 3
+    assert exc_info.value.retryable is True
+
+
+def test_serper_client_fails_fast_on_non_retryable_400() -> None:
+    attempts = {"count": 0}
+
+    def handler(_request):
+        attempts["count"] += 1
+        return _json_response(400, {"message": "bad request"})
+
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(handler),
+    )
+
+    with pytest.raises(NonRetryableSerperError) as exc_info:
+        client.search(query="agents", max_results=1)
+
+    assert attempts["count"] == 1
+    assert exc_info.value.kind == "invalid_request"
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.attempt_number == 1
+    assert exc_info.value.retryable is False
+
+
+def _mock_http_client(handler) -> object:
+    transport = httpx.MockTransport(handler)
+    return httpx.Client(transport=transport)
+
+
+def _json_response(status_code: int, payload: dict[str, object]) -> object:
+    return httpx.Response(status_code=status_code, json=payload)
