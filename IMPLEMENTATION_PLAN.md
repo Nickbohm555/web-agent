@@ -1,10 +1,60 @@
 # Implementation Plan
 
+Current section: 1 (+1 every turn)
+
+Compact section index with explicit phase/task references.
+
+| Sec | Scope | Phase Doc | Task Plan |
+|---|---|---|---|
+| 1 | Local Compose runtime foundation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md` |
+| 2 | Backend environment validation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md` |
+| 3 | Search tool capability (`web_search`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md` |
+| 4 | Crawl tool capability (`web_crawl`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md` |
+| 5 | Agent runtime loop | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md` |
+| 6 | Agent execution API (`POST /api/agent/run`) | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md` |
+| 7 | Frontend run-start surface | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md` |
+| 8 | Frontend live timeline | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md` |
+| 9 | Canonical `RunEvent` + payload inspector | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md` |
+| 10 | Structured backend observability | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md` |
+| 11 | Cohesive run history view | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md` |
+
+Execution note: use each task plan as the implementation source of truth; this file is an index only.
+# Implementation Plan
+
+Current section: 1 (+1 every turn)
+
+Compact section index with explicit phase/task references.
+
+| Sec | Scope | Phase Doc | Task Plan |
+|---|---|---|---|
+| 1 | Local Compose runtime foundation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md` |
+| 2 | Backend environment validation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md` |
+| 3 | Search tool capability (`web_search`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md` |
+| 4 | Crawl tool capability (`web_crawl`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md` |
+| 5 | Agent runtime loop | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md` |
+| 6 | Agent execution API (`POST /api/agent/run`) | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md` |
+| 7 | Frontend run-start surface | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md` |
+| 8 | Frontend live timeline | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md` |
+| 9 | Canonical `RunEvent` + payload inspector | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md` |
+| 10 | Structured backend observability | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md` |
+| 11 | Cohesive run history view | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md` |
+
+Execution note: use each task plan as the implementation source of truth; this file is an index only.
+# Implementation Plan
+
+
+Current section: 1 (+1 every turn)
+
+
 This plan consolidates roadmap phases 1-5 into executable sections aligned to the active phase plans in `.planning/phases/`.
 
 ## Section 1: Local Compose Runtime Foundation - multi-service startup contract
 
 **Single goal:** Establish one Docker Compose entrypoint that boots backend and frontend with deterministic startup order and required environment wiring.
+
+**Phase references:**
+- Phase doc: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+- Task plan: `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md`
 
 **Details:**
 - Create a root `docker-compose.yml` with `backend` and `frontend` services, explicit ports, and health-gated `depends_on`.
@@ -30,6 +80,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 
 **Single goal:** Fail backend startup early when required provider keys are missing, and start cleanly when both keys are present.
 
+**Phase references:**
+- Phase doc: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+- Task plan: `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md`
+
 **Details:**
 - Introduce typed backend settings for required key fields and shared settings access helper.
 - Validate configuration at app startup/lifespan, not lazily inside tool calls.
@@ -54,6 +108,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 ## Section 3: Search Tool Capability - Serper-backed normalized web search
 
 **Single goal:** Implement a reliable `web_search` tool that returns normalized results and explicit retry/error metadata.
+
+**Phase references:**
+- Phase doc: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+- Task plan: `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md`
 
 **Details:**
 - Define strict contracts for search input, normalized results, success envelope, and shared error envelope.
@@ -83,6 +141,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 
 **Single goal:** Implement a stable `web_crawl` tool with explicit extraction states, fallback reasons, and structured error metadata.
 
+**Phase references:**
+- Phase doc: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+- Task plan: `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md`
+
 **Details:**
 - Define strict crawl contracts covering success payload, fallback reason, metadata, and error envelope.
 - Build HTTP-first worker with timeout, redirect handling, content-type checks, and bounded retry on transient failures.
@@ -110,6 +172,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 
 **Single goal:** Wire one bounded runtime entrypoint that can use `web_search` and `web_crawl` in sequence and return a normalized run result.
 
+**Phase references:**
+- Phase doc: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+- Task plan: `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md`
+
 **Details:**
 - Build runtime facade (for example `run_agent_once`) that binds only canonical tool names and executes one run per prompt.
 - Add prompt instructions and loop-stop strategy for bounded agent behavior.
@@ -134,6 +200,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 ## Section 6: Agent Execution API - stable run endpoint contract
 
 **Single goal:** Expose a frontend-callable run endpoint that executes one runtime call and returns a stable final-answer envelope.
+
+**Phase references:**
+- Phase doc: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+- Task plan: `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md`
 
 **Details:**
 - Define strict API request/response contracts and explicit typed error envelope.
@@ -160,6 +230,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 ## Section 7: Frontend Run Start Surface - prompt input and run initiation
 
 **Single goal:** Deliver a minimal frontend UI where users enter a prompt, start a run, and observe initial state transitions.
+
+**Phase references:**
+- Phase doc: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+- Task plan: `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md`
 
 **Details:**
 - Add typed run-start contracts and route for `POST /api/runs` with strict validation.
@@ -189,6 +263,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 ## Section 8: Frontend Live Timeline - per-tool status and duration
 
 **Single goal:** Show live tool-call progress with statuses and durations, and settle cleanly on terminal run events.
+
+**Phase references:**
+- Phase doc: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+- Task plan: `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md`
 
 **Details:**
 - Add typed SSE event schemas for run lifecycle and tool-call updates.
@@ -221,6 +299,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 
 **Single goal:** Introduce one canonical run-event contract and UI payload inspector that shows full tool input/output with visible safety markers.
 
+**Phase references:**
+- Phase doc: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+- Task plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md`
+
 **Details:**
 - Define canonical `RunEvent` schema with required correlation fields and payload slots.
 - Include redaction and truncation metadata so payload policy decisions are explicit in UI.
@@ -246,6 +328,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 ## Section 10: Structured Backend Observability - correlated logs and parity
 
 **Single goal:** Emit structured backend events with `run_id` and `event_seq` so frontend timeline events can be correlated one-to-one with Docker logs.
+
+**Phase references:**
+- Phase doc: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+- Task plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md`
 
 **Details:**
 - Add run-scoped async context initialization and monotonic sequence generation at run boundaries.
@@ -274,6 +360,10 @@ This plan consolidates roadmap phases 1-5 into executable sections aligned to th
 ## Section 11: Cohesive Run History - final answer plus complete trace
 
 **Single goal:** Provide one run-history flow where users can inspect final answer and full ordered tool trace for current and prior runs.
+
+**Phase references:**
+- Phase doc: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+- Task plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md`
 
 **Details:**
 - Build bounded in-memory history store keyed by `run_id` with retention and payload limits.
