@@ -1,389 +1,634 @@
-# Implementation Plan
-
-Current section: 1 (+1 every turn)
-
-Compact section index with explicit phase/task references.
-
-| Sec | Scope | Phase Doc | Task Plan |
-|---|---|---|---|
-| 1 | Local Compose runtime foundation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md` |
-| 2 | Backend environment validation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md` |
-| 3 | Search tool capability (`web_search`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md` |
-| 4 | Crawl tool capability (`web_crawl`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md` |
-| 5 | Agent runtime loop | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md` |
-| 6 | Agent execution API (`POST /api/agent/run`) | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md` |
-| 7 | Frontend run-start surface | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md` |
-| 8 | Frontend live timeline | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md` |
-| 9 | Canonical `RunEvent` + payload inspector | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md` |
-| 10 | Structured backend observability | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md` |
-| 11 | Cohesive run history view | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md` |
-
-Execution note: use each task plan as the implementation source of truth; this file is an index only.
-# Implementation Plan
-
-Current section: 1 (+1 every turn)
-
-Compact section index with explicit phase/task references.
-
-| Sec | Scope | Phase Doc | Task Plan |
-|---|---|---|---|
-| 1 | Local Compose runtime foundation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md` |
-| 2 | Backend environment validation | `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` | `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md` |
-| 3 | Search tool capability (`web_search`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md` |
-| 4 | Crawl tool capability (`web_crawl`) | `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` | `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md` |
-| 5 | Agent runtime loop | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md` |
-| 6 | Agent execution API (`POST /api/agent/run`) | `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` | `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md` |
-| 7 | Frontend run-start surface | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md` |
-| 8 | Frontend live timeline | `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` | `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md` |
-| 9 | Canonical `RunEvent` + payload inspector | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md` |
-| 10 | Structured backend observability | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md` |
-| 11 | Cohesive run history view | `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` | `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md` |
-
-Execution note: use each task plan as the implementation source of truth; this file is an index only.
-# Implementation Plan
-
-
-Current section: 1 (+1 every turn)
-
-
-This plan consolidates roadmap phases 1-5 into executable sections aligned to the active phase plans in `.planning/phases/`.
-
-## Section 1: Local Compose Runtime Foundation - multi-service startup contract
-
-**Single goal:** Establish one Docker Compose entrypoint that boots backend and frontend with deterministic startup order and required environment wiring.
-
-**Phase references:**
-- Phase doc: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
-- Task plan: `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md`
-
-**Details:**
-- Create a root `docker-compose.yml` with `backend` and `frontend` services, explicit ports, and health-gated `depends_on`.
-- Enforce required keys with Compose interpolation checks for `OPENAI_API_KEY` and `SERPER_API_KEY`.
-- Add healthcheck probes so frontend startup is gated on backend readiness.
-- Keep runtime local-first and avoid production-only orchestration complexity in this phase.
-
-**Tech stack and dependencies**
-- Libraries/packages: no new application libraries required for this section.
-- Tooling: Docker Compose becomes the canonical local startup path; add/update `backend/Dockerfile` and `frontend/Dockerfile`.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `docker-compose.yml` | Defines backend/frontend services, env wiring, ports, and health/dependency semantics. |
-| `backend/Dockerfile` | Provides reproducible backend container build for local runtime. |
-| `frontend/Dockerfile` | Provides reproducible frontend container build for local runtime. |
-
-**How to test:** Run `docker compose config` with and without required keys to verify failure/success behavior, then run `docker compose build backend frontend` to validate image build paths.
-
-## Section 2: Backend Environment Validation - startup-time key enforcement
-
-**Single goal:** Fail backend startup early when required provider keys are missing, and start cleanly when both keys are present.
-
-**Phase references:**
-- Phase doc: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
-- Task plan: `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md`
-
-**Details:**
-- Introduce typed backend settings for required key fields and shared settings access helper.
-- Validate configuration at app startup/lifespan, not lazily inside tool calls.
-- Expose `/healthz` for runtime checks and Compose health probes.
-- Add regression tests for missing-key failure paths and valid-key startup path.
-
-**Tech stack and dependencies**
-- Libraries/packages: add `pydantic-settings` in backend dependencies if missing.
-- Tooling: re-use Docker Compose health checks to verify startup and reachability.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `backend/app/config.py` | Defines typed settings and key requirements. |
-| `backend/app/main.py` | Wires startup validation and health endpoint. |
-| `backend/requirements.txt` | Declares backend config dependency updates. |
-| `backend/tests/test_startup_settings.py` | Protects required-key startup behavior with automated tests. |
-
-**How to test:** Run `pytest backend/tests/test_startup_settings.py`, then verify Compose failure with missing keys and success with both keys exported.
-
-## Section 3: Search Tool Capability - Serper-backed normalized web search
-
-**Single goal:** Implement a reliable `web_search` tool that returns normalized results and explicit retry/error metadata.
-
-**Phase references:**
-- Phase doc: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
-- Task plan: `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md`
-
-**Details:**
-- Define strict contracts for search input, normalized results, success envelope, and shared error envelope.
-- Implement Serper provider client with bounded retry on transient failures and fail-fast behavior on terminal 4xx.
-- Normalize provider output into stable fields (`title`, `url`, `snippet`, `rank`) and avoid leaking raw provider payload.
-- Expose LangChain `@tool("web_search")` adapter with deterministic success/error return contracts.
-
-**Tech stack and dependencies**
-- Libraries/packages: ensure backend has `httpx`, `tenacity`, and `pydantic` for transport, retry, and validation.
-- Tooling: no new container requirements in this section.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `backend/app/contracts/tool_errors.py` | Defines shared typed error envelope for tool failures. |
-| `backend/app/contracts/web_search.py` | Defines request/response models for normalized search output. |
-| `backend/app/core/retry.py` | Implements bounded retry policy and classification hooks. |
-| `backend/app/providers/serper_client.py` | Calls Serper and maps provider data into normalized contracts. |
-| `backend/app/tools/web_search.py` | Exposes canonical `web_search` tool adapter. |
-| `backend/tests/tools/test_web_search_tool.py` | Validates contract shape, ranking stability, and retry/failure behavior. |
-| `backend/requirements.txt` | Tracks backend dependency additions/updates for this path. |
-
-**How to test:** Run `pytest backend/tests/tools/test_web_search_tool.py` and include mocked cases for 200, 429 retry recovery, 5xx failure, and 4xx fail-fast paths.
-
-## Section 4: Crawl Tool Capability - HTTP-first content extraction
-
-**Single goal:** Implement a stable `web_crawl` tool with explicit extraction states, fallback reasons, and structured error metadata.
-
-**Phase references:**
-- Phase doc: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
-- Task plan: `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md`
-
-**Details:**
-- Define strict crawl contracts covering success payload, fallback reason, metadata, and error envelope.
-- Build HTTP-first worker with timeout, redirect handling, content-type checks, and bounded retry on transient failures.
-- Implement deterministic extraction flow that outputs markdown/text and maps low-quality or unsupported content to explicit fallback states.
-- Expose LangChain `@tool("web_crawl")` adapter with stable contract output for success and failure.
-
-**Tech stack and dependencies**
-- Libraries/packages: ensure backend includes `trafilatura`, `httpx`, `tenacity`, and validation dependencies.
-- Tooling: no new orchestration tools; this section is backend implementation/test focused.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `backend/app/contracts/web_crawl.py` | Defines crawl input/output and fallback/error schema contracts. |
-| `backend/app/crawler/http_worker.py` | Performs HTTP-first retrieval with retry/error classification. |
-| `backend/app/crawler/extractor.py` | Converts fetched content into deterministic text/markdown plus quality state. |
-| `backend/app/tools/web_crawl.py` | Exposes canonical `web_crawl` tool adapter. |
-| `backend/tests/tools/test_web_crawl_tool.py` | Covers success, redirects, fallback reasons, and structured error behavior. |
-| `backend/requirements.txt` | Tracks backend dependency additions/updates for crawling path. |
-
-**How to test:** Run `pytest backend/tests/tools/test_web_crawl_tool.py` with fixture/mocked cases for rich HTML, low-quality HTML, non-HTML content, redirects, and network failures.
-
-## Section 5: Agent Runtime Loop - bounded ReAct orchestration
-
-**Single goal:** Wire one bounded runtime entrypoint that can use `web_search` and `web_crawl` in sequence and return a normalized run result.
-
-**Phase references:**
-- Phase doc: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
-- Task plan: `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md`
-
-**Details:**
-- Build runtime facade (for example `run_agent_once`) that binds only canonical tool names and executes one run per prompt.
-- Add prompt instructions and loop-stop strategy for bounded agent behavior.
-- Enforce explicit iteration/recursion limits and map runtime failures into typed internal categories.
-- Return normalized internal run results (final answer + metadata) without exposing provider internals.
-
-**Tech stack and dependencies**
-- Libraries/packages: use existing LangGraph/LangChain backend stack already selected in phase research.
-- Tooling: no additional container changes; this section is runtime orchestration logic.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `backend/agent/runtime.py` | Implements bounded agent execution and tool orchestration facade. |
-| `backend/agent/prompts.py` | Defines system behavior constraints and stop strategy instructions. |
-| `backend/agent/types.py` | Defines normalized runtime result and error categories for API mapping. |
-| `backend/tests/agent/test_runtime.py` | Verifies direct-answer flow, tool-sequence flow, and bounded failure handling. |
-
-**How to test:** Run `pytest backend/tests/agent/test_runtime.py -q` including normal, recursion-limit, and tool/runtime failure scenarios.
-
-## Section 6: Agent Execution API - stable run endpoint contract
-
-**Single goal:** Expose a frontend-callable run endpoint that executes one runtime call and returns a stable final-answer envelope.
-
-**Phase references:**
-- Phase doc: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
-- Task plan: `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md`
-
-**Details:**
-- Define strict API request/response contracts and explicit typed error envelope.
-- Implement `POST /api/agent/run` route that validates prompt input and calls runtime exactly once.
-- Map runtime errors to deterministic HTTP status and machine-readable error codes.
-- Keep response additive-safe with stable fields for frontend rendering (`run_id`, `status`, `final_answer`, `tool_call_count`, `elapsed_ms`).
-
-**Tech stack and dependencies**
-- Libraries/packages: no new packages required beyond existing FastAPI/Pydantic backend stack.
-- Tooling: no Docker changes in this slice.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `backend/api/contracts.py` | Defines external request/response API models. |
-| `backend/api/errors.py` | Maps runtime errors to stable HTTP/API error responses. |
-| `backend/api/routes/agent_run.py` | Implements run endpoint orchestration and response shaping. |
-| `backend/main.py` | Registers API route into backend application wiring. |
-| `backend/tests/api/test_agent_run_route.py` | Verifies request validation, success contract, and error mapping behavior. |
-
-**How to test:** Run `pytest backend/tests/api/test_agent_run_route.py -q` and one local smoke call to `POST /api/agent/run`.
-
-## Section 7: Frontend Run Start Surface - prompt input and run initiation
-
-**Single goal:** Deliver a minimal frontend UI where users enter a prompt, start a run, and observe initial state transitions.
-
-**Phase references:**
-- Phase doc: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
-- Task plan: `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md`
-
-**Details:**
-- Add typed run-start contracts and route for `POST /api/runs` with strict validation.
-- Implement minimal client API call and run-state reducer (`idle -> starting -> running|failed`).
-- Build simple one-screen UI with prompt input, run trigger, and status region.
-- Keep this section focused on run initiation; defer timeline details to next section.
-
-**Tech stack and dependencies**
-- Libraries/packages: use existing TypeScript, Express, and `zod` frontend stack.
-- Tooling: no additional package manager or container changes required.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `src/frontend/contracts.ts` | Defines `POST /api/runs` request/response schemas and inferred types. |
-| `src/frontend/routes/runs.ts` | Implements run-start API route contract and validation handling. |
-| `src/frontend/server.ts` | Registers run route and server wiring. |
-| `src/frontend/client/api-client.ts` | Sends typed run-start requests from browser UI. |
-| `src/frontend/client/state.ts` | Manages run-phase transitions with reducer semantics. |
-| `src/frontend/client/app.ts` | Connects UI events to API client and reducer updates. |
-| `public/index.html` | Renders minimal prompt/run UI shell. |
-| `src/tests/frontend-api/runs.contracts.test.ts` | Validates run-start route contract and malformed input behavior. |
-
-**How to test:** Run `npm run test -- src/tests/frontend-api/runs.contracts.test.ts`, then manually submit valid/invalid prompts from the local UI.
-
-## Section 8: Frontend Live Timeline - per-tool status and duration
-
-**Single goal:** Show live tool-call progress with statuses and durations, and settle cleanly on terminal run events.
-
-**Phase references:**
-- Phase doc: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
-- Task plan: `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md`
-
-**Details:**
-- Add typed SSE event schemas for run lifecycle and tool-call updates.
-- Implement EventSource subscription lifecycle and parser/validation guards.
-- Enforce idempotent reducer behavior keyed by `toolCallId` with monotonic run-state transitions.
-- Render timeline rows with provisional duration while running and backend `durationMs` as final source of truth.
-
-**Tech stack and dependencies**
-- Libraries/packages: no new dependencies required beyond current frontend runtime and tests.
-- Tooling: SSE subscription and cleanup behavior implemented in app/client code; no container updates.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `src/frontend/contracts.ts` | Adds typed run-event schemas including tool enums and duration fields. |
-| `src/frontend/routes/runs.ts` | Exposes/aligns SSE event stream shape for run progress. |
-| `src/frontend/client/api-client.ts` | Manages EventSource creation, parsing, and cleanup. |
-| `src/frontend/client/state.ts` | Applies idempotent event updates and terminal-state guards. |
-| `src/frontend/client/timeline.ts` | Maps state to timeline rows and duration formatting. |
-| `src/frontend/client/app.ts` | Renders live timeline updates and terminal run state. |
-| `public/index.html` | Hosts timeline render targets. |
-| `src/tests/frontend/state.test.ts` | Verifies reducer ordering/dedupe/terminal invariants. |
-| `src/tests/frontend/timeline.test.ts` | Verifies duration display logic and edge cases. |
-| `src/tests/frontend-api/runs.stream.test.ts` | Verifies SSE contract handling and stream parsing behavior. |
-
-**How to test:** Run `npm run test -- src/tests/frontend/state.test.ts src/tests/frontend/timeline.test.ts src/tests/frontend-api/runs.stream.test.ts` and manually confirm live timeline behavior from UI.
-
-## Section 9: Canonical RunEvent + Payload Inspector - full tool I/O in UI
-
-**Single goal:** Introduce one canonical run-event contract and UI payload inspector that shows full tool input/output with visible safety markers.
-
-**Phase references:**
-- Phase doc: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
-- Task plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md`
-
-**Details:**
-- Define canonical `RunEvent` schema with required correlation fields and payload slots.
-- Include redaction and truncation metadata so payload policy decisions are explicit in UI.
-- Render timeline selection and payload detail pane with ordered events by `event_seq`.
-- Cover success and failure tool events so debugging remains complete across outcomes.
-
-**Tech stack and dependencies**
-- Libraries/packages: continue schema validation with existing `zod`; no new framework requirement.
-- Tooling: browser-side rendering remains framework-agnostic and local-first.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `src/frontend/contracts/run-events.ts` | Defines canonical `RunEvent` schema/type for observability payloads. |
-| `src/frontend/contracts.ts` | Re-exports run-event contract helpers for shared frontend use. |
-| `public/index.html` | Hosts timeline + payload inspector layout. |
-| `public/app.js` | Renders selected event payload input/output and safety indicators. |
-| `src/tests/frontend-api/run-events.contracts.test.ts` | Validates schema acceptance/rejection and safety guardrail invariants. |
-
-**How to test:** Run `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts` and manually inspect one successful and one failed tool event in the payload inspector.
-
-## Section 10: Structured Backend Observability - correlated logs and parity
-
-**Single goal:** Emit structured backend events with `run_id` and `event_seq` so frontend timeline events can be correlated one-to-one with Docker logs.
-
-**Phase references:**
-- Phase doc: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
-- Task plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md`
-
-**Details:**
-- Add run-scoped async context initialization and monotonic sequence generation at run boundaries.
-- Implement structured observability logger with redaction and payload truncation before emission.
-- Instrument tool routes (`search`, `fetch`) with lifecycle events (`started`, `succeeded`, `failed`).
-- Add parity tests matching UI and backend events on (`run_id`, `event_seq`, `event_type`).
-
-**Tech stack and dependencies**
-- Libraries/packages: use existing `pino` and Node `AsyncLocalStorage` primitives.
-- Tooling: update `docker-compose.yml` backend logging configuration with JSON logs and rotation bounds.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `src/core/telemetry/run-context.ts` | Stores run-scoped context and event sequence generation. |
-| `src/core/telemetry/observability-logger.ts` | Emits structured/redacted/truncated observability events. |
-| `src/frontend/server.ts` | Initializes run context at request/run entrypoints. |
-| `src/frontend/routes/search.ts` | Emits structured search tool lifecycle events. |
-| `src/frontend/routes/fetch.ts` | Emits structured fetch tool lifecycle events. |
-| `docker-compose.yml` | Configures backend Docker log driver/options for local retrieval. |
-| `src/tests/frontend-api/observability-correlation.test.ts` | Ensures UI/log event parity and correlation invariants. |
-
-**How to test:** Run `npm run test -- src/tests/frontend-api/observability-correlation.test.ts` and verify `docker compose logs --timestamps backend` includes structured correlated event records.
-
-## Section 11: Cohesive Run History - final answer plus complete trace
-
-**Single goal:** Provide one run-history flow where users can inspect final answer and full ordered tool trace for current and prior runs.
-
-**Phase references:**
-- Phase doc: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
-- Task plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md`
-
-**Details:**
-- Build bounded in-memory history store keyed by `run_id` with retention and payload limits.
-- Preserve deterministic ordering by `event_seq` and handle duplicate/out-of-order records safely.
-- Expose run-history list/detail APIs that return answer + ordered event trace in one response model.
-- Finalize UI flow to select runs and inspect answer, timeline, and payload details on one screen.
-
-**Tech stack and dependencies**
-- Libraries/packages: no additional dependency required; implement with existing frontend/server stack.
-- Tooling: no extra container tooling beyond logging already configured in Section 10.
-
-**Files and purpose**
-
-| File | Purpose |
-|------|--------|
-| `src/frontend/run-history/store.ts` | Stores bounded run snapshots with ordering and retention rules. |
-| `src/frontend/routes/run-history.ts` | Serves run list and run detail endpoints for history inspection. |
-| `src/frontend/server.ts` | Registers run-history routes into frontend server. |
-| `public/index.html` | Hosts cohesive run detail interface regions. |
-| `public/app.js` | Renders run selector, final answer, timeline, and payload inspector together. |
-| `src/tests/frontend-api/run-history.integration.test.ts` | Verifies history contracts, ordering invariants, and bound enforcement. |
-
-**How to test:** Run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts` and manually verify a current run and a prior run both render answer + ordered trace in one view.
+Tasks are in **required implementation order** (1...n). Each section = one context window. Complete one section at a time.
+Current section to work on: section 1. (move +1 after each turn)
+
+## Summary Creation Instructions
+
+Use this guide any time a section references `SUMMARY.md` creation.
+
+**Purpose**
+- Execute a phase prompt (`PLAN.md`) and create the outcome summary (`SUMMARY.md`).
+
+**Required reading before writing**
+- Read `.planning/STATE.md` to load project context.
+- Read `.planning/config.json` for planning behavior settings.
+
+**How to create a good summary**
+1. Identify the plan and summary file path: `.planning/phases/XX-name/{phase}-{plan}-SUMMARY.md`.
+2. Read the executed `*-PLAN.md` and extract objective, tasks, verification requirements, success criteria, and output intent.
+3. Gather execution evidence from git history (not memory):
+   - `git log --oneline --grep="^<plan-id>-task[0-9]+$"`
+   - `git show --stat --name-status <commit>` for each matching task commit.
+4. Write the summary title as `# Phase [X] Plan [Y]: [Name] Summary`.
+5. Add a substantive one-line outcome under the title.
+   - Good: `JWT auth with refresh rotation using jose library`
+   - Bad: `Authentication implemented`
+6. Populate frontmatter from execution context:
+   - `phase`, `plan`, `subsystem`, `tags`
+   - `requires`, `provides`, `affects`
+   - `tech-stack.added`, `tech-stack.patterns`
+   - `key-files.created`, `key-files.modified`
+   - `key-decisions`
+   - `duration` (from `$DURATION`), `completed` (from `$PLAN_END_TIME`, `YYYY-MM-DD`)
+7. Ensure claims map to evidence from task commits, and preserve task-to-commit traceability.
+8. Include a deviations section:
+   - If none: state the plan executed as written.
+   - If present: list rule triggered, change made, verification performed, and commit hash.
+9. Keep the summary focused on what was actually delivered, verified, and learned.
+
+## Loop Commit Contract
+
+- Do **not** run `git commit` or `git push` directly in execution steps.
+- `.loop-commit-msg` must contain exactly one non-empty line.
+- Use exactly one commit subject format from this list:
+  - Task sections: `{phase}-{plan}-task{task-number}`
+  - Summary sections: `{phase}-{plan}-summary`
+
+## Section 1 — 01-local-runtime-foundation — 01-01-define-docker-compose-services-and-shared-runtime-wiring — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md`
+- Phase research: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: create `docker-compose.yml` with exactly `backend` and `frontend`, required env var interpolation for `OPENAI_API_KEY` and `SERPER_API_KEY`, explicit port mappings, healthchecks, and long-form `depends_on` so frontend waits for backend health.
+4. Run task verification checks one-by-one: run `docker compose config` with missing keys to confirm interpolation errors, then with both keys set to confirm both services resolve.
+5. Do not mark this task complete until done condition is satisfied: compose defines both services, required-key enforcement, and health-gated startup assumptions.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-define-docker-compose-services-and-shared-runtime-wiring-task1`.
+7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-01-define-docker-compose-services-and-shared-runtime-wiring` / `task=1` / `status=implemented`.
+
+## Section 2 — 01-local-runtime-foundation — 01-01-define-docker-compose-services-and-shared-runtime-wiring — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md`
+- Phase research: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: add `backend/Dockerfile` and `frontend/Dockerfile` with deterministic build steps, runtime commands, and backend healthcheck dependencies available in-image.
+4. Run task verification checks one-by-one: run `docker compose build backend frontend` and confirm both images build successfully.
+5. Do not mark this task complete until done condition is satisfied: compose can build both services directly from repository files.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-define-docker-compose-services-and-shared-runtime-wiring-task2`.
+7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-01-define-docker-compose-services-and-shared-runtime-wiring` / `task=2` / `status=implemented`.
+
+## Section 3 — 01-local-runtime-foundation — 01-01-define-docker-compose-services-and-shared-runtime-wiring (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/01-local-runtime-foundation/01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md`
+- Phase research: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/01-local-runtime-foundation/01-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-define-docker-compose-services-and-shared-runtime-wiring-summary`.
+
+## Section 4 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md`
+- Phase research: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: add `pydantic-settings` if missing, implement typed `Settings` and `get_settings` in `backend/app/config.py`, wire startup validation in `backend/app/main.py` lifespan, and expose `/healthz`.
+4. Run task verification checks one-by-one: run startup/settings backend tests and `docker compose up --build --wait` for missing-key and present-key behavior.
+5. Do not mark this task complete until done condition is satisfied: centralized typed settings and deterministic startup validation for both required keys.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-task1`.
+7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-02-implement-environment-configuration-loading-and-startup-validation` / `task=1` / `status=implemented`.
+
+## Section 5 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md`
+- Phase research: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: add `backend/tests/test_startup_settings.py` coverage for missing `OPENAI_API_KEY`, missing `SERPER_API_KEY`, and successful startup when both are present.
+4. Run task verification checks one-by-one: run `pytest backend/tests/test_startup_settings.py` (or project-equivalent command) and confirm all cases pass.
+5. Do not mark this task complete until done condition is satisfied: automated tests protect required-key runtime behavior.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-task2`.
+7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-02-implement-environment-configuration-loading-and-startup-validation` / `task=2` / `status=implemented`.
+
+## Section 6 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation — Task 3 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md`
+- Phase research: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 3 action: validate compose failure semantics with missing keys and successful startup/reachability for backend and frontend with keys present; align probes if needed.
+4. Run task verification checks one-by-one: `docker compose up --build --wait`, `curl -f http://localhost:8000/healthz`, and frontend HTTP probe; verify explicit missing-key failures when env vars are absent.
+5. Do not mark this task complete until done condition is satisfied: Phase 1 runtime success/failure criteria are demonstrably met.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-task3`.
+7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-02-implement-environment-configuration-loading-and-startup-validation` / `task=3` / `status=implemented`.
+
+## Section 7 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/01-local-runtime-foundation/01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md`
+- Phase research: `.planning/phases/01-local-runtime-foundation/01-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/01-local-runtime-foundation/01-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Because this summary completes Phase 01, include the roadmap/state completion update in this summary section while still using a summary commit subject.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-summary`.
+
+## Section 8 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: create strict Pydantic contracts for tool errors and normalized web search input/result/success envelopes without exposing raw Serper field names.
+4. Run task verification checks one-by-one: run backend tests that instantiate valid/invalid contract payloads and verify deterministic validation behavior.
+5. Do not mark this task complete until done condition is satisfied: search and error contracts are importable typed models with explicit validation guarantees.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-task1`.
+7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-01-implement-serper-backed-web-search-tool-in-python` / `task=1` / `status=implemented`.
+
+## Section 9 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: implement Serper client with bounded tenacity retries (max 3, exponential backoff) for retryable classes, strict timeout, deterministic normalization, and fail-fast non-retryable 4xx behavior.
+4. Run task verification checks one-by-one: run mocked HTTP tests for 200, 429->200 recovery, terminal 500 failure, and 400 fail-fast.
+5. Do not mark this task complete until done condition is satisfied: Serper transport produces normalized contract-valid results and typed retry outcomes.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-task2`.
+7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-01-implement-serper-backed-web-search-tool-in-python` / `task=2` / `status=implemented`.
+
+## Section 10 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python — Task 3 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 3 action: expose `@tool("web_search")` adapter with strict args schema that always returns contract-valid success or explicit error envelopes.
+4. Run task verification checks one-by-one: run `pytest backend/tests/tools/test_web_search_tool.py`.
+5. Do not mark this task complete until done condition is satisfied: `web_search` is callable and returns stable normalized outputs with debuggable failure semantics.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-task3`.
+7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-01-implement-serper-backed-web-search-tool-in-python` / `task=3` / `status=implemented`.
+
+## Section 11 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/02-search-and-crawl-tool-capability/02-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-summary`.
+
+## Section 12 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: define crawl contracts and implement HTTP-first worker with bounded retry, redirects, content-type inspection, response-size guardrails, and typed terminal/retry failure mapping.
+4. Run task verification checks one-by-one: run mocked tests for html 200, redirect final URL capture, unsupported content type, timeout/retry behavior, and terminal 4xx classification.
+5. Do not mark this task complete until done condition is satisfied: crawl fetch path provides deterministic typed outcomes and correct retry/terminal classification.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-task1`.
+7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-02-implement-in-house-python-web-crawl-extraction-flow` / `task=1` / `status=implemented`.
+
+## Section 13 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: implement Trafilatura extraction state machine returning markdown/text and explicit states (`ok`, `low-content-quality`, `unsupported-content-type`, `network-error`) with deterministic quality threshold and fallback reason mapping.
+4. Run task verification checks one-by-one: run extraction tests with rich-content, boilerplate-only, and non-HTML fixtures.
+5. Do not mark this task complete until done condition is satisfied: extraction is never silently empty and all non-success outcomes are explicit.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-task2`.
+7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-02-implement-in-house-python-web-crawl-extraction-flow` / `task=2` / `status=implemented`.
+
+## Section 14 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow — Task 3 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 3 action: expose `@tool("web_crawl")` with strict schema and flow `validate -> http worker -> extractor -> contract response`, preserving shared error envelope semantics.
+4. Run task verification checks one-by-one: run `pytest backend/tests/tools/test_web_crawl_tool.py`.
+5. Do not mark this task complete until done condition is satisfied: `web_crawl` is callable with stable output schema and explicit failure semantics.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-task3`.
+7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-02-implement-in-house-python-web-crawl-extraction-flow` / `task=3` / `status=implemented`.
+
+## Section 15 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/02-search-and-crawl-tool-capability/02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md`
+- Phase research: `.planning/phases/02-search-and-crawl-tool-capability/02-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/02-search-and-crawl-tool-capability/02-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Because this summary completes Phase 02, include the roadmap/state completion update in this summary section while still using a summary commit subject.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-summary`.
+
+## Section 16 — 03-agent-execution-loop-and-api — 03-01 — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md`
+- Phase research: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: implement runtime facade (`run_agent_once`) that binds exactly `web_search` and `web_crawl`, asserts canonical names, and maps raw runtime output to normalized internal `AgentRunResult`.
+4. Run task verification checks one-by-one: run `pytest backend/tests/agent/test_runtime.py -q`.
+5. Do not mark this task complete until done condition is satisfied: one prompt run executes end-to-end with normalized output and no provider payload leakage.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `03-01-task1`.
+7. Update `.planning/STATE.md` with `phase=03-agent-execution-loop-and-api` / `plan=03-01` / `task=1` / `status=implemented`.
+
+## Section 17 — 03-agent-execution-loop-and-api — 03-01 — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md`
+- Phase research: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: enforce bounded execution (`recursion_limit` or equivalent), preserve stop strategy in system instructions, and map known runtime failures into explicit internal error categories.
+4. Run task verification checks one-by-one: run `pytest backend/tests/agent/test_runtime.py -q -k "recursion or failure or timeout"`.
+5. Do not mark this task complete until done condition is satisfied: normal runs terminate, forced-loop/failure paths return deterministic typed errors, and no unbounded path remains.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `03-01-task2`.
+7. Update `.planning/STATE.md` with `phase=03-agent-execution-loop-and-api` / `plan=03-01` / `task=2` / `status=implemented`.
+
+## Section 18 — 03-agent-execution-loop-and-api — 03-01 (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/03-agent-execution-loop-and-api/03-01-PLAN.md`
+- Phase research: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/03-agent-execution-loop-and-api/03-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `03-01-summary`.
+
+## Section 19 — 03-agent-execution-loop-and-api — 03-02 — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md`
+- Phase research: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: define stable API request/response contracts and structured error envelope with deterministic runtime-error-to-HTTP mapping.
+4. Run task verification checks one-by-one: run `pytest backend/tests/api/test_agent_run_route.py -q -k "contract or validation or error"`.
+5. Do not mark this task complete until done condition is satisfied: invalid payloads fail cleanly, success envelope fields remain stable, and known runtime failures map to explicit API errors.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-task1`.
+7. Update `.planning/STATE.md` with `phase=03-agent-execution-loop-and-api` / `plan=03-02` / `task=1` / `status=implemented`.
+
+## Section 20 — 03-agent-execution-loop-and-api — 03-02 — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md`
+- Phase research: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: implement `POST /api/agent/run` route, validate request, call runtime exactly once, return contract-approved fields, and wire route in app startup.
+4. Run task verification checks one-by-one: run backend and smoke test with `uvicorn backend.main:app --reload` and `curl -s -X POST http://localhost:8000/api/agent/run -H 'content-type: application/json' -d '{"prompt":"find one source and summarize"}'`.
+5. Do not mark this task complete until done condition is satisfied: endpoint is reachable, executes one bounded run, and returns stable answer + metadata.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-task2`.
+7. Update `.planning/STATE.md` with `phase=03-agent-execution-loop-and-api` / `plan=03-02` / `task=2` / `status=implemented`.
+
+## Section 21 — 03-agent-execution-loop-and-api — 03-02 — Task 3 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md`
+- Phase research: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 3 action: add route integration tests for request validation, stable success envelope, and recursion/failure mapping into explicit API errors using deterministic runtime stubs/fixtures.
+4. Run task verification checks one-by-one: run `pytest backend/tests/api/test_agent_run_route.py -q`.
+5. Do not mark this task complete until done condition is satisfied: route behavior is deterministic in both success and failure paths and contract regressions fail tests.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-task3`.
+7. Update `.planning/STATE.md` with `phase=03-agent-execution-loop-and-api` / `plan=03-02` / `task=3` / `status=implemented`.
+
+## Section 22 — 03-agent-execution-loop-and-api — 03-02 (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/03-agent-execution-loop-and-api/03-02-PLAN.md`
+- Phase research: `.planning/phases/03-agent-execution-loop-and-api/03-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/03-agent-execution-loop-and-api/03-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Because this summary completes Phase 03, include the roadmap/state completion update in this summary section while still using a summary commit subject.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `03-02-summary`.
+
+## Section 23 — 04-frontend-prompt-execution-surface — 04-01 — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: add typed run-start contracts (`{ prompt }` -> `{ runId, status }`), implement `createRunsRouter()`, wire `/api/runs` in server, and add contract tests for success + malformed payload rejection.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/runs.contracts.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: `POST /api/runs` validates payloads, returns typed response, and tests pass.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `04-01-task1`.
+7. Update `.planning/STATE.md` with `phase=04-frontend-prompt-execution-surface` / `plan=04-01` / `task=1` / `status=implemented`.
+
+## Section 24 — 04-frontend-prompt-execution-surface — 04-01 — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: build one-screen prompt UI + typed API client + reducer for `idle -> starting -> running|failed` and wire submit flow to transitions.
+4. Run task verification checks one-by-one: run `npm run typecheck && npm run test -- src/tests/frontend-api/runs.contracts.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: user can submit prompt and observe deterministic run-start state transitions.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `04-01-task2`.
+7. Update `.planning/STATE.md` with `phase=04-frontend-prompt-execution-surface` / `plan=04-01` / `task=2` / `status=implemented`.
+
+## Section 25 — 04-frontend-prompt-execution-surface — 04-01 (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-01-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/04-frontend-prompt-execution-surface/04-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `04-01-summary`.
+
+## Section 26 — 04-frontend-prompt-execution-surface — 04-02 — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: add strict run-event SSE contracts (`run_state`, `tool_call`, `run_complete`, `run_error`), EventSource stream plumbing, parse guards, and close behavior on terminal/new-run boundaries.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/runs.stream.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: frontend can consume typed SSE stream safely and close stream resources correctly.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `04-02-task1`.
+7. Update `.planning/STATE.md` with `phase=04-frontend-prompt-execution-surface` / `plan=04-02` / `task=1` / `status=implemented`.
+
+## Section 27 — 04-frontend-prompt-execution-surface — 04-02 — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: enforce idempotent reducer updates keyed by `toolCallId`, monotonic run-phase rules, duplicate/out-of-order merge behavior, and terminal regression guards.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend/state.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: reducer is deterministic under duplication and reordering and exposes data ready for timeline rendering.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `04-02-task2`.
+7. Update `.planning/STATE.md` with `phase=04-frontend-prompt-execution-surface` / `plan=04-02` / `task=2` / `status=implemented`.
+
+## Section 28 — 04-frontend-prompt-execution-surface — 04-02 (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-02-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/04-frontend-prompt-execution-surface/04-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `04-02-summary`.
+
+## Section 29 — 04-frontend-prompt-execution-surface — 04-03 — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-03-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: add timeline projection helpers with deterministic ordering and duration precedence (provisional elapsed while running, backend `durationMs` once complete).
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend/timeline.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: timeline helpers produce deterministic rows and correct duration behavior across states.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `04-03-task1`.
+7. Update `.planning/STATE.md` with `phase=04-frontend-prompt-execution-surface` / `plan=04-03` / `task=1` / `status=implemented`.
+
+## Section 30 — 04-frontend-prompt-execution-surface — 04-03 — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-03-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: render timeline rows with tool name/status/duration, sync terminal run outcomes, and preserve one-active-run semantics without adding Phase 5 payload/history panels.
+4. Run task verification checks one-by-one: run `npm run typecheck && npm run test`.
+5. Do not mark this task complete until done condition is satisfied: user sees live per-tool timeline and stable final state without duplicate rows across reruns.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `04-03-task2`.
+7. Update `.planning/STATE.md` with `phase=04-frontend-prompt-execution-surface` / `plan=04-03` / `task=2` / `status=implemented`.
+
+## Section 31 — 04-frontend-prompt-execution-surface — 04-03 (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/04-frontend-prompt-execution-surface/04-03-PLAN.md`
+- Phase research: `.planning/phases/04-frontend-prompt-execution-surface/04-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/04-frontend-prompt-execution-surface/04-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Because this summary completes Phase 04, include the roadmap/state completion update in this summary section while still using a summary commit subject.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `04-03-summary`.
+
+## Section 32 — 05-end-to-end-observability-and-run-history — 05-01-add-full-tool-payload-rendering-in-ui — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: define canonical `RunEventSchema` and related types for required correlation/event fields and payload safety metadata; export parsers/helpers via shared contracts surface.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts` and confirm valid parse / malformed reject behavior.
+5. Do not mark this task complete until done condition is satisfied: one runtime-validated RunEvent contract exists with complete payload slots and safety markers.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-task1`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-01-add-full-tool-payload-rendering-in-ui` / `task=1` / `status=implemented`.
+
+## Section 33 — 05-end-to-end-observability-and-run-history — 05-01-add-full-tool-payload-rendering-in-ui — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: implement timeline + payload inspector UI to render full tool input/output for success/failure events, with visible redaction/truncation indicators and deterministic `event_seq` ordering.
+4. Run task verification checks one-by-one: run `npm run dev:frontend`, execute one run with at least one success and one failure path, and confirm complete payload sections and safety indicators render correctly.
+5. Do not mark this task complete until done condition is satisfied: user can inspect per-tool input/output payloads from timeline without switching views.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-task2`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-01-add-full-tool-payload-rendering-in-ui` / `task=2` / `status=implemented`.
+
+## Section 34 — 05-end-to-end-observability-and-run-history — 05-01-add-full-tool-payload-rendering-in-ui — Task 3 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 3 action: add contract/safety regression tests for schema acceptance/rejection, success/failure payload rendering availability, and secret redaction/truncation invariants.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: tests prevent regressions in payload visibility, schema parity, and secret-safety behavior.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-task3`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-01-add-full-tool-payload-rendering-in-ui` / `task=3` / `status=implemented`.
+
+## Section 35 — 05-end-to-end-observability-and-run-history — 05-01-add-full-tool-payload-rendering-in-ui (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-01-add-full-tool-payload-rendering-in-ui-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/05-end-to-end-observability-and-run-history/05-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-summary`.
+
+## Section 36 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: implement run-scoped context with AsyncLocalStorage for `run_id` and monotonic `event_seq`, and wire initialization at run request entrypoint.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/observability-correlation.test.ts` and confirm non-empty run IDs, strictly increasing event sequence, and no duplicate pair keys.
+5. Do not mark this task complete until done condition is satisfied: correlation keys are deterministic across run lifecycle/tool events without manual threading.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-task1`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-02-emit-and-correlate-structured-backend-observability-logs` / `task=1` / `status=implemented`.
+
+## Section 37 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: create structured observability logger for lifecycle/tool events aligned to RunEvent contract, with secret redaction and payload truncation before emission, and instrument search/fetch routes.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/observability-correlation.test.ts` and confirm expected event types, correlation fields, and no secret leaks.
+5. Do not mark this task complete until done condition is satisfied: backend emits safe structured correlation-ready tool events for both search and fetch flows.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-task2`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-02-emit-and-correlate-structured-backend-observability-logs` / `task=2` / `status=implemented`.
+
+## Section 38 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs — Task 3 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 3 action: configure backend Docker logging for structured JSON/timestamps/rotation and enforce UI-log parity checks by (`run_id`, `event_seq`, `event_type`).
+4. Run task verification checks one-by-one: run `docker compose up -d backend`, `docker compose logs --timestamps backend`, and `npm run test -- src/tests/frontend-api/observability-correlation.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: structured backend logs are retrievable and each frontend tool event correlates to exactly one backend log event.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-task3`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-02-emit-and-correlate-structured-backend-observability-logs` / `task=3` / `status=implemented`.
+
+## Section 39 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-02-emit-and-correlate-structured-backend-observability-logs-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/05-end-to-end-observability-and-run-history/05-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-summary`.
+
+## Section 40 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace — Task 1 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 1 action: implement bounded run-history store keyed by `run_id`, preserving final answer + ordered tool events, monotonic `event_seq` semantics, duplicate handling, and retention limits with explicit truncation metadata.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`.
+5. Do not mark this task complete until done condition is satisfied: run history is deterministic, bounded, and complete for answer + trace rendering.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-task1`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace` / `task=1` / `status=implemented`.
+
+## Section 41 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace — Task 2 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 2 action: add run-history list/detail API endpoints and integrate with server, returning final answer + ordered timeline payloads aligned to established RunEvent/correlation contracts.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts` for populated and empty-history states.
+5. Do not mark this task complete until done condition is satisfied: stable per-run history API returns final answer and full trace in one flow.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-task2`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace` / `task=2` / `status=implemented`.
+
+## Section 42 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace — Task 3 (Execution)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Load `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md` and use it as a reference while executing this task.
+2. If a phase context file is added later, load it and treat it as the phase vision before implementation.
+3. Execute Task 3 action: finalize cohesive UI flow that co-locates run selection, final answer, ordered timeline, and payload inspector; add integration tests for answer visibility, full trace presence, ordering stability, and bounded/truncated entries.
+4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`, then manually verify one active and one historical run with `npm run dev:frontend`.
+5. Do not mark this task complete until done condition is satisfied: user can debug a run end-to-end in one cohesive UI flow.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-task3`.
+7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace` / `task=3` / `status=implemented`.
+
+## Section 43 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace (Summary)
+
+**Required Inputs**
+- Plan: `.planning/phases/05-end-to-end-observability-and-run-history/05-03-finalize-run-history-presentation-with-answer-and-tool-trace-PLAN.md`
+- Phase research: `.planning/phases/05-end-to-end-observability-and-run-history/05-RESEARCH.md`
+
+**Steps**
+1. Create `.planning/phases/05-end-to-end-observability-and-run-history/05-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
+2. Because this summary completes Phase 05, include the roadmap/state completion update in this summary section while still using a summary commit subject.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-summary`.

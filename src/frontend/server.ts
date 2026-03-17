@@ -28,6 +28,9 @@ export function createFrontendServerApp(): Application {
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: JSON_LIMIT }));
+  app.get("/healthz", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
   app.use("/api", createApiRouter());
   app.use(express.static(publicDir));
 

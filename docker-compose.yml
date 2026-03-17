@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      SERPER_API_KEY: ${SERPER_API_KEY:?SERPER_API_KEY is required}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      PORT: "3000"
+      BACKEND_BASE_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s

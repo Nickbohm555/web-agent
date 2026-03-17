@@ -98,6 +98,9 @@ describe("frontend API route contracts", () => {
     expect(envelope.ok).toBe(false);
     expect(envelope.operation).toBe("search");
     expect(envelope.request).toBeNull();
+    if (envelope.ok) {
+      throw new Error("Expected search validation failure envelope.");
+    }
     expect(envelope.error.code).toBe("VALIDATION_ERROR");
 
     if (envelope.error.details && "fieldErrors" in envelope.error.details) {
@@ -132,6 +135,9 @@ describe("frontend API route contracts", () => {
     expect(envelope.ok).toBe(false);
     expect(envelope.operation).toBe("search");
     expect(envelope.durationMs).toBeGreaterThanOrEqual(0);
+    if (envelope.ok) {
+      throw new Error("Expected search SDK failure envelope.");
+    }
     expect(envelope.request).toEqual({
       query: "agents",
       options: {
@@ -212,6 +218,9 @@ describe("frontend API route contracts", () => {
     expect(envelope.ok).toBe(false);
     expect(envelope.operation).toBe("fetch");
     expect(envelope.request).toBeNull();
+    if (envelope.ok) {
+      throw new Error("Expected fetch validation failure envelope.");
+    }
     expect(envelope.error.code).toBe("VALIDATION_ERROR");
 
     if (envelope.error.details && "fieldErrors" in envelope.error.details) {
@@ -248,6 +257,9 @@ describe("frontend API route contracts", () => {
     expect(envelope.ok).toBe(false);
     expect(envelope.operation).toBe("fetch");
     expect(envelope.durationMs).toBeGreaterThanOrEqual(0);
+    if (envelope.ok) {
+      throw new Error("Expected fetch policy failure envelope.");
+    }
     expect(envelope.request).toEqual({
       url: "https://example.com/private",
       options: {
