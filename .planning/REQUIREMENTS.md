@@ -1,64 +1,82 @@
-# Requirements
+# Requirements: Python LangGraph Web Agent Demo
+
+**Defined:** 2026-03-17
+**Core Value:** A user can run one prompt from a simple UI and clearly see how the agent invokes search and crawl tools end-to-end.
 
 ## v1 Requirements
 
-### Core Retrieval
-- [x] **CORE-01**: User can call `search(query, options)` and receive normalized results with `title`, `url`, `snippet`, and rank metadata.
-- [x] **CORE-02**: User can call `fetch(url, options)` and receive clean page content (`text` and/or `markdown`) with consistent response structure.
+Requirements for initial release. Each maps to roadmap phases.
 
-### Retrieval Controls
-- [x] **CTRL-01**: User can control search cost and latency using `maxResults` and timeout options.
-- [x] **CTRL-02**: User can constrain search scope with `includeDomains` and `excludeDomains`.
-- [x] **CTRL-03**: User can tune relevance with locale/freshness controls, with US + English defaults.
+### Agent Execution
 
-### Reliability and Cost Transparency
-- [ ] **REL-01**: User gets deterministic retry/backoff behavior for retryable errors (including rate-limit responses) with typed error outputs.
-- [ ] **REL-02**: User can inspect per-call usage and timing metadata for both search and fetch operations.
-- [x] **REL-03**: User can control fetch freshness/cost tradeoffs with cache options (for example, `maxAge` and force-fresh behavior).
+- [ ] **AGENT-01**: User can submit a prompt and receive an agent-generated final response.
+- [ ] **AGENT-02**: Agent can call a Serper-backed web search tool to retrieve relevant links/snippets.
+- [ ] **AGENT-03**: Agent can call an in-house Python web crawl tool to fetch and extract page content.
+- [ ] **AGENT-04**: Agent can iteratively call tools until it decides it has enough context to answer.
 
-### Safety and Compliance
-- [ ] **SAFE-01**: User is protected from unsafe outbound fetch behavior via URL and network safety policies (including SSRF guardrails).
-- [ ] **SAFE-02**: User gets robots/compliance-aware fetch behavior with explicit allow/deny outcomes.
+### Observability
 
-## v2 Requirements (Deferred)
+- [ ] **OBS-01**: User can see each tool call in the frontend with status and duration.
+- [ ] **OBS-02**: User can inspect full tool inputs and outputs for each call in the frontend.
+- [ ] **OBS-03**: User can inspect structured backend logs for agent/tool events via Docker logs.
+- [ ] **OBS-04**: User can review final answer and per-run tool history in one UI flow.
 
-### Cost/Quality Differentiators
-- [ ] **DIFF-01**: User can select preset retrieval modes (for example, budget mode and quality mode).
-- [ ] **DIFF-02**: User gets adaptive fetch escalation (static-first with selective JS fallback on failure signals).
-- [ ] **DIFF-03**: User can use optional observability hooks such as request, retry, and cost callbacks.
+### Local Runtime + UI
 
-### Throughput and Convenience
-- [ ] **THRU-01**: User can run bounded batch operations (`fetchMany` and/or `searchMany`).
-- [ ] **THRU-02**: User can optionally request lightweight hybrid retrieval (search plus top-N content extracts) with strict cost caps.
+- [ ] **RUNTIME-01**: User can start backend + frontend stack locally with Docker Compose.
+- [ ] **RUNTIME-02**: User can use a TypeScript frontend with a single input/run interface for agent execution.
+- [ ] **RUNTIME-03**: Frontend can invoke backend API endpoint to execute the LangGraph agent.
+- [ ] **RUNTIME-04**: Backend reads `OPENAI_API_KEY` and `SERPER_API_KEY` from environment variables at runtime.
 
-### Architecture Evolution
-- [ ] **ARCH-01**: User can keep the same SDK contracts when switching from local execution to an optional hosted backend.
-- [ ] **ARCH-02**: User can optionally use a Go hosted service for tighter speed/cost control at scale.
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Crawler Hardening
+
+- **CRAWL-01**: Crawler supports selective browser fallback for JS-heavy pages.
+- **CRAWL-02**: Crawler enforces stronger robots/politeness/compliance guardrails.
+
+### Developer Experience
+
+- **DX-01**: UI includes richer multi-run trace analysis (filters, search, export).
+- **DX-02**: Backend includes expanded reliability controls (retry policies per tool class).
 
 ## Out of Scope
 
-- Multi-provider search in v1 (non-Serper providers) — delayed to keep v1 fast and cost-focused.
-- Public SDK packaging in current phases — deferred until core retrieval behavior is validated.
-- Full crawl/map/research platform endpoints in v1 — outside the two-tool `search`/`fetch` scope.
-- Browser-action automation flows in core v1 — too costly and operationally heavy for the initial wedge.
-- Default built-in answer generation/summarization in v1 — retrieval primitives stay explicit and predictable.
-- Enterprise RBAC/compliance platform features in v1 — not required for startup/internal validation milestone.
-- Non-US/multilingual optimization in v1 — US + English focus first.
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Authentication and user accounts | Explicitly excluded to keep v1 focused and simple |
+| Multi-agent architecture | v1 requires one simple agent with two tools only |
+| Production deployment/infrastructure hardening | Local Docker Compose is sufficient for current validation goal |
+| Full parity migration of all legacy TypeScript internals | Immediate focus is runnable Python agent path with observability |
 
 ## Traceability
 
-| Requirement ID | Phase | Status |
-|----------------|-------|--------|
-| CORE-01 | Phase 1 - Core Retrieval Engine | Complete |
-| CORE-02 | Phase 1 - Core Retrieval Engine | Complete |
-| CTRL-01 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
-| CTRL-02 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
-| CTRL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
-| REL-01 | Phase 3 - Reliability and Usage Transparency | Pending |
-| REL-02 | Phase 3 - Reliability and Usage Transparency | Pending |
-| REL-03 | Phase 2 - Retrieval Controls and Cost Tuning | Complete |
-| SAFE-01 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
-| SAFE-02 | Phase 4 - Fetch Safety and Compliance Guardrails | Pending |
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| AGENT-01 | TBD | Pending |
+| AGENT-02 | TBD | Pending |
+| AGENT-03 | TBD | Pending |
+| AGENT-04 | TBD | Pending |
+| OBS-01 | TBD | Pending |
+| OBS-02 | TBD | Pending |
+| OBS-03 | TBD | Pending |
+| OBS-04 | TBD | Pending |
+| RUNTIME-01 | TBD | Pending |
+| RUNTIME-02 | TBD | Pending |
+| RUNTIME-03 | TBD | Pending |
+| RUNTIME-04 | TBD | Pending |
+
+**Coverage:**
+- v1 requirements: 12 total
+- Mapped to phases: 0
+- Unmapped: 12 ⚠️
 
 ---
-*Last updated: 2026-03-15 after scope pivot to core logic*
+*Requirements defined: 2026-03-17*
+*Last updated: 2026-03-17 after initial definition*
