@@ -72,5 +72,5 @@ Resume file: None
 
 phase=01-local-runtime-foundation
 plan=01-01-define-docker-compose-services-and-shared-runtime-wiring
-task=1
+task=2
 status=implemented
