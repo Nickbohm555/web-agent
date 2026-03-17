@@ -6,6 +6,11 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
       SERPER_API_KEY: ${SERPER_API_KEY:?SERPER_API_KEY is required}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "8000:8000"
     healthcheck:
@@ -22,6 +27,11 @@ services:
     environment:
       PORT: "3000"
       BACKEND_BASE_URL: http://backend:8000
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "3000:3000"
     depends_on:

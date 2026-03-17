@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseRunEventList } from "../../frontend/contracts.js";
+import { toRunEventTimelineRows } from "../../frontend/client/timeline.js";
 
 const searchMock = vi.fn();
 const fetchMock = vi.fn();
@@ -158,6 +159,52 @@ describe("observability correlation context", () => {
       .join("");
     expect(serializedLogs).not.toContain("secret-api-key");
     expect(serializedLogs).not.toContain("secret-token");
+  });
+
+  it("maintains one-to-one parity between frontend timeline rows and backend log events", async () => {
+    searchMock.mockResolvedValueOnce(createSearchResponse());
+
+    const stdoutSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const response = await callRoute("/api/search", {
+      query: "timeline parity",
+    });
+
+    expect(response.status).toBe(200);
+
+    const backendEvents = parseStructuredLogEvents(stdoutSpy.mock.calls);
+    expect(backendEvents.map((event) => event.event_type)).toEqual([
+      "tool_call_started",
+      "tool_call_succeeded",
+    ]);
+
+    const frontendEvents = parseRunEventList(backendEvents);
+    const timelineRows = toRunEventTimelineRows(frontendEvents);
+
+    expect(timelineRows).toHaveLength(backendEvents.length);
+
+    for (const [index, row] of timelineRows.entries()) {
+      const backendEvent = backendEvents[index];
+      expect(backendEvent).toBeDefined();
+      expect(row.eventKey).toBe(
+        `${backendEvent?.run_id}:${backendEvent?.event_seq}`,
+      );
+      expect(row.eventSeq).toBe(backendEvent?.event_seq);
+      expect(row.eventType).toBe(backendEvent?.event_type);
+    }
+
+    const parityKeys = new Set(
+      backendEvents.map(
+        (event) => `${event.run_id}:${event.event_seq}:${event.event_type}`,
+      ),
+    );
+    const timelineKeys = new Set(
+      timelineRows.map((row) => `${row.eventKey}:${row.eventType}`),
+    );
+
+    expect(timelineKeys).toEqual(parityKeys);
   });
 });
 
