@@ -8,8 +8,10 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { withRunContext } from "../core/telemetry/run-context.js";
 import { createFetchRouter } from "./routes/fetch.js";
+import { createRunHistoryRouter } from "./routes/run-history.js";
 import { createRunsRouter } from "./routes/runs.js";
 import { createSearchRouter } from "./routes/search.js";
+import { createRunHistoryStore } from "./run-history/store.js";
 
 const DEFAULT_PORT = 3000;
 const JSON_LIMIT = "100kb";
@@ -24,6 +26,7 @@ function createApiRouter(): Router {
 
   router.use("/search", createSearchRouter());
   router.use("/fetch", createFetchRouter());
+  router.use("/runs", createRunHistoryRouter());
   router.use("/runs", createRunsRouter());
 
   return router;
@@ -32,6 +35,8 @@ function createApiRouter(): Router {
 export function createFrontendServerApp(): Application {
   const app = express();
   const apiRouter = createApiRouter();
+
+  app.locals.runHistoryStore = createRunHistoryStore();
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: JSON_LIMIT }));

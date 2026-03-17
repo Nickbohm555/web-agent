@@ -8,6 +8,7 @@ import {
   parseRunEventList,
   RunEventListSchema,
   RunEventSchema,
+  RunEventTypeSchema,
   type RunEvent,
   type RunEventJson,
   type RunEventPayloadSafety,
@@ -170,6 +171,76 @@ export const RunStartResponseSchema = z
   })
   .strict();
 
+const RunHistoryTimestampSchema = z.string().datetime({ offset: true });
+const RunHistoryRunIdSchema = z.string().trim().min(1);
+const RunHistoryPayloadFieldSchema = z.enum([
+  "tool_input",
+  "tool_output",
+  "error_output",
+  "final_answer",
+]);
+
+export const RunHistoryEventTruncationSchema = z
+  .object({
+    eventSeq: z.number().int().nonnegative(),
+    eventType: RunEventTypeSchema,
+    fields: z.array(RunHistoryPayloadFieldSchema),
+    omittedBytes: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const RunHistoryRetentionMetadataSchema = z
+  .object({
+    maxRuns: z.number().int().positive(),
+    maxEventsPerRun: z.number().int().positive(),
+    maxPayloadBytes: z.number().int().positive(),
+    duplicateEventsIgnored: z.number().int().nonnegative(),
+    outOfOrderEventsRejected: z.number().int().nonnegative(),
+    eventsDropped: z.number().int().nonnegative(),
+    payloadTruncations: z.array(RunHistoryEventTruncationSchema),
+  })
+  .strict();
+
+export const RunHistoryRunSummarySchema = z
+  .object({
+    runId: RunHistoryRunIdSchema,
+    finalAnswer: z.string().nullable(),
+    eventCount: z.number().int().nonnegative(),
+    createdAt: RunHistoryTimestampSchema,
+    updatedAt: RunHistoryTimestampSchema,
+    latestEventSeq: z.number().int().nonnegative().nullable(),
+    retention: RunHistoryRetentionMetadataSchema,
+  })
+  .strict();
+
+export const RunHistoryRunSnapshotSchema = z
+  .object({
+    runId: RunHistoryRunIdSchema,
+    finalAnswer: z.string().nullable(),
+    events: RunEventListSchema,
+    createdAt: RunHistoryTimestampSchema,
+    updatedAt: RunHistoryTimestampSchema,
+    retention: RunHistoryRetentionMetadataSchema,
+  })
+  .strict();
+
+export const RunHistoryListResponseSchema = z
+  .object({
+    runs: z.array(RunHistoryRunSummarySchema),
+  })
+  .strict();
+
+export const RunHistoryNotFoundErrorSchema = z
+  .object({
+    error: z
+      .object({
+        code: z.literal("RUN_HISTORY_NOT_FOUND"),
+        message: z.string().trim().min(1),
+      })
+      .strict(),
+  })
+  .strict();
+
 const RunEventTimestampSchema = z.number().int().nonnegative();
 const RunIdSchema = z.string().trim().min(1);
 
@@ -275,6 +346,12 @@ export type CanonicalRunEventJson = RunEventJson;
 export type CanonicalRunEventPayloadSignal = RunEventPayloadSignal;
 export type CanonicalRunEventPayloadSafety = RunEventPayloadSafety;
 export type CanonicalRunEventSafety = RunEventSafety;
+export type RunHistoryEventTruncation = z.output<typeof RunHistoryEventTruncationSchema>;
+export type RunHistoryRetentionMetadata = z.output<typeof RunHistoryRetentionMetadataSchema>;
+export type RunHistoryRunSummary = z.output<typeof RunHistoryRunSummarySchema>;
+export type RunHistoryRunSnapshot = z.output<typeof RunHistoryRunSnapshotSchema>;
+export type RunHistoryListResponse = z.output<typeof RunHistoryListResponseSchema>;
+export type RunHistoryNotFoundError = z.output<typeof RunHistoryNotFoundErrorSchema>;
 export type RunStreamEventName = z.output<typeof RunStreamEventNameSchema>;
 export type RunEventToolName = z.output<typeof RunEventToolNameSchema>;
 export type RunStateEvent = z.output<typeof RunStateEventSchema>;
@@ -305,6 +382,18 @@ export function parseFetchApiRequest(input: unknown): FetchApiRequest {
 
 export function parseRunStartRequest(input: unknown): RunStartRequest {
   return RunStartRequestSchema.parse(input);
+}
+
+export function parseRunHistoryListResponse(input: unknown): RunHistoryListResponse {
+  return RunHistoryListResponseSchema.parse(input);
+}
+
+export function parseRunHistoryRunSnapshot(input: unknown): RunHistoryRunSnapshot {
+  return RunHistoryRunSnapshotSchema.parse(input);
+}
+
+export function parseRunHistoryNotFoundError(input: unknown): RunHistoryNotFoundError {
+  return RunHistoryNotFoundErrorSchema.parse(input);
 }
 
 export function parseSearchSdkOptions(input: unknown): SearchOptions | undefined {

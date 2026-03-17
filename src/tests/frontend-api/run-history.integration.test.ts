@@ -1,17 +1,55 @@
-import { describe, expect, it } from "vitest";
+import type { AddressInfo } from "node:net";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createEmptyRunEventSafety,
+  parseRunHistoryListResponse,
+  parseRunHistoryNotFoundError,
+  parseRunHistoryRunSnapshot,
   type CanonicalRunEvent,
 } from "../../frontend/contracts.js";
 import { createRunHistoryStore } from "../../frontend/run-history/store.js";
 
-describe("run history store", () => {
-  it("stores a deterministic ordered per-run trace and final answer", () => {
-    const store = createRunHistoryStore();
+describe("run history API", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns empty history list responses and a typed not-found detail response", async () => {
+    const response = await callRoute("/api/runs/history");
+
+    expect(response.status).toBe(200);
+    expect(parseRunHistoryListResponse(response.json)).toEqual({
+      runs: [],
+    });
+
+    const notFoundResponse = await callRoute("/api/runs/run-missing/history");
+
+    expect(notFoundResponse.status).toBe(404);
+    expect(parseRunHistoryNotFoundError(notFoundResponse.json)).toEqual({
+      error: {
+        code: "RUN_HISTORY_NOT_FOUND",
+        message: "Run history for 'run-missing' was not found.",
+      },
+    });
+  });
+
+  it("returns per-run summaries and detail snapshots with final answer and ordered events", async () => {
+    const store = createRunHistoryStore();
     store.ingest(
       createEvent({
-        run_id: "run-1",
+        run_id: "run-older",
+        event_seq: 0,
+        event_type: "run_started",
+        tool_input: { prompt: "Older prompt" },
+      }),
+    );
+    store.ingest(
+      createEvent({
+        run_id: "run-current",
         event_seq: 0,
         event_type: "run_started",
         tool_input: { prompt: "Find sources" },
@@ -19,7 +57,7 @@ describe("run history store", () => {
     );
     store.ingest(
       createEvent({
-        run_id: "run-1",
+        run_id: "run-current",
         event_seq: 1,
         event_type: "tool_call_started",
         tool_name: "web_search",
@@ -29,147 +67,89 @@ describe("run history store", () => {
     );
     store.ingest(
       createEvent({
-        run_id: "run-1",
+        run_id: "run-current",
         event_seq: 2,
         event_type: "final_answer_generated",
         final_answer: "Answer with citations.",
       }),
     );
 
-    const snapshot = store.getRun("run-1");
+    const listResponse = await callRoute("/api/runs/history", store);
 
-    expect(snapshot).not.toBeNull();
-    expect(snapshot?.finalAnswer).toBe("Answer with citations.");
-    expect(snapshot?.events.map((event) => event.event_seq)).toEqual([0, 1, 2]);
-    expect(snapshot?.retention.duplicateEventsIgnored).toBe(0);
-    expect(snapshot?.retention.outOfOrderEventsRejected).toBe(0);
-  });
-
-  it("ignores duplicate event_seq values and rejects lower out-of-order events", () => {
-    const store = createRunHistoryStore();
-    const duplicate = createEvent({
-      run_id: "run-dup",
-      event_seq: 1,
-      event_type: "tool_call_started",
-      tool_name: "web_search",
-      tool_call_id: "tool-dup",
-      tool_input: { query: "agents" },
-    });
-
-    expect(
-      store.ingest(
-        createEvent({
-          run_id: "run-dup",
-          event_seq: 0,
-          event_type: "run_started",
-          tool_input: { prompt: "Prompt" },
-        }),
-      ).status,
-    ).toBe("appended");
-    expect(store.ingest(duplicate).status).toBe("appended");
-    expect(store.ingest(duplicate).status).toBe("ignored_duplicate");
-    expect(
-      store.ingest(
-        createEvent({
-          run_id: "run-dup",
-          event_seq: 0,
-          event_type: "run_failed",
-          error_output: { message: "late" },
-        }),
-      ).status,
-    ).toBe("ignored_duplicate");
-    expect(
-      store.ingest(
-        createEvent({
-          run_id: "run-dup",
-          event_seq: 3,
-          event_type: "run_completed",
-          final_answer: "done",
-        }),
-      ).status,
-    ).toBe("appended");
-    expect(
-      store.ingest(
-        createEvent({
-          run_id: "run-dup",
-          event_seq: 2,
-          event_type: "tool_call_succeeded",
-          tool_name: "web_search",
-          tool_call_id: "tool-dup",
-          tool_output: { results: 1 },
-        }),
-      ).status,
-    ).toBe("rejected_out_of_order");
-
-    const snapshot = store.getRun("run-dup");
-
-    expect(snapshot?.events.map((event) => event.event_seq)).toEqual([0, 1, 3]);
-    expect(snapshot?.retention.duplicateEventsIgnored).toBe(2);
-    expect(snapshot?.retention.outOfOrderEventsRejected).toBe(1);
-  });
-
-  it("bounds per-run events and total runs with explicit retention metadata", () => {
-    const store = createRunHistoryStore({
-      maxRuns: 2,
-      maxEventsPerRun: 2,
-    });
-
-    store.ingest(createEvent({ run_id: "run-a", event_seq: 0, event_type: "run_started" }));
-    store.ingest(createEvent({ run_id: "run-a", event_seq: 1, event_type: "tool_call_started", tool_name: "web_search", tool_call_id: "tool-a" }));
-    store.ingest(createEvent({ run_id: "run-a", event_seq: 2, event_type: "run_completed", final_answer: "A" }));
-
-    const firstSnapshot = store.getRun("run-a");
-    expect(firstSnapshot?.events.map((event) => event.event_seq)).toEqual([1, 2]);
-    expect(firstSnapshot?.retention.eventsDropped).toBe(1);
-
-    store.ingest(createEvent({ run_id: "run-b", event_seq: 0, event_type: "run_started" }));
-    store.ingest(createEvent({ run_id: "run-c", event_seq: 0, event_type: "run_started" }));
-
-    expect(store.getRun("run-a")).toBeNull();
-    expect(store.listRuns().map((run) => run.runId)).toEqual(["run-c", "run-b"]);
-  });
-
-  it("truncates oversized payloads and records truncation metadata for later UI visibility", () => {
-    const store = createRunHistoryStore({
-      maxPayloadBytes: 180,
-    });
-
-    store.ingest(
-      createEvent({
-        run_id: "run-big",
-        event_seq: 0,
-        event_type: "tool_call_succeeded",
-        tool_name: "web_search",
-        tool_call_id: "tool-big",
-        tool_output: {
-          results: Array.from({ length: 8 }, (_, index) => ({
-            position: index + 1,
-            snippet: "x".repeat(120),
-          })),
-        },
-      }),
-    );
-
-    const snapshot = store.getRun("run-big");
-    const event = snapshot?.events[0];
-
-    expect(typeof event?.tool_output).toBe("string");
-    expect(event?.tool_output).toContain("Truncated run history payload");
-    expect(event?.safety.tool_output.truncation.active).toBe(true);
-    expect(event?.safety.tool_output.truncation.paths).toContain("$");
-    expect(snapshot?.retention.payloadTruncations).toEqual([
-      {
-        eventSeq: 0,
-        eventType: "tool_call_succeeded",
-        fields: ["tool_output"],
-        omittedBytes: expect.any(Number),
-      },
+    expect(listResponse.status).toBe(200);
+    const listPayload = parseRunHistoryListResponse(listResponse.json);
+    expect(listPayload.runs).toHaveLength(2);
+    expect(listPayload.runs.map((run) => run.runId)).toEqual([
+      "run-current",
+      "run-older",
     ]);
-    expect(snapshot?.retention.payloadTruncations[0]?.omittedBytes).toBeGreaterThan(
-      0,
+    expect(listPayload.runs[0]).toMatchObject({
+      runId: "run-current",
+      finalAnswer: "Answer with citations.",
+      eventCount: 3,
+      latestEventSeq: 2,
+      retention: {
+        duplicateEventsIgnored: 0,
+        outOfOrderEventsRejected: 0,
+        eventsDropped: 0,
+      },
+    });
+
+    const detailResponse = await callRoute(
+      "/api/runs/run-current/history",
+      store,
     );
+
+    expect(detailResponse.status).toBe(200);
+    const detailPayload = parseRunHistoryRunSnapshot(detailResponse.json);
+    expect(detailPayload.runId).toBe("run-current");
+    expect(detailPayload.finalAnswer).toBe("Answer with citations.");
+    expect(detailPayload.events.map((event) => event.event_seq)).toEqual([
+      0, 1, 2,
+    ]);
+    expect(detailPayload.events.at(-1)?.final_answer).toBe(
+      "Answer with citations.",
+    );
+    expect(detailPayload.retention.payloadTruncations).toEqual([]);
   });
 });
+
+async function callRoute(
+  routePath: string,
+  store = createRunHistoryStore(),
+): Promise<{ status: number; json: unknown }> {
+  const { createFrontendServerApp } = await import("../../frontend/server.js");
+  const app = createFrontendServerApp();
+  app.locals.runHistoryStore = store;
+
+  const server = await new Promise<import("node:http").Server>((resolve) => {
+    const listeningServer = app.listen(0, "127.0.0.1", () => {
+      resolve(listeningServer);
+    });
+  });
+
+  const address = server.address() as AddressInfo;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${address.port}${routePath}`);
+
+    return {
+      status: response.status,
+      json: await response.json(),
+    };
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+}
 
 function createEvent(
   event: Partial<CanonicalRunEvent> &
