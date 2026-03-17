@@ -1,9 +1,11 @@
 import type { RunStartResponse } from "./api-client.js";
-import type {
-  RunCompleteEvent,
-  RunErrorEvent,
-  RunStateEvent,
-  ToolCallEvent,
+import {
+  type CanonicalRunEvent,
+  type RunCompleteEvent,
+  type RunErrorEvent,
+  type RunStateEvent,
+  type ToolCallEvent,
+  createRunEventKey,
 } from "../contracts.js";
 
 export type RunPhase = "idle" | "starting" | "running" | "completed" | "failed";
@@ -30,6 +32,9 @@ export interface RunState {
   finalAnswer: string | null;
   completedAt: number | null;
   toolCalls: ToolCallRecord[];
+  runEvents: CanonicalRunEvent[];
+  selectedEventKey: string | null;
+  nextEventSeq: number;
 }
 
 export type RunAction =
@@ -40,7 +45,9 @@ export type RunAction =
   | { type: "run_state_received"; event: RunStateEvent }
   | { type: "tool_call_received"; event: ToolCallEvent }
   | { type: "run_completed"; event: RunCompleteEvent }
-  | { type: "run_error_received"; event: RunErrorEvent };
+  | { type: "run_error_received"; event: RunErrorEvent }
+  | { type: "run_event_selected"; eventKey: string }
+  | { type: "preview_events_loaded"; events: CanonicalRunEvent[] };
 
 export const initialRunState: RunState = {
   phase: "idle",
@@ -50,6 +57,9 @@ export const initialRunState: RunState = {
   finalAnswer: null,
   completedAt: null,
   toolCalls: [],
+  runEvents: [],
+  selectedEventKey: null,
+  nextEventSeq: 0,
 };
 
 export function reduceRunState(state: RunState, action: RunAction): RunState {
@@ -76,6 +86,9 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         finalAnswer: null,
         completedAt: null,
         toolCalls: [],
+        runEvents: [],
+        selectedEventKey: null,
+        nextEventSeq: 0,
       };
     case "run_started":
       if (state.phase !== "starting") {
@@ -90,6 +103,14 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         finalAnswer: null,
         completedAt: null,
         toolCalls: [],
+        ...appendRunEvent(state, {
+          run_id: action.response.runId,
+          event_type: "run_started",
+          ts: new Date().toISOString(),
+          tool_input: {
+            prompt: state.prompt,
+          },
+        }),
       };
     case "run_failed":
       if (
@@ -108,6 +129,9 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         finalAnswer: null,
         completedAt: null,
         toolCalls: [],
+        runEvents: [],
+        selectedEventKey: null,
+        nextEventSeq: 0,
       };
     case "run_state_received":
       if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
@@ -145,6 +169,7 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         ...state,
         phase: "running",
         toolCalls: mergeToolCall(state.toolCalls, action.event),
+        ...appendRunEvent(state, createCanonicalToolEvent(action.event)),
       };
     case "run_completed":
       if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
@@ -157,6 +182,20 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         finalAnswer: action.event.finalAnswer,
         completedAt: action.event.completedAt,
         error: null,
+        ...appendRunEvents(state, [
+          {
+            run_id: action.event.runId,
+            event_type: "final_answer_generated",
+            ts: new Date(action.event.completedAt).toISOString(),
+            final_answer: action.event.finalAnswer,
+          },
+          {
+            run_id: action.event.runId,
+            event_type: "run_completed",
+            ts: new Date(action.event.completedAt).toISOString(),
+            final_answer: action.event.finalAnswer,
+          },
+        ]),
       };
     case "run_error_received":
       if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
@@ -168,8 +207,148 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         phase: "failed",
         error: action.event.message,
         completedAt: action.event.failedAt,
+        ...appendRunEvent(state, {
+          run_id: action.event.runId,
+          event_type: "run_failed",
+          ts: new Date(action.event.failedAt).toISOString(),
+          error_output: {
+            code: action.event.code ?? "RUN_FAILED",
+            message: action.event.message,
+          },
+        }),
+      };
+    case "run_event_selected":
+      return {
+        ...state,
+        selectedEventKey: action.eventKey,
+      };
+    case "preview_events_loaded": {
+      const runEvents = [...action.events].sort(compareRunEvents);
+      const selectedEvent = runEvents[runEvents.length - 1] ?? null;
+      return {
+        ...state,
+        runEvents,
+        selectedEventKey: selectedEvent ? createRunEventKey(selectedEvent) : null,
+        nextEventSeq:
+          action.events.reduce(
+            (highest, event) => Math.max(highest, event.event_seq),
+            -1,
+          ) + 1,
+      };
+    }
+  }
+}
+
+function appendRunEvent(
+  state: RunState,
+  event: Omit<CanonicalRunEvent, "event_seq" | "safety"> & {
+    safety?: CanonicalRunEvent["safety"];
+  },
+): Pick<RunState, "runEvents" | "selectedEventKey" | "nextEventSeq"> {
+  return appendRunEvents(state, [event]);
+}
+
+function appendRunEvents(
+  state: RunState,
+  events: Array<
+    Omit<CanonicalRunEvent, "event_seq" | "safety"> & {
+      safety?: CanonicalRunEvent["safety"];
+    }
+  >,
+): Pick<RunState, "runEvents" | "selectedEventKey" | "nextEventSeq"> {
+  let nextEventSeq = state.nextEventSeq;
+  const appended = events.map((event) => ({
+    ...event,
+    event_seq: nextEventSeq++,
+    safety: event.safety ?? createEmptyEventSafety(),
+  }));
+  const runEvents = [...state.runEvents, ...appended].sort(compareRunEvents);
+  const selectedEvent = runEvents[runEvents.length - 1] ?? null;
+
+  return {
+    runEvents,
+    selectedEventKey: selectedEvent ? createRunEventKey(selectedEvent) : null,
+    nextEventSeq,
+  };
+}
+
+function createCanonicalToolEvent(
+  event: ToolCallEvent,
+): Omit<CanonicalRunEvent, "event_seq" | "safety"> {
+  switch (event.status) {
+    case "started":
+      return {
+        run_id: event.runId,
+        event_type: "tool_call_started",
+        ts: new Date(event.startedAt ?? Date.now()).toISOString(),
+        tool_name: event.toolName,
+        tool_call_id: event.toolCallId,
+        tool_input:
+          event.inputPreview === undefined
+            ? {
+                preview: "Tool input preview unavailable.",
+              }
+            : {
+                preview: event.inputPreview,
+              },
+      };
+    case "completed":
+      return {
+        run_id: event.runId,
+        event_type: "tool_call_succeeded",
+        ts: new Date(event.endedAt ?? Date.now()).toISOString(),
+        tool_name: event.toolName,
+        tool_call_id: event.toolCallId,
+        tool_output:
+          event.outputPreview === undefined
+            ? {
+                preview: "Tool output preview unavailable.",
+              }
+            : {
+                preview: event.outputPreview,
+              },
+      };
+    case "failed":
+      return {
+        run_id: event.runId,
+        event_type: "tool_call_failed",
+        ts: new Date(event.endedAt ?? Date.now()).toISOString(),
+        tool_name: event.toolName,
+        tool_call_id: event.toolCallId,
+        error_output: {
+          message: event.error ?? "Tool call failed.",
+        },
       };
   }
+}
+
+function compareRunEvents(left: CanonicalRunEvent, right: CanonicalRunEvent): number {
+  if (left.run_id !== right.run_id) {
+    return left.run_id.localeCompare(right.run_id);
+  }
+
+  return left.event_seq - right.event_seq;
+}
+
+function createEmptyEventSafety(): CanonicalRunEvent["safety"] {
+  return {
+    tool_input: createEmptyPayloadSafety(),
+    tool_output: createEmptyPayloadSafety(),
+    error_output: createEmptyPayloadSafety(),
+  };
+}
+
+function createEmptyPayloadSafety(): CanonicalRunEvent["safety"]["tool_input"] {
+  return {
+    redaction: {
+      active: false,
+      paths: [],
+    },
+    truncation: {
+      active: false,
+      paths: [],
+    },
+  };
 }
 
 function mergeToolCall(

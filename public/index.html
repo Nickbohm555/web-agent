@@ -27,7 +27,7 @@
       }
 
       main {
-        width: min(100%, 760px);
+        width: min(100%, 1180px);
         padding: 32px;
         border: 1px solid rgba(62, 45, 30, 0.16);
         border-radius: 24px;
@@ -106,6 +106,11 @@
         cursor: wait;
       }
 
+      .ghost-button {
+        background: rgba(31, 26, 20, 0.08);
+        color: #1f1a14;
+      }
+
       .error {
         min-height: 1.4em;
         margin-top: 8px;
@@ -146,10 +151,24 @@
         color: rgba(31, 26, 20, 0.72);
       }
 
-      .timeline-panel {
+      .debug-grid {
         margin-top: 18px;
         padding-top: 18px;
         border-top: 1px solid rgba(62, 45, 30, 0.12);
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.2fr);
+        gap: 18px;
+      }
+
+      .timeline-panel,
+      .inspector-panel {
+        min-width: 0;
+      }
+
+      .timeline-panel {
+        margin-top: 18px;
+        padding-top: 0;
+        border-top: 0;
       }
 
       .timeline-empty {
@@ -164,19 +183,35 @@
         gap: 10px;
       }
 
+      .timeline-item {
+        min-width: 0;
+      }
+
       .timeline-row {
+        width: 100%;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 12px;
-        align-items: center;
-        padding: 14px 16px;
+        align-items: start;
+        padding: 16px;
         border-radius: 16px;
         background: rgba(255, 255, 255, 0.56);
         border: 1px solid rgba(62, 45, 30, 0.1);
+        text-align: left;
+      }
+
+      .timeline-row[data-selected="true"] {
+        border-color: rgba(183, 102, 53, 0.42);
+        box-shadow: 0 0 0 1px rgba(183, 102, 53, 0.14);
+      }
+
+      .timeline-primary,
+      .timeline-badges {
+        min-width: 0;
       }
 
       .timeline-tool,
-      .timeline-duration {
+      .timeline-meta {
         margin: 0;
       }
 
@@ -184,9 +219,17 @@
         font-size: 1rem;
       }
 
-      .timeline-duration {
+      .timeline-meta {
         color: rgba(31, 26, 20, 0.66);
         font-variant-numeric: tabular-nums;
+        margin-top: 4px;
+      }
+
+      .timeline-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
       }
 
       .timeline-badge {
@@ -199,16 +242,85 @@
         font-size: 0.85rem;
       }
 
-      .timeline-badge[data-status="started"] {
+      .timeline-badge[data-kind="event"] {
         background: rgba(183, 102, 53, 0.14);
       }
 
-      .timeline-badge[data-status="completed"] {
+      .timeline-badge[data-kind="redaction"] {
+        background: rgba(157, 59, 31, 0.12);
+      }
+
+      .timeline-badge[data-kind="truncation"] {
         background: rgba(38, 91, 54, 0.14);
       }
 
-      .timeline-badge[data-status="failed"] {
-        background: rgba(157, 59, 31, 0.12);
+      .inspector-shell {
+        padding: 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(62, 45, 30, 0.1);
+      }
+
+      .inspector-meta,
+      .inspector-empty,
+      .payload-empty {
+        color: rgba(31, 26, 20, 0.62);
+      }
+
+      .inspector-meta {
+        margin-top: 8px;
+        font-variant-numeric: tabular-nums;
+        word-break: break-word;
+      }
+
+      .payload-stack {
+        display: grid;
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      .payload-card {
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(62, 45, 30, 0.1);
+        background: rgba(247, 243, 235, 0.72);
+      }
+
+      .payload-heading {
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(31, 26, 20, 0.66);
+      }
+
+      .payload-markers {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .payload-signal {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(183, 102, 53, 0.1);
+        color: #5c351f;
+      }
+
+      .payload-json {
+        margin: 12px 0 0;
+        padding: 14px;
+        overflow-x: auto;
+        border-radius: 14px;
+        background: #1f1a14;
+        color: #f8f1e4;
+        font-family: "SFMono-Regular", "Menlo", monospace;
+        font-size: 0.87rem;
+        line-height: 1.45;
+      }
+
+      .payload-answer {
+        margin-top: 12px;
+        color: rgba(31, 26, 20, 0.8);
       }
 
       @media (max-width: 640px) {
@@ -216,19 +328,27 @@
           padding: 24px;
         }
 
+        .debug-grid {
+          grid-template-columns: 1fr;
+        }
+
         .timeline-row {
           grid-template-columns: 1fr;
           justify-items: start;
+        }
+
+        .timeline-badges {
+          justify-content: flex-start;
         }
       }
     </style>
   </head>
   <body>
     <main>
-      <p class="status-label">Phase 04 / Run Surface</p>
+      <p class="status-label">Phase 05 / Observability</p>
       <h1>Prompt the agent.</h1>
       <p class="lede">
-        Start one run at a time from this minimal shell and watch each tool step settle into a final outcome.
+        Run the agent, inspect event order, and open full tool payloads with visible redaction and truncation markers.
       </p>
 
       <form id="run-form">
@@ -241,6 +361,9 @@
         <p id="prompt-error" class="error" role="alert"></p>
         <div class="controls">
           <button id="run-submit" type="submit">Start run</button>
+          <button id="preview-events" class="ghost-button" type="button">
+            Load payload preview
+          </button>
         </div>
       </form>
 
@@ -249,12 +372,34 @@
         <div id="run-status" class="status-value" data-phase="idle">Idle</div>
         <p id="run-details">Enter a prompt to start one run.</p>
 
-        <section class="timeline-panel" aria-live="polite">
-          <p class="status-label">Timeline</p>
-          <p id="timeline-empty" class="timeline-empty">
-            No tool activity yet.
-          </p>
-          <ol id="timeline-list" class="timeline-list"></ol>
+        <section class="debug-grid">
+          <section class="timeline-panel" aria-live="polite">
+            <p class="status-label">Timeline</p>
+            <p id="timeline-empty" class="timeline-empty">
+              No event activity yet.
+            </p>
+            <ol id="timeline-list" class="timeline-list"></ol>
+          </section>
+
+          <section class="inspector-panel" aria-live="polite">
+            <p class="status-label">Payload inspector</p>
+            <div class="inspector-shell">
+              <h2 id="inspector-header">Select a timeline event</h2>
+              <p id="inspector-meta" class="inspector-meta">
+                Tool input, output, and error payloads appear here with safety markers.
+              </p>
+              <p id="inspector-empty" class="inspector-empty">
+                Start a run or load the preview to inspect one event at a time.
+              </p>
+
+              <div class="payload-stack">
+                <section id="payload-input" class="payload-card"></section>
+                <section id="payload-output" class="payload-card"></section>
+                <section id="payload-error" class="payload-card"></section>
+                <section id="payload-final-answer" class="payload-card"></section>
+              </div>
+            </div>
+          </section>
         </section>
       </section>
     </main>
