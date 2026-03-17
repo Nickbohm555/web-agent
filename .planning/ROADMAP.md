@@ -1,108 +1,107 @@
-# Roadmap
+# Roadmap: Python LangGraph Web Agent Demo
 
 ## Overview
 
-This roadmap is derived directly from the v1 requirements and organizes delivery into coherent capability boundaries for core retrieval logic. It keeps `search` and `fetch` engine behavior central while sequencing controls, reliability, and safety so each phase produces testable outcomes. All v1 requirements are mapped exactly once.
-
-**Depth:** comprehensive  
-**Total v1 requirements:** 10  
-**Coverage:** 10/10 mapped
+This roadmap delivers a local-first Python LangGraph agent flow that a user can run from a simple TypeScript UI while clearly inspecting search and crawl behavior. Phases are derived from v1 requirement boundaries: runtime foundation, tool capability, agent orchestration, frontend execution flow, and end-to-end observability. The sequence prioritizes early runnable infrastructure, then progressively completes the full prompt-to-answer workflow with transparent tool traces.
 
 ## Phases
 
-### Phase 1 - Core Retrieval Engine
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-**Goal:** Systems can execute normalized `search` and `fetch` operations through stable core logic.
+Decimal phases appear between their surrounding integers in numeric order.
 
-**Dependencies:** None
+- [ ] **Phase 1: Local Runtime Foundation** - Boot the stack locally with environment-based provider configuration.
+- [ ] **Phase 2: Search and Crawl Tool Capability** - Make both backend tools callable and provider-backed.
+- [ ] **Phase 3: Agent Execution Loop and API** - Expose iterative LangGraph execution through a backend endpoint.
+- [ ] **Phase 4: Frontend Prompt Execution Surface** - Provide a minimal TypeScript UI that can run the agent and show tool activity status.
+- [ ] **Phase 5: End-to-End Observability and Run History** - Complete full tool input/output visibility and correlated backend logs.
 
-**Requirements:**
-- CORE-01
-- CORE-02
+## Phase Details
 
-**Success Criteria:**
-1. A caller can execute `search(query, options)` and receive normalized results containing `title`, `url`, `snippet`, and rank metadata.
-2. A caller can execute `fetch(url, options)` and receive clean content in a consistent response shape.
-3. Core request/response behavior remains stable across repeated runs for equivalent inputs.
-
-### Phase 2 - Retrieval Controls and Cost Tuning
-
-**Goal:** Developers can control cost, latency, scope, and freshness tradeoffs during retrieval.
-
-**Dependencies:** Phase 1
-
-**Requirements:**
-- CTRL-01
-- CTRL-02
-- CTRL-03
-- REL-03
-
-**Success Criteria:**
-1. A developer can cap search breadth and latency using `maxResults` and timeout options.
-2. A developer can restrict results to allowed domains and exclude unwanted domains.
-3. A developer can apply locale/freshness controls while keeping US + English defaults.
-4. A developer can use cache controls (for example `maxAge` and force-fresh behavior) to choose between freshness and lower cost.
-
-### Phase 3 - Reliability and Usage Transparency
-
-**Goal:** Developers can rely on predictable failure handling and inspect per-call operational metadata.
-
-**Dependencies:** Phase 2
-
-**Requirements:**
-- REL-01
-- REL-02
-
-**Success Criteria:**
-1. Retryable failures (including rate-limit responses) follow deterministic retry/backoff behavior with typed error outputs.
-2. Non-retryable failures return stable, typed error categories that are actionable in application code.
-3. Each `search` and `fetch` call exposes usage and timing metadata that developers can inspect programmatically.
-
-### Phase 4 - Fetch Safety and Compliance Guardrails
-
-**Goal:** Developers can use `fetch` with built-in network safety boundaries and robots-aware compliance outcomes.
-
-**Dependencies:** Phase 1
-
-**Requirements:**
-- SAFE-01
-- SAFE-02
-
-**Success Criteria:**
-1. Unsafe or disallowed target URLs are blocked by policy before outbound fetch execution.
-2. Fetch behavior enforces network safety constraints (including SSRF guardrails) that are visible through explicit errors/outcomes.
-3. Robots/compliance checks produce explicit allow/deny outcomes that developers can inspect before or during fetch execution.
-
-**Plans:** 3 plans
+### Phase 1: Local Runtime Foundation
+**Goal**: Users can start and run the local stack with required API keys loaded from environment variables.
+**Depends on**: Nothing (first phase)
+**Requirements**: RUNTIME-01, RUNTIME-04
+**Success Criteria** (what must be TRUE):
+  1. User can start backend and frontend together using Docker Compose without manual service bootstrapping.
+  2. Backend starts with `OPENAI_API_KEY` and `SERPER_API_KEY` loaded from environment variables and fails clearly when missing.
+  3. User can confirm both services are reachable locally after stack startup.
+**Plans**: TBD
 
 Plans:
-- [x] `04-01-safety-decision-contracts-PLAN.md` — establish typed safety/compliance contracts and URL preflight policy gate
-- [x] `04-02-ssrf-network-guardrails-PLAN.md` — implement DNS/IP SSRF controls and redirect revalidation
-- [x] `04-03-robots-compliance-fetch-wiring-PLAN.md` — wire robots outcomes into fetch orchestration with phase integration tests
+- [ ] 01-01: Define Docker Compose services and shared runtime wiring
+- [ ] 01-02: Implement environment configuration loading and startup validation
 
-### Phase 5: Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
-
-**Goal:** A local frontend validation console can invoke `search(...)` and `fetch(...)` and display clear per-call inputs, outputs, status, and timing.
-**Depends on:** Phase 4
-**Plans:** 3 plans
+### Phase 2: Search and Crawl Tool Capability
+**Goal**: Agent runtime has working Python `web_search` and `web_crawl` tools that return usable results.
+**Depends on**: Phase 1
+**Requirements**: AGENT-02, AGENT-03
+**Success Criteria** (what must be TRUE):
+  1. Search tool can query Serper and return normalized links/snippets for agent use.
+  2. Crawl tool can fetch a URL and return extracted content in a consistent response shape.
+  3. Tool failures return explicit, debuggable errors rather than silent or empty failures.
+**Plans**: TBD
 
 Plans:
-- [ ] `05-01-frontend-dev-console-api-surface-PLAN.md` — build Express frontend API surface with validated contracts for `search` and `fetch`
-- [ ] `05-02-frontend-ui-invocation-and-output-PLAN.md` — implement dual-panel frontend UI for calling both functions and rendering clear outputs
-- [ ] `05-03-run-both-history-and-phase-verification-PLAN.md` — add run-both flow, call history/replay, and automated smoke verification
+- [ ] 02-01: Implement Serper-backed `web_search` tool in Python
+- [ ] 02-02: Implement in-house Python `web_crawl` extraction flow
 
-**Details:**
-This phase adds a local dev-console frontend that keeps SDK calls server-side, exposes `/api/search` and `/api/fetch`, and provides a visible UI for per-operation request/response inspection. It emphasizes transparency and debugging clarity (state, duration, typed errors, and history) over production polish.
+### Phase 3: Agent Execution Loop and API
+**Goal**: User prompts are executed by a ReAct-style LangGraph agent that iterates through tools before answering.
+**Depends on**: Phase 2
+**Requirements**: AGENT-01, AGENT-04, RUNTIME-03
+**Success Criteria** (what must be TRUE):
+  1. Frontend-callable backend endpoint accepts a prompt and triggers one LangGraph agent run.
+  2. Agent can call one or more tools in sequence and stop when enough context is gathered.
+  3. User receives a final agent-generated answer from the same run request.
+  4. API response model is stable enough for frontend rendering of final answer plus run metadata.
+**Plans**: TBD
+
+Plans:
+- [ ] 03-01: Wire LangGraph ReAct loop with tool binding
+- [ ] 03-02: Expose backend execution endpoint and response contract
+
+### Phase 4: Frontend Prompt Execution Surface
+**Goal**: Users can run prompts from a minimal TypeScript UI and track tool-call progress.
+**Depends on**: Phase 3
+**Requirements**: RUNTIME-02, OBS-01
+**Success Criteria** (what must be TRUE):
+  1. User can enter a prompt and start a run from one simple frontend interface.
+  2. Frontend successfully calls backend execution API and displays run state transitions.
+  3. User can see each tool call with status and duration as the run progresses.
+**Plans**: TBD
+
+Plans:
+- [ ] 04-01: Build minimal prompt/run UI and API client wiring
+- [ ] 04-02: Render per-tool status and duration in run timeline
+
+### Phase 5: End-to-End Observability and Run History
+**Goal**: User can inspect full tool I/O, backend event logs, and final-answer history in one debugging flow.
+**Depends on**: Phase 4
+**Requirements**: OBS-02, OBS-03, OBS-04
+**Success Criteria** (what must be TRUE):
+  1. User can inspect complete input and output payloads for each tool call in the frontend.
+  2. User can inspect structured backend logs for agent and tool events via Docker logs.
+  3. User can review the final answer and full per-run tool history in one cohesive UI flow.
+  4. Tool events shown in UI can be correlated with backend logs for the same run.
+**Plans**: TBD
+
+Plans:
+- [ ] 05-01: Add full tool payload rendering in UI
+- [ ] 05-02: Emit and correlate structured backend observability logs
+- [ ] 05-03: Finalize run history presentation with answer + tool trace
 
 ## Progress
 
-| Phase | Goal | Requirement Count | Status |
-|------|------|-------------------|--------|
-| 1 - Core Retrieval Engine | Execute normalized `search`/`fetch` core behavior | 2 | Complete |
-| 2 - Retrieval Controls and Cost Tuning | Control retrieval scope, latency, and freshness | 4 | Complete |
-| 3 - Reliability and Usage Transparency | Predictable failures and inspectable usage/timing | 2 | Complete |
-| 4 - Fetch Safety and Compliance Guardrails | Safe, robots-aware fetch behavior | 2 | Complete |
-| 5 - Frontend Validation Surface | Display `search` and `fetch` calls and outputs clearly | 0 | In Progress |
+**Execution Order:**
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
----
-*Last updated: 2026-03-16*
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Local Runtime Foundation | 0/2 | Not started | - |
+| 2. Search and Crawl Tool Capability | 0/2 | Not started | - |
+| 3. Agent Execution Loop and API | 0/2 | Not started | - |
+| 4. Frontend Prompt Execution Surface | 0/2 | Not started | - |
+| 5. End-to-End Observability and Run History | 0/3 | Not started | - |

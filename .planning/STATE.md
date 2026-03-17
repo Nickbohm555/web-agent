@@ -2,60 +2,68 @@
 
 ## Project Reference
 
-- **Project:** Web Search Core Engine
-- **Core value:** Lowest-cost path to production-grade `search` + `fetch` context for agent systems through reliable core retrieval logic.
-- **Current focus:** Execute Phase 5 plan 05-01 task 3 in task order.
+See: `.planning/PROJECT.md` (updated 2026-03-17)
+
+**Core value:** A user can run one prompt from a simple UI and clearly see how the agent invokes search and crawl tools end-to-end.
+**Current focus:** Phase 1 - Local Runtime Foundation
 
 ## Current Position
 
-- **Current phase:** 5 - Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
-- **Current plan:** 05-01 - Frontend Dev Console API Surface
-- **Next phase:** None
-- **Overall status:** In progress
-- **Progress:** 4/5 phases complete (80%)
-- **Progress bar:** [####-] 80%
+Phase: 1 of 5 (Local Runtime Foundation)
+Plan: 0 of 2 in current phase
+Status: Ready to plan
+Last activity: 2026-03-17 - Initial roadmap created and requirement traceability mapped
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-- **Completed phases:** 4
-- **Pending phases:** 1
-- **Blocked phases:** 0
-- **Requirement coverage:** 10/10 mapped in roadmap
+**Velocity:**
+- Total plans completed: 0
+- Average duration: 0 min
+- Total execution time: 0.0 hours
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 1. Local Runtime Foundation | 0 | 0 min | 0 min |
+| 2. Search and Crawl Tool Capability | 0 | 0 min | 0 min |
+| 3. Agent Execution Loop and API | 0 | 0 min | 0 min |
+| 4. Frontend Prompt Execution Surface | 0 | 0 min | 0 min |
+| 5. End-to-End Observability and Run History | 0 | 0 min | 0 min |
+
+**Recent Trend:**
+- Last 5 plans: none yet
+- Trend: Stable
+
+*Updated after each plan completion*
 
 ## Accumulated Context
 
 ### Decisions
 
-- SDK packaging is out of scope for current phases; focus is core logic first.
-- v1 scope is constrained to the `search` and `fetch` primitives.
-- Serper remains the only search provider in v1.
-- Phase 01 is complete once both normalized `search(...)` and `fetch(...)` paths pass full verification, so work now shifts to retrieval controls.
+Decisions are logged in `.planning/PROJECT.md` Key Decisions table.
+Recent decisions affecting current work:
 
-### Roadmap Evolution
+- [Phase 1]: Start with local Docker runtime and environment-key validation to unblock all downstream work.
+- [Phase 2]: Keep exactly two tools (`web_search`, `web_crawl`) with clear response contracts.
+- [Phase 5]: Prioritize full tool input/output visibility and Docker-log correlation for debugging.
 
-- Phase 4 completed: Fetch now enforces URL/network safety and robots-aware compliance before retrieval.
-- Phase 5 added: Add a frontend where I can display if these functions work. I want to see both functions being called and the output clearly
+### Pending Todos
 
-### TODOs
+From `.planning/todos/pending/` - ideas captured during sessions.
 
-- Start Phase 5 plan `05-01` task 3.
+None yet.
 
-### Blockers
+### Blockers/Concerns
 
-- None currently.
+Issues that affect future work:
+
+- No blockers currently identified.
 
 ## Session Continuity
 
-- **Last completed step:** Implemented Phase 5 plan `05-01` task 2, verified frontend API envelopes with manual `curl` checks, and advanced the implementation plan to Section 50.
-- **Next command:** Execute Section 50 in `IMPLEMENTATION_PLAN.md`
-- **Resume point:** Start Phase 5 plan `05-01` task 3.
-
-## Execution Tracking
-
-- **phase:** 05-add-a-frontend-where-i-can-display-if-these-functions-work-i-want-to-see-both-functions-being-called-and-the-output-clearly
-- **plan:** 05-01
-- **task:** 2
-- **status:** implemented
-
----
-*Last updated: 2026-03-16*
+Last session: 2026-03-17 00:00
+Stopped at: Roadmap and state initialization complete; ready for `/gsd-plan-phase 1`
+Resume file: None
