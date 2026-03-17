@@ -12,7 +12,7 @@ This roadmap delivers a local-first Python LangGraph agent flow that a user can 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Local Runtime Foundation** - Boot the stack locally with environment-based provider configuration.
+- [x] **Phase 1: Local Runtime Foundation** - Boot the stack locally with environment-based provider configuration.
 - [ ] **Phase 2: Search and Crawl Tool Capability** - Make both backend tools callable and provider-backed.
 - [ ] **Phase 3: Agent Execution Loop and API** - Expose iterative LangGraph execution through a backend endpoint.
 - [ ] **Phase 4: Frontend Prompt Execution Surface** - Provide a minimal TypeScript UI that can run the agent and show tool activity status.
@@ -31,8 +31,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md — Define Docker Compose services and shared runtime wiring
-- [ ] 01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md — Implement environment configuration loading and startup validation
+- [x] 01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md — Define Docker Compose services and shared runtime wiring
+- [x] 01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md — Implement environment configuration loading and startup validation
 
 ### Phase 2: Search and Crawl Tool Capability
 **Goal**: Agent runtime has working Python `web_search` and `web_crawl` tools that return usable results.
@@ -101,7 +101,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Local Runtime Foundation | 0/2 | Not started | - |
+| 1. Local Runtime Foundation | 2/2 | Completed | 2026-03-17 |
 | 2. Search and Crawl Tool Capability | 0/2 | Not started | - |
 | 3. Agent Execution Loop and API | 0/2 | Not started | - |
 | 4. Frontend Prompt Execution Surface | 0/3 | Not started | - |
