@@ -72,4 +72,4 @@ Resume file: None
 phase=02-search-and-crawl-tool-capability
 plan=02-01-implement-serper-backed-web-search-tool-in-python
 task=1
-status=ready
+status=implemented
