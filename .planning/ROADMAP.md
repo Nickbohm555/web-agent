@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Search and Crawl Tool Capability** - Make both backend tools callable and provider-backed.
 - [x] **Phase 3: Agent Execution Loop and API** - Expose iterative LangGraph execution through a backend endpoint.
 - [x] **Phase 4: Frontend Prompt Execution Surface** - Provide a minimal TypeScript UI that can run the agent and show tool activity status.
-- [ ] **Phase 5: End-to-End Observability and Run History** - Complete full tool input/output visibility and correlated backend logs.
+- [x] **Phase 5: End-to-End Observability and Run History** - Complete full tool input/output visibility and correlated backend logs.
 
 ## Phase Details
 
@@ -90,9 +90,9 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: Add full tool payload rendering in UI
-- [ ] 05-02: Emit and correlate structured backend observability logs
-- [ ] 05-03: Finalize run history presentation with answer + tool trace
+- [x] 05-01: Add full tool payload rendering in UI
+- [x] 05-02: Emit and correlate structured backend observability logs
+- [x] 05-03: Finalize run history presentation with answer + tool trace
 
 ## Progress
 
@@ -105,4 +105,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Search and Crawl Tool Capability | 2/2 | Completed | 2026-03-17 |
 | 3. Agent Execution Loop and API | 2/2 | Completed | 2026-03-17 |
 | 4. Frontend Prompt Execution Surface | 3/3 | Completed | 2026-03-17 |
-| 5. End-to-End Observability and Run History | 0/3 | Not started | - |
+| 5. End-to-End Observability and Run History | 3/3 | Completed | 2026-03-17 |
