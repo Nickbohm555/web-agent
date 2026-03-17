@@ -23,7 +23,7 @@ import {
   SearchControlsInputSchema,
 } from "../core/policy/retrieval-controls.js";
 
-export const FrontendOperationSchema = z.enum(["search", "fetch"]);
+export const FrontendOperationSchema = z.enum(["search", "fetch", "run_start"]);
 
 export const FrontendErrorCodeSchema = z.enum([
   "VALIDATION_ERROR",
@@ -139,6 +139,31 @@ const FetchApiErrorEnvelopeSchema = z
   })
   .strict();
 
+export const RunStartRequestSchema = z
+  .object({
+    prompt: z.string().trim().min(1),
+  })
+  .strict();
+
+export const RunStartStatusSchema = z.enum(["queued", "running"]);
+
+export const RunStartResponseSchema = z
+  .object({
+    runId: z.uuid(),
+    status: RunStartStatusSchema,
+  })
+  .strict();
+
+const RunStartErrorEnvelopeSchema = z
+  .object({
+    ok: z.literal(false),
+    operation: z.literal("run_start"),
+    durationMs: z.number().nonnegative(),
+    request: RunStartRequestSchema.nullable(),
+    error: FrontendErrorSchema,
+  })
+  .strict();
+
 export const SearchApiEnvelopeSchema = z.union([
   SearchApiSuccessEnvelopeSchema,
   SearchApiErrorEnvelopeSchema,
@@ -149,15 +174,20 @@ export const FetchApiEnvelopeSchema = z.union([
   FetchApiErrorEnvelopeSchema,
 ]);
 
+export const RunStartErrorEnvelope = RunStartErrorEnvelopeSchema;
+
 export type SearchApiRequest = z.output<typeof SearchRequestSchema>;
 export type FetchApiRequest = z.output<typeof FetchRequestSchema>;
+export type RunStartRequest = z.output<typeof RunStartRequestSchema>;
+export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
 export type FrontendErrorCode = z.output<typeof FrontendErrorCodeSchema>;
 export type FrontendError = z.output<typeof FrontendErrorSchema>;
 export type SearchApiEnvelope = z.output<typeof SearchApiEnvelopeSchema>;
 export type FetchApiEnvelope = z.output<typeof FetchApiEnvelopeSchema>;
+export type RunStartErrorEnvelope = z.output<typeof RunStartErrorEnvelopeSchema>;
 
 export interface ErrorEnvelopeInput<TRequest> {
-  operation: "search" | "fetch";
+  operation: "search" | "fetch" | "run_start";
   request: TRequest | null;
   startedAt: number;
   error: unknown;
@@ -169,6 +199,10 @@ export function parseSearchApiRequest(input: unknown): SearchApiRequest {
 
 export function parseFetchApiRequest(input: unknown): FetchApiRequest {
   return FetchRequestSchema.parse(input);
+}
+
+export function parseRunStartRequest(input: unknown): RunStartRequest {
+  return RunStartRequestSchema.parse(input);
 }
 
 export function parseSearchSdkOptions(input: unknown): SearchOptions | undefined {
@@ -207,9 +241,15 @@ export function createFetchSuccessEnvelope(input: {
   });
 }
 
+export function createRunStartResponse(
+  input: RunStartResponse,
+): RunStartResponse {
+  return RunStartResponseSchema.parse(input);
+}
+
 export function createErrorEnvelope<TRequest>(
   input: ErrorEnvelopeInput<TRequest>,
-): SearchApiEnvelope | FetchApiEnvelope {
+): SearchApiEnvelope | FetchApiEnvelope | RunStartErrorEnvelope {
   const envelope = {
     ok: false,
     operation: input.operation,
@@ -220,7 +260,9 @@ export function createErrorEnvelope<TRequest>(
 
   return input.operation === "search"
     ? SearchApiEnvelopeSchema.parse(envelope)
-    : FetchApiEnvelopeSchema.parse(envelope);
+    : input.operation === "fetch"
+      ? FetchApiEnvelopeSchema.parse(envelope)
+      : RunStartErrorEnvelopeSchema.parse(envelope);
 }
 
 export function normalizeFrontendError(error: unknown): FrontendError {

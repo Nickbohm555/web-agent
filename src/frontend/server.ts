@@ -5,6 +5,7 @@ import express, {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createFetchRouter } from "./routes/fetch.js";
+import { createRunsRouter } from "./routes/runs.js";
 import { createSearchRouter } from "./routes/search.js";
 
 const DEFAULT_PORT = 3000;
@@ -19,6 +20,7 @@ function createApiRouter(): Router {
 
   router.use("/search", createSearchRouter());
   router.use("/fetch", createFetchRouter());
+  router.use("/runs", createRunsRouter());
 
   return router;
 }
