@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { withRunContext } from "../core/telemetry/run-context.js";
 import { createFetchRouter } from "./routes/fetch.js";
 import { createRunsRouter } from "./routes/runs.js";
 import { createSearchRouter } from "./routes/search.js";
@@ -30,9 +31,22 @@ function createApiRouter(): Router {
 
 export function createFrontendServerApp(): Application {
   const app = express();
+  const apiRouter = createApiRouter();
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: JSON_LIMIT }));
+  app.use("/api", (req, res, next) => {
+    const headerRunId = req.header("x-run-id");
+    const options =
+      typeof headerRunId === "string" ? { runId: headerRunId } : undefined;
+
+    withRunContext(
+      () => {
+        apiRouter(req, res, next);
+      },
+      options,
+    );
+  });
   app.get("/client/:moduleName.js", async (req, res, next) => {
     const sourcePath = path.join(clientSourceDir, `${req.params.moduleName}.ts`);
 
@@ -59,7 +73,6 @@ export function createFrontendServerApp(): Application {
   app.get("/healthz", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });
-  app.use("/api", createApiRouter());
   app.use(express.static(publicDir));
 
   app.get(/^(?!\/api(?:\/|$)).*/, (_req, res, next) => {
