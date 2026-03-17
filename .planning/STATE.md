@@ -72,5 +72,5 @@ Resume file: None
 
 phase=05-end-to-end-observability-and-run-history
 plan=05-02-emit-and-correlate-structured-backend-observability-logs
-task=1
+task=2
 status=implemented

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createToolCallId, emitToolCallFailed, emitToolCallStarted, emitToolCallSucceeded } from "../../core/telemetry/observability-logger.js";
 import { ZodError } from "zod";
 import { search } from "../../sdk/search.js";
 import {
@@ -14,10 +15,23 @@ export function createSearchRouter(): Router {
 
   router.post("/", async (req, res) => {
     const startedAt = createRequestTimer();
+    const toolCallId = createToolCallId();
+    let requestBody: unknown = req.body;
 
     try {
       const request = parseSearchApiRequest(req.body);
+      requestBody = request;
+      emitToolCallStarted({
+        toolName: "web_search",
+        toolCallId,
+        toolInput: request,
+      });
       const data = await search(request.query, parseSearchSdkOptions(req.body));
+      emitToolCallSucceeded({
+        toolName: "web_search",
+        toolCallId,
+        toolOutput: data,
+      });
 
       res.json(
         createSearchSuccessEnvelope({
@@ -34,6 +48,15 @@ export function createSearchRouter(): Router {
         request,
         startedAt,
         error,
+      });
+      emitToolCallFailed({
+        toolName: "web_search",
+        toolCallId,
+        ...(requestBody !== undefined ? { toolInput: requestBody } : {}),
+        errorOutput: {
+          statusCode: resolveStatusCode(error),
+          error: envelope.ok ? null : envelope.error,
+        },
       });
 
       res.status(resolveStatusCode(error)).json(envelope);

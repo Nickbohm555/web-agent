@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createToolCallId, emitToolCallFailed, emitToolCallStarted, emitToolCallSucceeded } from "../../core/telemetry/observability-logger.js";
 import { ZodError } from "zod";
 import { fetch } from "../../sdk/fetch.js";
 import {
@@ -14,10 +15,23 @@ export function createFetchRouter(): Router {
 
   router.post("/", async (req, res) => {
     const startedAt = createRequestTimer();
+    const toolCallId = createToolCallId();
+    let requestBody: unknown = req.body;
 
     try {
       const request = parseFetchApiRequest(req.body);
+      requestBody = request;
+      emitToolCallStarted({
+        toolName: "web_crawl",
+        toolCallId,
+        toolInput: request,
+      });
       const data = await fetch(request.url, parseFetchSdkOptions(req.body));
+      emitToolCallSucceeded({
+        toolName: "web_crawl",
+        toolCallId,
+        toolOutput: data,
+      });
 
       res.json(
         createFetchSuccessEnvelope({
@@ -34,6 +48,15 @@ export function createFetchRouter(): Router {
         request,
         startedAt,
         error,
+      });
+      emitToolCallFailed({
+        toolName: "web_crawl",
+        toolCallId,
+        ...(requestBody !== undefined ? { toolInput: requestBody } : {}),
+        errorOutput: {
+          statusCode: resolveStatusCode(error),
+          error: envelope.ok ? null : envelope.error,
+        },
       });
 
       res.status(resolveStatusCode(error)).json(envelope);
