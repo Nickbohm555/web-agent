@@ -1,5 +1,5 @@
 Tasks are in **required implementation order** (1...n). Each section = one context window. Complete one section at a time.
-Current section to work on: section 1. (move +1 after each turn)
+Current section to work on: section 2. (move +1 after each turn)
 
 ## Summary Creation Instructions
 
@@ -40,8 +40,9 @@ Use this guide any time a section references `SUMMARY.md` creation.
 - Do **not** run `git commit` or `git push` directly in execution steps.
 - `.loop-commit-msg` must contain exactly one non-empty line.
 - Use exactly one commit subject format from this list:
-  - Task sections: `{phase}-{plan}-task{task-number}`
-  - Summary sections: `{phase}-{plan}-summary`
+  - Task sections: `{phase-number}-{plan-number}-task{task-number}` (example: `01-01-task1`)
+  - Test sections: `{phase-number}-{plan-number}-test{test-number}` (example: `01-01-test1`)
+  - Summary sections: `{phase-number}-{plan-number}-summary` (example: `01-01-summary`)
 
 ## Section 1 — 01-local-runtime-foundation — 01-01-define-docker-compose-services-and-shared-runtime-wiring — Task 1 (Execution)
 
@@ -55,7 +56,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 1 action: create `docker-compose.yml` with exactly `backend` and `frontend`, required env var interpolation for `OPENAI_API_KEY` and `SERPER_API_KEY`, explicit port mappings, healthchecks, and long-form `depends_on` so frontend waits for backend health.
 4. Run task verification checks one-by-one: run `docker compose config` with missing keys to confirm interpolation errors, then with both keys set to confirm both services resolve.
 5. Do not mark this task complete until done condition is satisfied: compose defines both services, required-key enforcement, and health-gated startup assumptions.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-define-docker-compose-services-and-shared-runtime-wiring-task1`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-task1`.
 7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-01-define-docker-compose-services-and-shared-runtime-wiring` / `task=1` / `status=implemented`.
 
 ## Section 2 — 01-local-runtime-foundation — 01-01-define-docker-compose-services-and-shared-runtime-wiring — Task 2 (Execution)
@@ -70,7 +71,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 2 action: add `backend/Dockerfile` and `frontend/Dockerfile` with deterministic build steps, runtime commands, and backend healthcheck dependencies available in-image.
 4. Run task verification checks one-by-one: run `docker compose build backend frontend` and confirm both images build successfully.
 5. Do not mark this task complete until done condition is satisfied: compose can build both services directly from repository files.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-define-docker-compose-services-and-shared-runtime-wiring-task2`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-task2`.
 7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-01-define-docker-compose-services-and-shared-runtime-wiring` / `task=2` / `status=implemented`.
 
 ## Section 3 — 01-local-runtime-foundation — 01-01-define-docker-compose-services-and-shared-runtime-wiring (Summary)
@@ -81,7 +82,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 
 **Steps**
 1. Create `.planning/phases/01-local-runtime-foundation/01-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-define-docker-compose-services-and-shared-runtime-wiring-summary`.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `01-01-summary`.
 
 ## Section 4 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation — Task 1 (Execution)
 
@@ -95,7 +96,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 1 action: add `pydantic-settings` if missing, implement typed `Settings` and `get_settings` in `backend/app/config.py`, wire startup validation in `backend/app/main.py` lifespan, and expose `/healthz`.
 4. Run task verification checks one-by-one: run startup/settings backend tests and `docker compose up --build --wait` for missing-key and present-key behavior.
 5. Do not mark this task complete until done condition is satisfied: centralized typed settings and deterministic startup validation for both required keys.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-task1`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-task1`.
 7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-02-implement-environment-configuration-loading-and-startup-validation` / `task=1` / `status=implemented`.
 
 ## Section 5 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation — Task 2 (Execution)
@@ -110,7 +111,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 2 action: add `backend/tests/test_startup_settings.py` coverage for missing `OPENAI_API_KEY`, missing `SERPER_API_KEY`, and successful startup when both are present.
 4. Run task verification checks one-by-one: run `pytest backend/tests/test_startup_settings.py` (or project-equivalent command) and confirm all cases pass.
 5. Do not mark this task complete until done condition is satisfied: automated tests protect required-key runtime behavior.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-task2`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-task2`.
 7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-02-implement-environment-configuration-loading-and-startup-validation` / `task=2` / `status=implemented`.
 
 ## Section 6 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation — Task 3 (Execution)
@@ -125,7 +126,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 3 action: validate compose failure semantics with missing keys and successful startup/reachability for backend and frontend with keys present; align probes if needed.
 4. Run task verification checks one-by-one: `docker compose up --build --wait`, `curl -f http://localhost:8000/healthz`, and frontend HTTP probe; verify explicit missing-key failures when env vars are absent.
 5. Do not mark this task complete until done condition is satisfied: Phase 1 runtime success/failure criteria are demonstrably met.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-task3`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-task3`.
 7. Update `.planning/STATE.md` with `phase=01-local-runtime-foundation` / `plan=01-02-implement-environment-configuration-loading-and-startup-validation` / `task=3` / `status=implemented`.
 
 ## Section 7 — 01-local-runtime-foundation — 01-02-implement-environment-configuration-loading-and-startup-validation (Summary)
@@ -137,7 +138,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 **Steps**
 1. Create `.planning/phases/01-local-runtime-foundation/01-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
 2. Because this summary completes Phase 01, include the roadmap/state completion update in this summary section while still using a summary commit subject.
-3. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-implement-environment-configuration-loading-and-startup-validation-summary`.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `01-02-summary`.
 
 ## Section 8 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python — Task 1 (Execution)
 
@@ -151,7 +152,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 1 action: create strict Pydantic contracts for tool errors and normalized web search input/result/success envelopes without exposing raw Serper field names.
 4. Run task verification checks one-by-one: run backend tests that instantiate valid/invalid contract payloads and verify deterministic validation behavior.
 5. Do not mark this task complete until done condition is satisfied: search and error contracts are importable typed models with explicit validation guarantees.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-task1`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-task1`.
 7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-01-implement-serper-backed-web-search-tool-in-python` / `task=1` / `status=implemented`.
 
 ## Section 9 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python — Task 2 (Execution)
@@ -166,7 +167,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 2 action: implement Serper client with bounded tenacity retries (max 3, exponential backoff) for retryable classes, strict timeout, deterministic normalization, and fail-fast non-retryable 4xx behavior.
 4. Run task verification checks one-by-one: run mocked HTTP tests for 200, 429->200 recovery, terminal 500 failure, and 400 fail-fast.
 5. Do not mark this task complete until done condition is satisfied: Serper transport produces normalized contract-valid results and typed retry outcomes.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-task2`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-task2`.
 7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-01-implement-serper-backed-web-search-tool-in-python` / `task=2` / `status=implemented`.
 
 ## Section 10 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python — Task 3 (Execution)
@@ -181,7 +182,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 3 action: expose `@tool("web_search")` adapter with strict args schema that always returns contract-valid success or explicit error envelopes.
 4. Run task verification checks one-by-one: run `pytest backend/tests/tools/test_web_search_tool.py`.
 5. Do not mark this task complete until done condition is satisfied: `web_search` is callable and returns stable normalized outputs with debuggable failure semantics.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-task3`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-task3`.
 7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-01-implement-serper-backed-web-search-tool-in-python` / `task=3` / `status=implemented`.
 
 ## Section 11 — 02-search-and-crawl-tool-capability — 02-01-implement-serper-backed-web-search-tool-in-python (Summary)
@@ -192,7 +193,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 
 **Steps**
 1. Create `.planning/phases/02-search-and-crawl-tool-capability/02-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-implement-serper-backed-web-search-tool-in-python-summary`.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `02-01-summary`.
 
 ## Section 12 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow — Task 1 (Execution)
 
@@ -206,7 +207,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 1 action: define crawl contracts and implement HTTP-first worker with bounded retry, redirects, content-type inspection, response-size guardrails, and typed terminal/retry failure mapping.
 4. Run task verification checks one-by-one: run mocked tests for html 200, redirect final URL capture, unsupported content type, timeout/retry behavior, and terminal 4xx classification.
 5. Do not mark this task complete until done condition is satisfied: crawl fetch path provides deterministic typed outcomes and correct retry/terminal classification.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-task1`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-task1`.
 7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-02-implement-in-house-python-web-crawl-extraction-flow` / `task=1` / `status=implemented`.
 
 ## Section 13 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow — Task 2 (Execution)
@@ -221,7 +222,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 2 action: implement Trafilatura extraction state machine returning markdown/text and explicit states (`ok`, `low-content-quality`, `unsupported-content-type`, `network-error`) with deterministic quality threshold and fallback reason mapping.
 4. Run task verification checks one-by-one: run extraction tests with rich-content, boilerplate-only, and non-HTML fixtures.
 5. Do not mark this task complete until done condition is satisfied: extraction is never silently empty and all non-success outcomes are explicit.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-task2`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-task2`.
 7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-02-implement-in-house-python-web-crawl-extraction-flow` / `task=2` / `status=implemented`.
 
 ## Section 14 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow — Task 3 (Execution)
@@ -236,7 +237,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 3 action: expose `@tool("web_crawl")` with strict schema and flow `validate -> http worker -> extractor -> contract response`, preserving shared error envelope semantics.
 4. Run task verification checks one-by-one: run `pytest backend/tests/tools/test_web_crawl_tool.py`.
 5. Do not mark this task complete until done condition is satisfied: `web_crawl` is callable with stable output schema and explicit failure semantics.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-task3`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-task3`.
 7. Update `.planning/STATE.md` with `phase=02-search-and-crawl-tool-capability` / `plan=02-02-implement-in-house-python-web-crawl-extraction-flow` / `task=3` / `status=implemented`.
 
 ## Section 15 — 02-search-and-crawl-tool-capability — 02-02-implement-in-house-python-web-crawl-extraction-flow (Summary)
@@ -248,7 +249,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 **Steps**
 1. Create `.planning/phases/02-search-and-crawl-tool-capability/02-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
 2. Because this summary completes Phase 02, include the roadmap/state completion update in this summary section while still using a summary commit subject.
-3. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-implement-in-house-python-web-crawl-extraction-flow-summary`.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `02-02-summary`.
 
 ## Section 16 — 03-agent-execution-loop-and-api — 03-01 — Task 1 (Execution)
 
@@ -479,7 +480,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 1 action: define canonical `RunEventSchema` and related types for required correlation/event fields and payload safety metadata; export parsers/helpers via shared contracts surface.
 4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts` and confirm valid parse / malformed reject behavior.
 5. Do not mark this task complete until done condition is satisfied: one runtime-validated RunEvent contract exists with complete payload slots and safety markers.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-task1`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-task1`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-01-add-full-tool-payload-rendering-in-ui` / `task=1` / `status=implemented`.
 
 ## Section 33 — 05-end-to-end-observability-and-run-history — 05-01-add-full-tool-payload-rendering-in-ui — Task 2 (Execution)
@@ -494,7 +495,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 2 action: implement timeline + payload inspector UI to render full tool input/output for success/failure events, with visible redaction/truncation indicators and deterministic `event_seq` ordering.
 4. Run task verification checks one-by-one: run `npm run dev:frontend`, execute one run with at least one success and one failure path, and confirm complete payload sections and safety indicators render correctly.
 5. Do not mark this task complete until done condition is satisfied: user can inspect per-tool input/output payloads from timeline without switching views.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-task2`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-task2`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-01-add-full-tool-payload-rendering-in-ui` / `task=2` / `status=implemented`.
 
 ## Section 34 — 05-end-to-end-observability-and-run-history — 05-01-add-full-tool-payload-rendering-in-ui — Task 3 (Execution)
@@ -509,7 +510,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 3 action: add contract/safety regression tests for schema acceptance/rejection, success/failure payload rendering availability, and secret redaction/truncation invariants.
 4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts`.
 5. Do not mark this task complete until done condition is satisfied: tests prevent regressions in payload visibility, schema parity, and secret-safety behavior.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-task3`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-task3`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-01-add-full-tool-payload-rendering-in-ui` / `task=3` / `status=implemented`.
 
 ## Section 35 — 05-end-to-end-observability-and-run-history — 05-01-add-full-tool-payload-rendering-in-ui (Summary)
@@ -520,7 +521,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 
 **Steps**
 1. Create `.planning/phases/05-end-to-end-observability-and-run-history/05-01-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-add-full-tool-payload-rendering-in-ui-summary`.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `05-01-summary`.
 
 ## Section 36 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs — Task 1 (Execution)
 
@@ -534,7 +535,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 1 action: implement run-scoped context with AsyncLocalStorage for `run_id` and monotonic `event_seq`, and wire initialization at run request entrypoint.
 4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/observability-correlation.test.ts` and confirm non-empty run IDs, strictly increasing event sequence, and no duplicate pair keys.
 5. Do not mark this task complete until done condition is satisfied: correlation keys are deterministic across run lifecycle/tool events without manual threading.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-task1`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-task1`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-02-emit-and-correlate-structured-backend-observability-logs` / `task=1` / `status=implemented`.
 
 ## Section 37 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs — Task 2 (Execution)
@@ -549,7 +550,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 2 action: create structured observability logger for lifecycle/tool events aligned to RunEvent contract, with secret redaction and payload truncation before emission, and instrument search/fetch routes.
 4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/observability-correlation.test.ts` and confirm expected event types, correlation fields, and no secret leaks.
 5. Do not mark this task complete until done condition is satisfied: backend emits safe structured correlation-ready tool events for both search and fetch flows.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-task2`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-task2`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-02-emit-and-correlate-structured-backend-observability-logs` / `task=2` / `status=implemented`.
 
 ## Section 38 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs — Task 3 (Execution)
@@ -564,7 +565,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 3 action: configure backend Docker logging for structured JSON/timestamps/rotation and enforce UI-log parity checks by (`run_id`, `event_seq`, `event_type`).
 4. Run task verification checks one-by-one: run `docker compose up -d backend`, `docker compose logs --timestamps backend`, and `npm run test -- src/tests/frontend-api/observability-correlation.test.ts`.
 5. Do not mark this task complete until done condition is satisfied: structured backend logs are retrievable and each frontend tool event correlates to exactly one backend log event.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-task3`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-task3`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-02-emit-and-correlate-structured-backend-observability-logs` / `task=3` / `status=implemented`.
 
 ## Section 39 — 05-end-to-end-observability-and-run-history — 05-02-emit-and-correlate-structured-backend-observability-logs (Summary)
@@ -575,7 +576,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 
 **Steps**
 1. Create `.planning/phases/05-end-to-end-observability-and-run-history/05-02-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
-2. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-emit-and-correlate-structured-backend-observability-logs-summary`.
+2. Write `.loop-commit-msg` with exactly one non-empty line: `05-02-summary`.
 
 ## Section 40 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace — Task 1 (Execution)
 
@@ -589,7 +590,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 1 action: implement bounded run-history store keyed by `run_id`, preserving final answer + ordered tool events, monotonic `event_seq` semantics, duplicate handling, and retention limits with explicit truncation metadata.
 4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`.
 5. Do not mark this task complete until done condition is satisfied: run history is deterministic, bounded, and complete for answer + trace rendering.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-task1`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-task1`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace` / `task=1` / `status=implemented`.
 
 ## Section 41 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace — Task 2 (Execution)
@@ -604,7 +605,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 2 action: add run-history list/detail API endpoints and integrate with server, returning final answer + ordered timeline payloads aligned to established RunEvent/correlation contracts.
 4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts` for populated and empty-history states.
 5. Do not mark this task complete until done condition is satisfied: stable per-run history API returns final answer and full trace in one flow.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-task2`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-task2`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace` / `task=2` / `status=implemented`.
 
 ## Section 42 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace — Task 3 (Execution)
@@ -619,7 +620,7 @@ Use this guide any time a section references `SUMMARY.md` creation.
 3. Execute Task 3 action: finalize cohesive UI flow that co-locates run selection, final answer, ordered timeline, and payload inspector; add integration tests for answer visibility, full trace presence, ordering stability, and bounded/truncated entries.
 4. Run task verification checks one-by-one: run `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`, then manually verify one active and one historical run with `npm run dev:frontend`.
 5. Do not mark this task complete until done condition is satisfied: user can debug a run end-to-end in one cohesive UI flow.
-6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-task3`.
+6. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-task3`.
 7. Update `.planning/STATE.md` with `phase=05-end-to-end-observability-and-run-history` / `plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace` / `task=3` / `status=implemented`.
 
 ## Section 43 — 05-end-to-end-observability-and-run-history — 05-03-finalize-run-history-presentation-with-answer-and-tool-trace (Summary)
@@ -631,4 +632,4 @@ Use this guide any time a section references `SUMMARY.md` creation.
 **Steps**
 1. Create `.planning/phases/05-end-to-end-observability-and-run-history/05-03-SUMMARY.md` by following `## Summary Creation Instructions` in this file.
 2. Because this summary completes Phase 05, include the roadmap/state completion update in this summary section while still using a summary commit subject.
-3. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-finalize-run-history-presentation-with-answer-and-tool-trace-summary`.
+3. Write `.loop-commit-msg` with exactly one non-empty line: `05-03-summary`.
