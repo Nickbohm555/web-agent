@@ -1,5 +1,8 @@
 fastapi==0.115.12
 httpx==0.28.1
+langchain==0.3.27
+langchain-openai==0.3.35
+langgraph==0.6.11
 pydantic-settings==2.8.1
 tenacity==9.0.0
 trafilatura==2.0.0

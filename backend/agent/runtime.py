@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 from uuid import uuid4
 
 from backend.agent.prompts import SYSTEM_PROMPT
@@ -78,15 +78,35 @@ def _assert_canonical_tool_names(tools: tuple[Any, ...]) -> None:
 
 def _build_default_agent(tools: tuple[Any, ...]) -> AgentExecutor:
     try:
-        from langchain.agents import create_agent
         from langchain_openai import ChatOpenAI
     except Exception as exc:  # pragma: no cover - exercised only in integrated environments
         raise RuntimeError(
             "Agent runtime dependencies are unavailable; install compatible langchain packages"
         ) from exc
 
+    agent_factory = _load_agent_factory()
+
     model = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-    return create_agent(model=model, tools=list(tools), system_prompt=SYSTEM_PROMPT)
+    return agent_factory(model=model, tools=tools)
+
+
+def _load_agent_factory() -> Callable[..., AgentExecutor]:
+    try:
+        from langchain.agents import create_agent
+    except ImportError:
+        from langgraph.prebuilt import create_react_agent
+
+        return lambda *, model, tools: create_react_agent(
+            model=model,
+            tools=list(tools),
+            prompt=SYSTEM_PROMPT,
+        )
+
+    return lambda *, model, tools: create_agent(
+        model=model,
+        tools=list(tools),
+        system_prompt=SYSTEM_PROMPT,
+    )
 
 
 def _build_inputs(prompt: str) -> dict[str, Any]:
