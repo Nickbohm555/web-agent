@@ -72,5 +72,5 @@ Resume file: None
 
 phase=05-end-to-end-observability-and-run-history
 plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace
-task=2
+task=3
 status=implemented
