@@ -75,7 +75,12 @@ export const RunEventSchema = z
     final_answer: z.string().optional(),
     safety: RunEventSafetySchema,
   })
-  .strict();
+  .strict()
+  .superRefine((event, ctx) => {
+    validatePayloadSafety(event.tool_input, event.safety.tool_input, "tool_input", ctx);
+    validatePayloadSafety(event.tool_output, event.safety.tool_output, "tool_output", ctx);
+    validatePayloadSafety(event.error_output, event.safety.error_output, "error_output", ctx);
+  });
 
 export const RunEventListSchema = z.array(RunEventSchema);
 
@@ -142,4 +147,107 @@ function createEmptyPayloadSafety(): RunEventPayloadSafety {
       paths: [],
     },
   };
+}
+
+const REDACTION_SENTINEL = "[Redacted]";
+const SENSITIVE_FIELD_NAMES = new Set(["authorization", "apiKey", "token"]);
+
+function validatePayloadSafety(
+  payload: RunEventJson | undefined,
+  safety: RunEventPayloadSafety,
+  field: "tool_input" | "tool_output" | "error_output",
+  ctx: z.RefinementCtx,
+) {
+  validateSignalShape(safety.redaction, field, "redaction", ctx);
+  validateSignalShape(safety.truncation, field, "truncation", ctx);
+
+  if (payload === undefined) {
+    return;
+  }
+
+  for (const sensitivePath of findSensitivePaths(payload)) {
+    const value = readPath(payload, sensitivePath);
+    if (value === REDACTION_SENTINEL) {
+      if (!safety.redaction.active || !safety.redaction.paths.includes(sensitivePath)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Redacted payload fields must include matching safety metadata.",
+          path: ["safety", field, "redaction", "paths"],
+        });
+      }
+      continue;
+    }
+
+    ctx.addIssue({
+      code: "custom",
+      message: "Sensitive payload fields must be redacted before rendering.",
+      path: [field, ...toPathSegments(sensitivePath)],
+    });
+  }
+}
+
+function validateSignalShape(
+  signal: RunEventPayloadSignal,
+  field: "tool_input" | "tool_output" | "error_output",
+  signalType: "redaction" | "truncation",
+  ctx: z.RefinementCtx,
+) {
+  if (signal.active && signal.paths.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Active payload safety markers must include at least one path.",
+      path: ["safety", field, signalType, "paths"],
+    });
+  }
+
+  if (!signal.active && signal.paths.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Inactive payload safety markers cannot declare paths.",
+      path: ["safety", field, signalType, "paths"],
+    });
+  }
+}
+
+function findSensitivePaths(payload: RunEventJson, prefix = ""): string[] {
+  if (Array.isArray(payload)) {
+    return payload.flatMap((value, index) => findSensitivePaths(value, joinPath(prefix, String(index))));
+  }
+
+  if (payload === null || typeof payload !== "object") {
+    return [];
+  }
+
+  return Object.entries(payload).flatMap(([key, value]) => {
+    const path = joinPath(prefix, key);
+    const nested = findSensitivePaths(value, path);
+    return SENSITIVE_FIELD_NAMES.has(key) ? [path, ...nested] : nested;
+  });
+}
+
+function readPath(payload: RunEventJson, path: string): RunEventJson | undefined {
+  let current: RunEventJson | undefined = payload;
+
+  for (const segment of toPathSegments(path)) {
+    if (current === null || typeof current !== "object") {
+      return undefined;
+    }
+
+    current = Array.isArray(current)
+      ? current[Number(segment)]
+      : current[segment];
+  }
+
+  return current;
+}
+
+function joinPath(prefix: string, segment: string): string {
+  return prefix.length === 0 ? segment : `${prefix}.${segment}`;
+}
+
+function toPathSegments(path: string): Array<string | number> {
+  return path
+    .split(".")
+    .filter((segment) => segment.length > 0)
+    .map((segment) => (/^\d+$/.test(segment) ? Number(segment) : segment));
 }
