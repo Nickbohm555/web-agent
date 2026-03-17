@@ -15,6 +15,7 @@ from backend.app.providers.serper_client import (
     RetryableSerperError,
     SerperClient,
 )
+from backend.app.tools.web_search import run_web_search, web_search
 
 
 def test_web_search_input_normalizes_query_and_bounds_max_results() -> None:
@@ -356,6 +357,119 @@ def test_serper_client_fails_fast_on_non_retryable_400() -> None:
     assert exc_info.value.status_code == 400
     assert exc_info.value.attempt_number == 1
     assert exc_info.value.retryable is False
+
+
+def test_web_search_tool_returns_contract_valid_success_payload() -> None:
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(
+            lambda _request: _json_response(
+                200,
+                {
+                    "organic": [
+                        {
+                            "title": "Later provider result",
+                            "link": "https://example.com/two",
+                            "snippet": "Second snippet",
+                            "position": 2,
+                        },
+                        {
+                            "title": "Earlier provider result",
+                            "link": "https://example.com/one",
+                            "snippet": "First snippet",
+                            "position": 1,
+                        },
+                    ]
+                },
+            )
+        ),
+    )
+
+    payload = run_web_search(query=" agents ", max_results=2, client=client)
+    response = WebSearchResponse.model_validate(payload)
+
+    assert response.query == "agents"
+    assert [result.title for result in response.results] == [
+        "Earlier provider result",
+        "Later provider result",
+    ]
+    assert [result.rank.position for result in response.results] == [1, 2]
+    assert response.meta.operation == "web_search"
+
+
+def test_web_search_tool_returns_structured_error_for_retryable_provider_failure() -> None:
+    attempts = {"count": 0}
+
+    def handler(_request):
+        attempts["count"] += 1
+        return _json_response(500, {"message": "upstream failure"})
+
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(handler),
+    )
+
+    payload = run_web_search(query="agents", max_results=1, client=client)
+    envelope = ToolErrorEnvelope.model_validate(payload)
+
+    assert attempts["count"] == 3
+    assert envelope.error.kind == "provider_unavailable"
+    assert envelope.error.retryable is True
+    assert envelope.error.operation == "web_search"
+    assert envelope.error.attempt_number == 3
+    assert envelope.meta.attempts == 3
+    assert envelope.meta.retries == 2
+
+
+def test_web_search_tool_returns_structured_error_for_invalid_args() -> None:
+    payload = run_web_search(query="   ", max_results=1)
+    envelope = ToolErrorEnvelope.model_validate(payload)
+
+    assert envelope.error.kind == "invalid_request"
+    assert envelope.error.retryable is False
+    assert envelope.error.operation == "web_search"
+    assert envelope.error.attempt_number == 1
+    assert envelope.meta.attempts == 1
+    assert envelope.meta.retries == 0
+
+
+def test_web_search_langchain_tool_is_callable() -> None:
+    class StubClient:
+        def search(self, *, query: str, max_results: int) -> WebSearchResponse:
+            return WebSearchResponse(
+                query=query,
+                results=[
+                    WebSearchResult(
+                        title="Result",
+                        url="https://example.com/article",
+                        snippet="Snippet",
+                        rank=SearchRank(position=1, provider_position=1),
+                    )
+                ],
+                metadata=SearchMetadata(result_count=1, provider="serper"),
+                meta=ToolMeta(
+                    operation="web_search",
+                    attempts=1,
+                    retries=0,
+                    duration_ms=10,
+                    timings=ToolTimings(total_ms=10, provider_ms=8),
+                ),
+            )
+
+    original_func = web_search.func
+    web_search.func = lambda query, max_results=5: run_web_search(
+        query=query,
+        max_results=max_results,
+        client=StubClient(),
+    )
+    try:
+        payload = web_search.invoke({"query": "agents", "max_results": 1})
+    finally:
+        web_search.func = original_func
+
+    response = WebSearchResponse.model_validate(payload)
+    assert response.results[0].title == "Result"
+    assert web_search.name == "web_search"
 
 
 def _mock_http_client(handler) -> object:
