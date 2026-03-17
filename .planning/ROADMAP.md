@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Local Runtime Foundation** - Boot the stack locally with environment-based provider configuration.
 - [x] **Phase 2: Search and Crawl Tool Capability** - Make both backend tools callable and provider-backed.
 - [x] **Phase 3: Agent Execution Loop and API** - Expose iterative LangGraph execution through a backend endpoint.
-- [ ] **Phase 4: Frontend Prompt Execution Surface** - Provide a minimal TypeScript UI that can run the agent and show tool activity status.
+- [x] **Phase 4: Frontend Prompt Execution Surface** - Provide a minimal TypeScript UI that can run the agent and show tool activity status.
 - [ ] **Phase 5: End-to-End Observability and Run History** - Complete full tool input/output visibility and correlated backend logs.
 
 ## Phase Details
@@ -74,9 +74,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Build minimal prompt/run UI and API client wiring
-- [ ] 04-02: Add SSE event contracts + reducer-safe run state handling
-- [ ] 04-03: Render per-tool status and duration in run timeline
+- [x] 04-01: Build minimal prompt/run UI and API client wiring
+- [x] 04-02: Add SSE event contracts + reducer-safe run state handling
+- [x] 04-03: Render per-tool status and duration in run timeline
 
 ### Phase 5: End-to-End Observability and Run History
 **Goal**: User can inspect full tool I/O, backend event logs, and final-answer history in one debugging flow.
@@ -104,5 +104,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Local Runtime Foundation | 2/2 | Completed | 2026-03-17 |
 | 2. Search and Crawl Tool Capability | 2/2 | Completed | 2026-03-17 |
 | 3. Agent Execution Loop and API | 2/2 | Completed | 2026-03-17 |
-| 4. Frontend Prompt Execution Surface | 0/3 | Not started | - |
+| 4. Frontend Prompt Execution Surface | 3/3 | Completed | 2026-03-17 |
 | 5. End-to-End Observability and Run History | 0/3 | Not started | - |
