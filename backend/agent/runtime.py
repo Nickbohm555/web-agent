@@ -6,11 +6,12 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from backend.agent.prompts import SYSTEM_PROMPT
-from backend.agent.types import AgentRunResult
+from backend.agent.types import AgentRunError, AgentRunResult
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
 
 CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")
+DEFAULT_RECURSION_LIMIT = 12
 
 
 class AgentExecutor(Protocol):
@@ -30,16 +31,30 @@ def run_agent_once(
 ) -> AgentRunResult:
     run_id = str(uuid4())
     started_at = perf_counter()
-    dependencies = runtime_dependencies or build_runtime_dependencies()
-    raw_result = dependencies.agent.invoke(_build_inputs(prompt))
+    if not prompt.strip():
+        return _failed_result(
+            run_id=run_id,
+            started_at=started_at,
+            category="invalid_prompt",
+            message="prompt must not be empty",
+            retryable=False,
+        )
 
-    return AgentRunResult(
-        run_id=run_id,
-        status="completed",
-        final_answer=_extract_final_answer(raw_result),
-        tool_call_count=_count_tool_calls(raw_result),
-        elapsed_ms=int((perf_counter() - started_at) * 1000),
-    )
+    try:
+        dependencies = runtime_dependencies or build_runtime_dependencies()
+        raw_result = dependencies.agent.invoke(
+            _build_inputs(prompt),
+            {"recursion_limit": DEFAULT_RECURSION_LIMIT},
+        )
+        return AgentRunResult(
+            run_id=run_id,
+            status="completed",
+            final_answer=_extract_final_answer(raw_result),
+            tool_call_count=_count_tool_calls(raw_result),
+            elapsed_ms=_elapsed_ms(started_at),
+        )
+    except Exception as exc:
+        return _map_runtime_failure(exc=exc, run_id=run_id, started_at=started_at)
 
 
 def build_runtime_dependencies() -> RuntimeDependencies:
@@ -148,3 +163,98 @@ def _normalize_content_value(content: Any) -> str:
         return "\n".join(parts).strip()
 
     return ""
+
+
+def _map_runtime_failure(*, exc: Exception, run_id: str, started_at: float) -> AgentRunResult:
+    category = "internal_error"
+    retryable = False
+    message = "agent runtime failed"
+
+    if _is_recursion_limit_error(exc):
+        category = "loop_limit"
+        message = "agent exceeded bounded execution limit"
+    elif _is_timeout_error(exc):
+        category = "timeout"
+        retryable = True
+        message = "agent execution timed out"
+    elif _is_tool_runtime_error(exc):
+        category = "tool_failure"
+        message = "agent tool invocation failed"
+    elif _is_provider_runtime_error(exc):
+        category = "provider_failure"
+        retryable = True
+        message = "agent provider request failed"
+    elif isinstance(exc, ValueError):
+        category = "invalid_prompt"
+        message = str(exc) or "prompt is invalid"
+
+    return _failed_result(
+        run_id=run_id,
+        started_at=started_at,
+        category=category,
+        message=message,
+        retryable=retryable,
+    )
+
+
+def _failed_result(
+    *,
+    run_id: str,
+    started_at: float,
+    category: str,
+    message: str,
+    retryable: bool,
+) -> AgentRunResult:
+    return AgentRunResult(
+        run_id=run_id,
+        status="failed",
+        final_answer="",
+        tool_call_count=0,
+        elapsed_ms=_elapsed_ms(started_at),
+        error=AgentRunError(
+            category=category,
+            message=message,
+            retryable=retryable,
+        ),
+    )
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return int((perf_counter() - started_at) * 1000)
+
+
+def _is_recursion_limit_error(exc: Exception) -> bool:
+    name = type(exc).__name__.lower()
+    message = str(exc).lower()
+    return "graphrecursion" in name or "recursion" in message
+
+
+def _is_timeout_error(exc: Exception) -> bool:
+    try:
+        import httpx
+    except Exception:  # pragma: no cover - import guard for minimal environments
+        httpx = None  # type: ignore[assignment]
+
+    timeout_types: tuple[type[BaseException], ...] = (TimeoutError,)
+    if httpx is not None:
+        timeout_types = timeout_types + (httpx.TimeoutException,)
+    return isinstance(exc, timeout_types)
+
+
+def _is_tool_runtime_error(exc: Exception) -> bool:
+    name = type(exc).__name__.lower()
+    message = str(exc).lower()
+    return "tool" in name or "tool" in message
+
+
+def _is_provider_runtime_error(exc: Exception) -> bool:
+    try:
+        import httpx
+    except Exception:  # pragma: no cover - import guard for minimal environments
+        httpx = None  # type: ignore[assignment]
+
+    if httpx is not None and isinstance(exc, httpx.HTTPError):
+        return True
+
+    name = type(exc).__name__.lower()
+    return any(token in name for token in ("openai", "provider", "api", "rate", "auth"))
