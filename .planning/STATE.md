@@ -71,6 +71,6 @@ Resume file: None
 ## Current Execution
 
 phase=05-end-to-end-observability-and-run-history
-plan=05-02-emit-and-correlate-structured-backend-observability-logs
-task=3
+plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace
+task=1
 status=implemented
