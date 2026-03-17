@@ -1,3 +1,12 @@
+import {
+  parseRunStreamEvent,
+  type RunCompleteEvent,
+  type RunErrorEvent,
+  type RunStateEvent,
+  type RunStreamEvent,
+  type ToolCallEvent,
+} from "../contracts.js";
+
 export interface RunStartRequest {
   prompt: string;
 }
@@ -29,6 +38,38 @@ export interface RunStartFailureResult {
 }
 
 export type RunStartResult = RunStartSuccessResult | RunStartFailureResult;
+
+export interface RunStreamSubscription {
+  close(): void;
+}
+
+export interface RunStreamHandlers {
+  onOpen?: () => void;
+  onRunState?: (event: RunStateEvent) => void;
+  onToolCall?: (event: ToolCallEvent) => void;
+  onRunComplete?: (event: RunCompleteEvent) => void;
+  onRunError?: (event: RunErrorEvent) => void;
+  onInvalidEvent?: (message: string, cause?: unknown) => void;
+  onTransportError?: () => void;
+}
+
+export interface EventSourceLike {
+  addEventListener(
+    type: string,
+    listener: (event: Event | MessageEvent<string>) => void,
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: (event: Event | MessageEvent<string>) => void,
+  ): void;
+  close(): void;
+}
+
+export interface RunStreamSubscriptionOptions {
+  eventSourceFactory?: (url: string) => EventSourceLike;
+}
+
+let activeRunStream: RunStreamSubscription | null = null;
 
 export async function createRun(request: RunStartRequest): Promise<RunStartResult> {
   try {
@@ -65,6 +106,110 @@ export async function createRun(request: RunStartRequest): Promise<RunStartResul
   }
 }
 
+export function subscribeToRunEvents(
+  runId: string,
+  handlers: RunStreamHandlers,
+  options: RunStreamSubscriptionOptions = {},
+): RunStreamSubscription {
+  activeRunStream?.close();
+
+  const createEventSource = options.eventSourceFactory ?? defaultEventSourceFactory;
+  const eventSource = createEventSource(
+    `/api/runs/${encodeURIComponent(runId)}/events`,
+  );
+  let closed = false;
+
+  const close = () => {
+    if (closed) {
+      return;
+    }
+
+    closed = true;
+    for (const [eventName, listener] of Object.entries(listeners)) {
+      eventSource.removeEventListener(eventName, listener);
+    }
+    eventSource.close();
+
+    if (activeRunStream === subscription) {
+      activeRunStream = null;
+    }
+  };
+
+  const handleParsedEvent = (event: RunStreamEvent) => {
+    switch (event.event) {
+      case "run_state":
+        handlers.onRunState?.(event.data);
+        return;
+      case "tool_call":
+        handlers.onToolCall?.(event.data);
+        return;
+      case "run_complete":
+        handlers.onRunComplete?.(event.data);
+        close();
+        return;
+      case "run_error":
+        handlers.onRunError?.(event.data);
+        close();
+        return;
+    }
+  };
+
+  const parseAndHandleEvent = (
+    eventName: RunStreamEvent["event"],
+    rawEvent: Event | MessageEvent<string>,
+  ) => {
+    if (!("data" in rawEvent) || typeof rawEvent.data !== "string") {
+      handlers.onInvalidEvent?.(`Run event ${eventName} was missing a data payload.`);
+      return;
+    }
+
+    try {
+      const parsed = parseRunStreamEvent({
+        event: eventName,
+        data: JSON.parse(rawEvent.data),
+      });
+      handleParsedEvent(parsed);
+    } catch (error: unknown) {
+      handlers.onInvalidEvent?.(
+        `Run event ${eventName} failed validation.`,
+        error,
+      );
+    }
+  };
+
+  const listeners = {
+    open: () => {
+      handlers.onOpen?.();
+    },
+    error: () => {
+      handlers.onTransportError?.();
+    },
+    run_state: (event: Event | MessageEvent<string>) => {
+      parseAndHandleEvent("run_state", event);
+    },
+    tool_call: (event: Event | MessageEvent<string>) => {
+      parseAndHandleEvent("tool_call", event);
+    },
+    run_complete: (event: Event | MessageEvent<string>) => {
+      parseAndHandleEvent("run_complete", event);
+    },
+    run_error: (event: Event | MessageEvent<string>) => {
+      parseAndHandleEvent("run_error", event);
+    },
+  } satisfies Record<
+    "open" | "error" | RunStreamEvent["event"],
+    (event: Event | MessageEvent<string>) => void
+  >;
+
+  for (const [eventName, listener] of Object.entries(listeners)) {
+    eventSource.addEventListener(eventName, listener);
+  }
+
+  const subscription = { close };
+  activeRunStream = subscription;
+  return subscription;
+}
+
 function parseRunStartResponse(input: unknown): RunStartResponse {
   const record = asRecord(input);
   if (
@@ -78,6 +223,10 @@ function parseRunStartResponse(input: unknown): RunStartResponse {
     runId: record.runId,
     status: record.status,
   };
+}
+
+function defaultEventSourceFactory(url: string): EventSourceLike {
+  return new EventSource(url);
 }
 
 function parseRunStartErrorEnvelope(input: unknown): RunStartErrorEnvelope {

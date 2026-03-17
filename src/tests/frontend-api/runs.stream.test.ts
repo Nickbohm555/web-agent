@@ -1,0 +1,316 @@
+import type { AddressInfo } from "node:net";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { RunEventStreamFactory } from "../../frontend/routes/runs.js";
+
+describe("run stream API contracts", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns named SSE frames with validated payloads", async () => {
+    const response = await callRunStreamRoute(async function* ({ runId }) {
+      yield {
+        event: "run_state",
+        data: {
+          runId,
+          state: "running",
+          ts: 1_710_000_000_000,
+        },
+      };
+      yield {
+        event: "tool_call",
+        data: {
+          runId,
+          toolCallId: "tool-1",
+          toolName: "web_search",
+          status: "completed",
+          startedAt: 1_710_000_000_000,
+          endedAt: 1_710_000_000_300,
+          durationMs: 300,
+          inputPreview: "Find sources",
+          outputPreview: "Found two results",
+        },
+      };
+      yield {
+        event: "run_complete",
+        data: {
+          runId,
+          finalAnswer: "Completed answer.",
+          completedAt: 1_710_000_000_500,
+          durationMs: 500,
+        },
+      };
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.contentType).toContain("text/event-stream");
+    expect(response.body).toContain("event: run_state");
+    expect(response.body).toContain("event: tool_call");
+    expect(response.body).toContain("event: run_complete");
+  });
+
+  it("emits a terminal run_error frame when no stream backend is configured", async () => {
+    const { parseRunStreamEvent } = await import("../../frontend/contracts.js");
+
+    const response = await callRunStreamRoute();
+
+    expect(response.status).toBe(200);
+
+    const [frame] = parseSseFrames(response.body);
+    expect(frame).toBeDefined();
+    if (frame === undefined) {
+      throw new Error("Expected a terminal SSE frame.");
+    }
+    expect(
+      parseRunStreamEvent({
+        event: frame.event,
+        data: JSON.parse(frame.data),
+      }),
+    ).toMatchObject({
+      event: "run_error",
+      data: {
+        runId: "run-123",
+        code: "STREAM_UNAVAILABLE",
+      },
+    });
+  });
+});
+
+describe("run stream client", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("parses typed run events and closes on terminal events", async () => {
+    const {
+      subscribeToRunEvents,
+    } = await import("../../frontend/client/api-client.js");
+    const eventSource = new FakeEventSource();
+    const handlers = {
+      onOpen: vi.fn(),
+      onRunState: vi.fn(),
+      onToolCall: vi.fn(),
+      onRunComplete: vi.fn(),
+      onRunError: vi.fn(),
+      onInvalidEvent: vi.fn(),
+      onTransportError: vi.fn(),
+    };
+
+    const subscription = subscribeToRunEvents("run-123", handlers, {
+      eventSourceFactory: () => eventSource,
+    });
+
+    eventSource.emit("open", new Event("open"));
+    eventSource.emitMessage(
+      "run_state",
+      JSON.stringify({
+        runId: "run-123",
+        state: "running",
+        ts: 10,
+      }),
+    );
+    eventSource.emitMessage(
+      "tool_call",
+      JSON.stringify({
+        runId: "run-123",
+        toolCallId: "tool-1",
+        toolName: "web_crawl",
+        status: "started",
+        startedAt: 11,
+      }),
+    );
+    eventSource.emitMessage(
+      "run_complete",
+      JSON.stringify({
+        runId: "run-123",
+        finalAnswer: "Done",
+        completedAt: 20,
+        durationMs: 10,
+      }),
+    );
+
+    expect(handlers.onOpen).toHaveBeenCalledTimes(1);
+    expect(handlers.onRunState).toHaveBeenCalledWith({
+      runId: "run-123",
+      state: "running",
+      ts: 10,
+    });
+    expect(handlers.onToolCall).toHaveBeenCalledWith({
+      runId: "run-123",
+      toolCallId: "tool-1",
+      toolName: "web_crawl",
+      status: "started",
+      startedAt: 11,
+    });
+    expect(handlers.onRunComplete).toHaveBeenCalledWith({
+      runId: "run-123",
+      finalAnswer: "Done",
+      completedAt: 20,
+      durationMs: 10,
+    });
+    expect(handlers.onRunError).not.toHaveBeenCalled();
+    expect(handlers.onInvalidEvent).not.toHaveBeenCalled();
+    expect(eventSource.closeCount).toBe(1);
+
+    subscription.close();
+    expect(eventSource.closeCount).toBe(1);
+  });
+
+  it("ignores malformed frames without crashing and closes superseded streams", async () => {
+    const {
+      subscribeToRunEvents,
+    } = await import("../../frontend/client/api-client.js");
+    const firstEventSource = new FakeEventSource();
+    const secondEventSource = new FakeEventSource();
+    const invalidEventHandler = vi.fn();
+
+    subscribeToRunEvents(
+      "run-123",
+      {
+        onInvalidEvent: invalidEventHandler,
+      },
+      {
+        eventSourceFactory: () => firstEventSource,
+      },
+    );
+
+    firstEventSource.emitMessage(
+      "tool_call",
+      JSON.stringify({
+        runId: "run-123",
+        toolCallId: "tool-1",
+        toolName: "web_search",
+        status: "completed",
+        durationMs: -1,
+      }),
+    );
+
+    expect(invalidEventHandler).toHaveBeenCalledTimes(1);
+    expect(firstEventSource.closeCount).toBe(0);
+
+    subscribeToRunEvents(
+      "run-456",
+      {
+        onInvalidEvent: invalidEventHandler,
+      },
+      {
+        eventSourceFactory: () => secondEventSource,
+      },
+    );
+
+    expect(firstEventSource.closeCount).toBe(1);
+    expect(secondEventSource.closeCount).toBe(0);
+  });
+});
+
+async function callRunStreamRoute(
+  runEventStream?: RunEventStreamFactory,
+): Promise<{ status: number; contentType: string; body: string }> {
+  const { createFrontendServerApp } = await import("../../frontend/server.js");
+  const app = createFrontendServerApp();
+
+  if (runEventStream !== undefined) {
+    app.locals.runEventStream = runEventStream;
+  }
+
+  const server = await new Promise<import("node:http").Server>((resolve) => {
+    const listeningServer = app.listen(0, "127.0.0.1", () => {
+      resolve(listeningServer);
+    });
+  });
+
+  const address = server.address() as AddressInfo;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/runs/run-123/events`,
+    );
+
+    return {
+      status: response.status,
+      contentType: response.headers.get("content-type") ?? "",
+      body: await response.text(),
+    };
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+}
+
+function parseSseFrames(body: string): Array<{ event: string; data: string }> {
+  return body
+    .trim()
+    .split("\n\n")
+    .filter((frame) => frame.length > 0)
+    .map((frame) => {
+      const lines = frame.split("\n");
+      const event = lines.find((line) => line.startsWith("event: "));
+      const data = lines.find((line) => line.startsWith("data: "));
+
+      if (event === undefined || data === undefined) {
+        throw new Error("Invalid SSE frame.");
+      }
+
+      return {
+        event: event.slice("event: ".length),
+        data: data.slice("data: ".length),
+      };
+    });
+}
+
+class FakeEventSource {
+  private readonly listeners = new Map<
+    string,
+    Set<(event: Event | MessageEvent<string>) => void>
+  >();
+
+  closeCount = 0;
+
+  addEventListener(
+    type: string,
+    listener: (event: Event | MessageEvent<string>) => void,
+  ): void {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(
+    type: string,
+    listener: (event: Event | MessageEvent<string>) => void,
+  ): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  close(): void {
+    this.closeCount += 1;
+  }
+
+  emit(type: string, event: Event | MessageEvent<string>): void {
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(event);
+    }
+  }
+
+  emitMessage(type: string, data: string): void {
+    const event = new MessageEvent<string>(type, { data });
+    this.emit(type, event);
+  }
+}

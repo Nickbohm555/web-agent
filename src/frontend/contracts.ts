@@ -154,6 +154,78 @@ export const RunStartResponseSchema = z
   })
   .strict();
 
+const RunEventTimestampSchema = z.number().int().nonnegative();
+const RunIdSchema = z.string().trim().min(1);
+
+export const RunStreamEventNameSchema = z.enum([
+  "run_state",
+  "tool_call",
+  "run_complete",
+  "run_error",
+]);
+
+export const RunEventToolNameSchema = z.enum(["web_search", "web_crawl"]);
+
+export const RunStateEventSchema = z
+  .object({
+    runId: RunIdSchema,
+    state: z.enum(["queued", "running", "completed", "failed"]),
+    ts: RunEventTimestampSchema,
+  })
+  .strict();
+
+export const ToolCallEventSchema = z
+  .object({
+    runId: RunIdSchema,
+    toolCallId: z.string().trim().min(1),
+    toolName: RunEventToolNameSchema,
+    status: z.enum(["started", "completed", "failed"]),
+    startedAt: RunEventTimestampSchema.optional(),
+    endedAt: RunEventTimestampSchema.optional(),
+    durationMs: z.number().nonnegative().optional(),
+    inputPreview: z.string().optional(),
+    outputPreview: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .strict();
+
+export const RunCompleteEventSchema = z
+  .object({
+    runId: RunIdSchema,
+    finalAnswer: z.string(),
+    completedAt: RunEventTimestampSchema,
+    durationMs: z.number().nonnegative(),
+  })
+  .strict();
+
+export const RunErrorEventSchema = z
+  .object({
+    runId: RunIdSchema,
+    message: z.string().trim().min(1),
+    code: z.string().trim().min(1).optional(),
+    failedAt: RunEventTimestampSchema,
+  })
+  .strict();
+
+export const RunStreamEventSchema = z.discriminatedUnion("event", [
+  z.object({
+    event: z.literal("run_state"),
+    data: RunStateEventSchema,
+  }).strict(),
+  z.object({
+    event: z.literal("tool_call"),
+    data: ToolCallEventSchema,
+  }).strict(),
+  z.object({
+    event: z.literal("run_complete"),
+    data: RunCompleteEventSchema,
+  }).strict(),
+  z.object({
+    event: z.literal("run_error"),
+    data: RunErrorEventSchema,
+  }).strict(),
+]);
+
 const RunStartErrorEnvelopeSchema = z
   .object({
     ok: z.literal(false),
@@ -180,6 +252,13 @@ export type SearchApiRequest = z.output<typeof SearchRequestSchema>;
 export type FetchApiRequest = z.output<typeof FetchRequestSchema>;
 export type RunStartRequest = z.output<typeof RunStartRequestSchema>;
 export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
+export type RunStreamEventName = z.output<typeof RunStreamEventNameSchema>;
+export type RunEventToolName = z.output<typeof RunEventToolNameSchema>;
+export type RunStateEvent = z.output<typeof RunStateEventSchema>;
+export type ToolCallEvent = z.output<typeof ToolCallEventSchema>;
+export type RunCompleteEvent = z.output<typeof RunCompleteEventSchema>;
+export type RunErrorEvent = z.output<typeof RunErrorEventSchema>;
+export type RunStreamEvent = z.output<typeof RunStreamEventSchema>;
 export type FrontendErrorCode = z.output<typeof FrontendErrorCodeSchema>;
 export type FrontendError = z.output<typeof FrontendErrorSchema>;
 export type SearchApiEnvelope = z.output<typeof SearchApiEnvelopeSchema>;
@@ -245,6 +324,10 @@ export function createRunStartResponse(
   input: RunStartResponse,
 ): RunStartResponse {
   return RunStartResponseSchema.parse(input);
+}
+
+export function parseRunStreamEvent(input: unknown): RunStreamEvent {
+  return RunStreamEventSchema.parse(input);
 }
 
 export function createErrorEnvelope<TRequest>(
