@@ -1,108 +1,66 @@
-# Roadmap: Python LangGraph Web Agent Demo
+# Roadmap: Parallel-like Web Extraction Agent
 
 ## Overview
-
-This roadmap delivers a local-first Python LangGraph agent flow that a user can run from a simple TypeScript UI while clearly inspecting search and crawl behavior. Phases are derived from v1 requirement boundaries: runtime foundation, tool capability, agent orchestration, frontend execution flow, and end-to-end observability. The sequence prioritizes early runnable infrastructure, then progressively completes the full prompt-to-answer workflow with transparent tool traces.
+This v1 builds a single-URL web evidence pipeline that can extract reliable content from messy pages by routing to the right extraction method (HTTP HTML, JS render, or PDF parsing/OCR). It then enforces deterministic, arrays-only outputs so offline DeepSearchQA evaluation can compute Fully Correct set equivalence.
 
 ## Phases
-
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-Decimal phases appear between their surrounding integers in numeric order.
-
-- [x] **Phase 1: Local Runtime Foundation** - Boot the stack locally with environment-based provider configuration.
-- [x] **Phase 2: Search and Crawl Tool Capability** - Make both backend tools callable and provider-backed.
-- [x] **Phase 3: Agent Execution Loop and API** - Expose iterative LangGraph execution through a backend endpoint.
-- [x] **Phase 4: Frontend Prompt Execution Surface** - Provide a minimal TypeScript UI that can run the agent and show tool activity status.
-- [x] **Phase 5: End-to-End Observability and Run History** - Complete full tool input/output visibility and correlated backend logs.
+- [ ] **Phase 1: Extraction Pipeline + Unified Evidence Contract** - Deterministic JS/PDF handling, objective excerpts/full content, and a stable per-URL response contract
+- [ ] **Phase 2: Deterministic Set Output Mode** - Fail-closed parsing so agent `final_answer` becomes a deterministic arrays-only structure
+- [ ] **Phase 3: Offline DeepSearchQA Eval Harness** - End-to-end DSQA runs with strict canonical set equivalence comparison
 
 ## Phase Details
 
-### Phase 1: Local Runtime Foundation
-**Goal**: Users can start and run the local stack with required API keys loaded from environment variables.
+### Phase 1: Extraction Pipeline + Unified Evidence Contract
+**Goal**: Users can fetch a single URL and reliably get deterministic evidence (objective excerpts and/or full markdown) with JS/PDF real handling and structured meta for both success and failure.
 **Depends on**: Nothing (first phase)
-**Requirements**: RUNTIME-01, RUNTIME-04
+**Requirements**: EXTR-01, EXTR-02, EXTR-03, EXTR-04, REND-01, REND-02, REND-03, REND-04, CONT-01, CONT-02
 **Success Criteria** (what must be TRUE):
-  1. User can start backend and frontend together using Docker Compose without manual service bootstrapping.
-  2. Backend starts with `OPENAI_API_KEY` and `SERPER_API_KEY` loaded from environment variables and fails clearly when missing.
-  3. User can confirm both services are reachable locally after stack startup.
-**Plans**: 2 plans
-
-Plans:
-- [x] 01-01-define-docker-compose-services-and-shared-runtime-wiring-PLAN.md — Define Docker Compose services and shared runtime wiring
-- [x] 01-02-implement-environment-configuration-loading-and-startup-validation-PLAN.md — Implement environment configuration loading and startup validation
-
-### Phase 2: Search and Crawl Tool Capability
-**Goal**: Agent runtime has working Python `web_search` and `web_crawl` tools that return usable results.
-**Depends on**: Phase 1
-**Requirements**: AGENT-02, AGENT-03
-**Success Criteria** (what must be TRUE):
-  1. Search tool can query Serper and return normalized links/snippets for agent use.
-  2. Crawl tool can fetch a URL and return extracted content in a consistent response shape.
-  3. Tool failures return explicit, debuggable errors rather than silent or empty failures.
-**Plans**: 2 plans
-
-Plans:
-- [x] 02-01-implement-serper-backed-web-search-tool-in-python-PLAN.md — Implement Serper-backed `web_search` tool in Python
-- [x] 02-02-implement-in-house-python-web-crawl-extraction-flow-PLAN.md — Implement in-house Python `web_crawl` extraction flow
-
-### Phase 3: Agent Execution Loop and API
-**Goal**: User prompts are executed by a ReAct-style LangGraph agent that iterates through tools before answering.
-**Depends on**: Phase 2
-**Requirements**: AGENT-01, AGENT-04, RUNTIME-03
-**Success Criteria** (what must be TRUE):
-  1. Frontend-callable backend endpoint accepts a prompt and triggers one LangGraph agent run.
-  2. Agent can call one or more tools in sequence and stop when enough context is gathered.
-  3. User receives a final agent-generated answer from the same run request.
-  4. API response model is stable enough for frontend rendering of final answer plus run metadata.
-**Plans**: 2 plans
-
-Plans:
-- [x] 03-01: Wire LangGraph ReAct loop with tool binding
-- [x] 03-02: Expose backend execution endpoint and response contract
-
-### Phase 4: Frontend Prompt Execution Surface
-**Goal**: Users can run prompts from a minimal TypeScript UI and track tool-call progress.
-**Depends on**: Phase 3
-**Requirements**: RUNTIME-02, OBS-01
-**Success Criteria** (what must be TRUE):
-  1. User can enter a prompt and start a run from one simple frontend interface.
-  2. Frontend successfully calls backend execution API and displays run state transitions.
-  3. User can see each tool call with status and duration as the run progresses.
+  1. User can request `excerpt` mode and receive objective-driven `excerpts[]` with deterministic ordering, enforcing the v1 budget (<= 3 excerpts/url and <= 300 chars per excerpt).
+  2. User can request `full_content` mode and receive full extracted markdown in `full_content` with preserved links.
+  3. JS-heavy pages are rendered (not just raw HTML) and extraction quality degrades gracefully with stable `meta.extraction_method` and a populated `meta.status`.
+  4. PDFs are extracted via real text extraction, triggering an OCR fallback for scanned/low-text PDFs when needed, with `meta.extraction_method` and structured fallback reasons surfaced on failure/degradation.
+  5. The tool always returns a unified per-URL response contract with `url`, `title`, `publish_date`, `excerpts[]`, `full_content`, and `meta` populated on both success and failure (no silent empties without failure reason).
 **Plans**: 3 plans
 
 Plans:
-- [x] 04-01: Build minimal prompt/run UI and API client wiring
-- [x] 04-02: Add SSE event contracts + reducer-safe run state handling
-- [x] 04-03: Render per-tool status and duration in run timeline
+- [ ] 01-01: Implement JS/PDF extraction pipeline + fallback reasons
+- [ ] 01-02: Implement deterministic objective-driven excerpt selection + budgets
+- [ ] 01-03: Finalize unified response contract + meta population on failure
 
-### Phase 5: End-to-End Observability and Run History
-**Goal**: User can inspect full tool I/O, backend event logs, and final-answer history in one debugging flow.
-**Depends on**: Phase 4
-**Requirements**: OBS-02, OBS-03, OBS-04
+### Phase 2: Deterministic Set Output Mode
+**Goal**: Users (and the DSQA harness) can rely on agent `final_answer` to be a deterministic arrays-only structure that can be parsed canonically, or the run fails fail-closed with a stable error category/message.
+**Depends on**: Phase 1
+**Requirements**: OUT-01, OUT-02
 **Success Criteria** (what must be TRUE):
-  1. User can inspect complete input and output payloads for each tool call in the frontend.
-  2. User can inspect structured backend logs for agent and tool events via Docker logs.
-  3. User can review the final answer and full per-run tool history in one cohesive UI flow.
-  4. Tool events shown in UI can be correlated with backend logs for the same run.
-**Plans**: TBD
+  1. With set output mode enabled, user-visible agent `final_answer` is an arrays-only structure (no prose) and can be normalized into the strict representation required by evaluation.
+  2. If set-output parsing/normalization cannot be performed deterministically, the run fails with a stable error category/message (no “best effort” incorrect output).
+**Plans**: 1 plan
 
 Plans:
-- [x] 05-01: Add full tool payload rendering in UI
-- [x] 05-02: Emit and correlate structured backend observability logs
-- [x] 05-03: Finalize run history presentation with answer + tool trace
+- [ ] 02-01: Add fail-closed set output parsing + canonical normalization
+
+### Phase 3: Offline DeepSearchQA Eval Harness
+**Goal**: Users can run an offline DeepSearchQA evaluation that executes the agent end-to-end per prompt and computes Fully Correct exact set equivalence using strict canonicalization (ordering-insensitive).
+**Depends on**: Phase 2
+**Requirements**: EVAL-01, EVAL-02
+**Success Criteria** (what must be TRUE):
+  1. DSQA harness runs offline per prompt and reports an accuracy metric based on Fully Correct exact set equivalence.
+  2. The harness forces agent outputs into a strict list/set representation so ordering differences do not affect “equal sets” comparison (canonicalization aligns with DSQA semantics).
+**Plans**: 1 plan
+
+Plans:
+- [ ] 03-01: Implement DSQA end-to-end harness + canonical set comparator
 
 ## Progress
-
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Local Runtime Foundation | 2/2 | Completed | 2026-03-17 |
-| 2. Search and Crawl Tool Capability | 2/2 | Completed | 2026-03-17 |
-| 3. Agent Execution Loop and API | 2/2 | Completed | 2026-03-17 |
-| 4. Frontend Prompt Execution Surface | 3/3 | Completed | 2026-03-17 |
-| 5. End-to-End Observability and Run History | 3/3 | Completed | 2026-03-17 |
+| 1 - Extraction Pipeline + Unified Evidence Contract | 0/3 | Not started | - |
+| 2 - Deterministic Set Output Mode | 0/1 | Not started | - |
+| 3 - Offline DeepSearchQA Eval Harness | 0/1 | Not started | - |
+

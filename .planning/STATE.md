@@ -1,76 +1,50 @@
 # Project State
 
 ## Project Reference
+See: .planning/PROJECT.md (updated 2026-03-20)
 
-See: `.planning/PROJECT.md` (updated 2026-03-17)
-
-**Core value:** A user can run one prompt from a simple UI and clearly see how the agent invokes search and crawl tools end-to-end.
-**Current focus:** All planned phases completed
+**Core value:** Return accurate, high-signal web evidence in a stable format even when pages are messy (bad HTML, low text, redirects, JS/PDF).
+**Current focus:** Phase 1: Extraction Pipeline + Unified Evidence Contract
 
 ## Current Position
+Phase: 1 of 3 (Phase 1: Extraction Pipeline + Unified Evidence Contract)
+Plan: TBD of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-03-20 — Draft ROADMAP/STATE initialized
 
-Phase: 5 of 5 (End-to-End Observability and Run History)
-Plan: 3 of 3 in current phase
-Status: Completed
-Last activity: 2026-03-17 - Completed Phase 5 Plan 03 summary and closed the planned roadmap
-Progress: [██████████] 100%
+Progress: ░░░░░░░░░░░░░░░░░░ 0%
 
 ## Performance Metrics
-
 **Velocity:**
-- Total plans completed: 12
-- Average duration: unknown
-- Total execution time: unknown
+- Total plans completed: 0
+- Average duration: -
+- Total execution time: -
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Local Runtime Foundation | 2 | unknown | unknown |
-| 2. Search and Crawl Tool Capability | 2 | unknown | unknown |
-| 3. Agent Execution Loop and API | 2 | unknown | unknown |
-| 4. Frontend Prompt Execution Surface | 3 | unknown | unknown |
-| 5. End-to-End Observability and Run History | 3 | unknown | unknown |
+| 1 | - | - | - |
+| 2 | - | - | - |
+| 3 | - | - | - |
 
 **Recent Trend:**
-- Last 6 plans: 04-01, 04-02, 04-03, 05-01, 05-02, 05-03 completed
-- Trend: Completed
-
-*Updated after each plan completion*
+- Last 5 plans: -
+- Trend: Stable
 
 ## Accumulated Context
-
 ### Decisions
-
-Decisions are logged in `.planning/PROJECT.md` Key Decisions table.
 Recent decisions affecting current work:
-
-- [Phase 1]: Start with local Docker runtime and environment-key validation to unblock all downstream work.
-- [Phase 2]: Keep exactly two tools (`web_search`, `web_crawl`) with clear response contracts.
-- [Phase 3]: Keep the backend transport seam contract-first so frontend work can build against a stable run envelope.
-- [Phase 5]: Prioritize full tool input/output visibility and Docker-log correlation for debugging.
+- None yet.
 
 ### Pending Todos
-
-From `.planning/todos/pending/` - ideas captured during sessions.
-
 None yet.
 
 ### Blockers/Concerns
-
-Issues that affect future work:
-
-- No blockers currently identified.
+None yet.
 
 ## Session Continuity
-
-Last session: 2026-03-17 00:00
-Stopped at: Section 43 completed; planned roadmap finished
+Last session: 2026-03-20
+Stopped at: Roadmap draft created
 Resume file: None
 
-## Current Execution
-
-phase=05-end-to-end-observability-and-run-history
-plan=05-03-finalize-run-history-presentation-with-answer-and-tool-trace
-task=summary
-status=completed

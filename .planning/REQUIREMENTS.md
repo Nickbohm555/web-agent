@@ -67,26 +67,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXTR-01 | Phase TBD | Pending |
-| EXTR-02 | Phase TBD | Pending |
-| EXTR-03 | Phase TBD | Pending |
-| EXTR-04 | Phase TBD | Pending |
-| REND-01 | Phase TBD | Pending |
-| REND-02 | Phase TBD | Pending |
-| REND-03 | Phase TBD | Pending |
-| REND-04 | Phase TBD | Pending |
-| CONT-01 | Phase TBD | Pending |
-| CONT-02 | Phase TBD | Pending |
-| OUT-01 | Phase TBD | Pending |
-| OUT-02 | Phase TBD | Pending |
-| EVAL-01 | Phase TBD | Pending |
-| EVAL-02 | Phase TBD | Pending |
+| EXTR-01 | Phase 1 | Pending |
+| EXTR-02 | Phase 1 | Pending |
+| EXTR-03 | Phase 1 | Pending |
+| EXTR-04 | Phase 1 | Pending |
+| REND-01 | Phase 1 | Pending |
+| REND-02 | Phase 1 | Pending |
+| REND-03 | Phase 1 | Pending |
+| REND-04 | Phase 1 | Pending |
+| CONT-01 | Phase 1 | Pending |
+| CONT-02 | Phase 1 | Pending |
+| OUT-01 | Phase 2 | Pending |
+| OUT-02 | Phase 2 | Pending |
+| EVAL-01 | Phase 3 | Pending |
+| EVAL-02 | Phase 3 | Pending |
 
 **Coverage:**
 
 - v1 requirements: 14 total
-- Mapped to phases: TBD
-- Unmapped: TBD ⚠️
+- Mapped to phases: 14
+- Unmapped: 0 ✅
 
 ---
 *Requirements defined: 2026-03-20*
