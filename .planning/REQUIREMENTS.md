@@ -1,46 +1,53 @@
-# Requirements: Python LangGraph Web Agent Demo
+# Requirements: Parallel-like Web Extraction Agent
 
-**Defined:** 2026-03-17
-**Core Value:** A user can run one prompt from a simple UI and clearly see how the agent invokes search and crawl tools end-to-end.
+**Defined:** 2026-03-20
+**Core Value:** Return accurate, high-signal web evidence in a stable format even when pages are messy (bad HTML, low text, redirects, JS/PDF).
 
 ## v1 Requirements
 
 Requirements for initial release. Each maps to roadmap phases.
 
-### Agent Execution
+### Extraction Modes & Objective Excerpts
 
-- [ ] **AGENT-01**: User can submit a prompt and receive an agent-generated final response.
-- [ ] **AGENT-02**: Agent can call a Serper-backed web search tool to retrieve relevant links/snippets.
-- [ ] **AGENT-03**: Agent can call an in-house Python web crawl tool to fetch and extract page content.
-- [ ] **AGENT-04**: Agent can iteratively call tools until it decides it has enough context to answer.
+- [ ] **EXTR-01**: User can request `excerpt` mode and receive objective-driven excerpts (deterministic, bounded, stable ordering)
+- [ ] **EXTR-02**: User can request `full_content` mode and receive full extracted markdown content (links preserved)
+- [ ] **EXTR-03**: Excerpt budget is enforced in v1 (<= 3 excerpts/url; <= 300 chars per excerpt)
+- [ ] **EXTR-04**: `objective` is the primary signal and `search_queries[]` is the secondary ranking/select signal for excerpts (without changing crawl strategy)
 
-### Observability
+### JS/PDF Real Handling & Fallbacks
 
-- [ ] **OBS-01**: User can see each tool call in the frontend with status and duration.
-- [ ] **OBS-02**: User can inspect full tool inputs and outputs for each call in the frontend.
-- [ ] **OBS-03**: User can inspect structured backend logs for agent/tool events via Docker logs.
-- [ ] **OBS-04**: User can review final answer and per-run tool history in one UI flow.
+- [ ] **REND-01**: JS-heavy pages are handled via a real render step (Playwright) and the extracted readable output is fed into excerpting/full content
+- [ ] **REND-02**: PDFs are handled via real text extraction (PyMuPDF) with OCR fallback for scanned/low-text PDFs
+- [ ] **REND-03**: Content-type detection + attempt policy chooses the appropriate extraction method (HTML vs rendered HTML vs PDF)
+- [ ] **REND-04**: When extraction fails or degrades, the tool returns structured fallback reasons and stable `meta.status` / `meta.extraction_method` fields
 
-### Local Runtime + UI
+### Unified Response Contract & Meta
 
-- [ ] **RUNTIME-01**: User can start backend + frontend stack locally with Docker Compose.
-- [ ] **RUNTIME-02**: User can use a TypeScript frontend with a single input/run interface for agent execution.
-- [ ] **RUNTIME-03**: Frontend can invoke backend API endpoint to execute the LangGraph agent.
-- [ ] **RUNTIME-04**: Backend reads `OPENAI_API_KEY` and `SERPER_API_KEY` from environment variables at runtime.
+- [ ] **CONT-01**: Tool output follows a unified per-URL response contract including: `url`, `title`, `publish_date`, `excerpts[]`, `full_content`, and `meta`
+- [ ] **CONT-02**: `meta` is populated on both success and failure and is machine-readable (no silent empties without failure reason)
+
+### Deterministic Set Output Mode & Evaluation Parsing
+
+- [ ] **OUT-01**: `set output mode` is supported so the agent’s `final_answer` is a deterministic arrays-only structure (no prose)
+- [ ] **OUT-02**: Output parsing/normalization for set mode is fail-closed (if it can’t parse deterministically, the run fails with a stable error category/message)
+
+### DeepSearchQA (DSQA) Eval Harness
+
+- [ ] **EVAL-01**: Add an offline DSQA evaluation harness that runs the agent end-to-end per prompt and computes Fully Correct exact set equivalence
+- [ ] **EVAL-02**: The harness forces agent outputs into a strict list/set representation for comparison (canonicalization matches DSQA semantics)
 
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
 
-### Crawler Hardening
+### Evidence Fidelity & Provenance
 
-- **CRAWL-01**: Crawler supports selective browser fallback for JS-heavy pages.
-- **CRAWL-02**: Crawler enforces stronger robots/politeness/compliance guardrails.
+- **PROV-01**: Add deeper provenance for excerpts (stable evidence anchors/fragment mapping) once baseline evidence quality is established
+- **PROV-02**: Add per-site extraction policies (tuned attempt policies and thresholds after observing failure clusters)
 
-### Developer Experience
+### Throughput / Orchestration
 
-- **DX-01**: UI includes richer multi-run trace analysis (filters, search, export).
-- **DX-02**: Backend includes expanded reliability controls (retry policies per tool class).
+- **ORCH-01**: Multi-URL extract orchestrator / parallel fan-out in v2 (v1 stays single-URL tool mode)
 
 ## Out of Scope
 
@@ -48,10 +55,11 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Authentication and user accounts | Explicitly excluded to keep v1 focused and simple |
-| Multi-agent architecture | v1 requires one simple agent with two tools only |
-| Production deployment/infrastructure hardening | Local Docker Compose is sufficient for current validation goal |
-| Full parity migration of all legacy TypeScript internals | Immediate focus is runnable Python agent path with observability |
+| Multi-URL fan-out orchestration in v1 | Higher complexity and cost; defer until extraction quality is validated |
+| Prose/non-deterministic excerpt outputs in excerpt mode | Breaks DSQA parsing and makes regressions hard |
+| Natural-language “helpful summaries” as the primary excerpt representation | Removes traceability and increases nondeterminism |
+| Unbounded excerpts / variable-length outputs | Makes costs unpredictable and destabilizes evaluation |
+| Logging raw page bodies/provider internals by default | Privacy/safety risk and payload bloat |
 
 ## Traceability
 
@@ -59,24 +67,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AGENT-01 | Phase 3 | Pending |
-| AGENT-02 | Phase 2 | Pending |
-| AGENT-03 | Phase 2 | Pending |
-| AGENT-04 | Phase 3 | Pending |
-| OBS-01 | Phase 4 | Pending |
-| OBS-02 | Phase 5 | Pending |
-| OBS-03 | Phase 5 | Pending |
-| OBS-04 | Phase 5 | Pending |
-| RUNTIME-01 | Phase 1 | Pending |
-| RUNTIME-02 | Phase 4 | Pending |
-| RUNTIME-03 | Phase 3 | Pending |
-| RUNTIME-04 | Phase 1 | Pending |
+| EXTR-01 | Phase TBD | Pending |
+| EXTR-02 | Phase TBD | Pending |
+| EXTR-03 | Phase TBD | Pending |
+| EXTR-04 | Phase TBD | Pending |
+| REND-01 | Phase TBD | Pending |
+| REND-02 | Phase TBD | Pending |
+| REND-03 | Phase TBD | Pending |
+| REND-04 | Phase TBD | Pending |
+| CONT-01 | Phase TBD | Pending |
+| CONT-02 | Phase TBD | Pending |
+| OUT-01 | Phase TBD | Pending |
+| OUT-02 | Phase TBD | Pending |
+| EVAL-01 | Phase TBD | Pending |
+| EVAL-02 | Phase TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 12 total
-- Mapped to phases: 12
-- Unmapped: 0
+
+- v1 requirements: 14 total
+- Mapped to phases: TBD
+- Unmapped: TBD ⚠️
 
 ---
-*Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 after roadmap mapping*
+*Requirements defined: 2026-03-20*
+*Last updated: 2026-03-20 after v1 scoping*
+
