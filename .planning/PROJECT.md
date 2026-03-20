@@ -1,63 +1,63 @@
-# Python LangGraph Web Agent Demo
+# Parallel-like Web Extraction Agent
 
 ## What This Is
 
-A local-first demo app that runs a single ReAct-style LangGraph agent in Python with two tools: web search and in-house web crawl. It is built to make backend tool behavior easy to inspect from a simple TypeScript frontend and Docker logs. The target user is the builder (you) validating agent behavior quickly during a large TypeScript-to-Python backend refactor.
+This project builds a web research agent that can fetch a page, extract its main content, and return evidence in a Parallel-like, tool-friendly format (full content or objective-driven excerpts).
+It’s for building reliable “web evidence” for downstream question answering/evaluation, using bounded network retrieval plus consistent output contracts.
 
 ## Core Value
 
-A user can run one prompt from a simple UI and clearly see how the agent invokes search and crawl tools end-to-end.
+Return accurate, high-signal web evidence in a stable format even when pages are messy (bad HTML, low text, redirects, JS/PDF).
 
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ `POST /api/agent/run` endpoint exists and runs the agent runtime
+- ✓ Canonical backend tools are bound as `web_search` and `web_crawl`
+- ✓ `web_search` uses Serper (`SERPER_API_KEY`) and normalizes results
+- ✓ `web_crawl` is HTTP-first with retries and extracts readable content via `trafilatura`, returning structured fallback reasons on failure
 
 ### Active
 
-- [ ] Build Python backend using LangGraph ReAct-style agent with two tools (`web_search`, `web_crawl`).
-- [ ] Integrate Serper for search using `SERPER_API_KEY` from environment variables.
-- [ ] Use OpenAI model provider with `OPENAI_API_KEY` from environment variables.
-- [ ] Build an in-house crawler tool in Python (simple v1 implementation).
-- [ ] Provide a TypeScript frontend with a minimal UI to run the agent.
-- [ ] Show full tool inputs and outputs in UI/logging for debugging and validation.
-- [ ] Run locally with Docker Compose and inspect behavior through Docker logs.
-- [ ] Replace current TypeScript backend path with Python backend for this v1.
+- [ ] Extend `web_crawl` (single URL) to support `objective?` and `search_queries?` for objective-driven excerpt selection
+- [ ] Implement `full_content` mode: return the extracted page content as full markdown (links preserved)
+- [ ] Implement excerpt mode: select a small set of high-signal excerpts under a “cheap” budget
+- [ ] Add real JS/PDF handling with structured fallbacks when extraction cannot be performed
+- [ ] Upgrade the extraction response contract to include: `url`, `title`, `publish_date`, `excerpts[]`, `full_content`, and `meta` (status + fetch/extraction details)
+- [ ] Add set output mode for deterministic arrays (no prose)
+- [ ] Add DeepSearchQA eval harness to run prompts end-to-end and compute Fully Correct accuracy
 
 ### Out of Scope
 
-- User authentication/authorization — excluded to keep v1 focused on tool execution observability.
-- Advanced crawler sophistication (deep compliance and browser automation) — deferred to keep v1 implementation simple.
-- Multi-agent orchestration — excluded because v1 scope is one simple agent with two tools.
-- Deployment/production hardening — deferred; local Docker Compose is sufficient for initial validation.
+- [Exclusion] Multi-URL extract orchestrator / new “extract endpoint” (no separate fan-out orchestration in v1)
+- [Exclusion] Changing the existing canonical tool binding names (`web_search`, `web_crawl`) in the agent runtime
+- [Exclusion] Logging raw page bodies or provider internals by default (keep outputs and telemetry safe)
 
 ## Context
 
-This repository already contains substantial TypeScript implementation and tests, but the current goal is to shift the agent/tool backend path to Python while keeping a TypeScript frontend for quick testing. The key need is observability: understanding exactly what inputs are sent to each tool and what outputs are returned, not polishing product UX. Serper will power search, and an in-house crawler will fetch/extract content similarly to the tool split used by modern internet-search agent systems.
+- Repo is a FastAPI + LangChain backend with two canonical tools: `web_search` and `web_crawl`.
+- Current crawl/extraction is HTTP-first and uses `trafilatura`; it supports fallback states like `unsupported-content-type` and `low-content-quality`.
+- The agent runtime currently returns only a final answer string to the API, so tool outputs must be transformed into deterministic final-answer formats via prompting.
+- “Parallel-like” target behavior is captured in `features.md` (full content, objective-driven excerpts, response contract, set output mode, and DSQA evaluation).
 
 ## Constraints
 
-- **Stack**: Python backend + LangGraph agent + TypeScript frontend — required to align with refactor target and UI needs.
-- **Model provider**: OpenAI — chosen explicitly by user for v1.
-- **Search provider**: Serper — selected tool API with environment-provided key.
-- **Runtime**: Local Docker Compose — required for local development and log visibility.
-- **Observability**: Full tool inputs/outputs visible — needed to validate how agent tools run.
-- **Scope**: Keep implementation simple (no auth, minimal UI) — prevents scope creep during major refactor.
-- **Delivery**: Balanced speed/quality — not throwaway, but avoid overengineering.
+- **Cost/Budget**: excerpt selection in v1 must be “cheap” (small per-page excerpt budget).
+- **Bounded Network**: retrieval must keep timeouts and retry counts bounded to prevent runaway cost (current crawl uses bounded timeouts/retries).
+- **Safety/Privacy**: never log secrets and do not include raw provider internals in user-visible output.
+- **Compatibility**: keep `web_search`/`web_crawl` tool names stable; extend inputs/outputs in a backwards-compatible way where possible.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use Python backend with LangGraph ReAct-style agent | Align with full backend refactor target | — Pending |
-| Keep exactly two v1 tools: search + crawl | Mirrors intended agent behavior and keeps tool surface focused | — Pending |
-| Use OpenAI + Serper via env keys | Explicit user choice and existing key setup | — Pending |
-| Replace TypeScript backend now | User requested immediate cutover strategy | — Pending |
-| Local Docker Compose only for v1 | Simplifies execution and debugging loop | — Pending |
-| Minimal TypeScript UI with clear run visibility | Primary value is backend observability, not feature-rich frontend | — Pending |
-| Full tool input/output visibility | Needed to verify agent behavior and debug rapidly | — Pending |
-| Exclude auth and other platform features | Keeps v1 tightly focused and achievable | — Pending |
+| Implement “Parallel-like” excerpt/objective behavior by extending `web_crawl` for a single URL (no multi-URL orchestrator in v1) | Keeps v1 small and aligns with existing runtime/tool plumbing | — Pending |
+| Use `search_queries[]` as ranking/select signal for excerpts only (do not alter crawl strategy) | Lower complexity and preserves HTTP-first policy | — Pending |
+| JS/PDF real-deal stack for v1: Playwright for JS rendering + PyMuPDF for PDF text | Matches “real deal” requirement for messy content | — Pending |
+| Excerpt budget for v1: small (<= 3 excerpts per URL, <= 300 chars each) | Satisfies “cheap, idk” constraint and keeps outputs deterministic | — Pending |
+| DSQA harness is part of v1 scope (end-to-end evaluation + Fully Correct accuracy) | Makes extraction quality measurable | — Pending |
 
 ---
-*Last updated: 2026-03-17 after initialization*
+*Last updated: 2026-03-20 after initial project setup*
+
