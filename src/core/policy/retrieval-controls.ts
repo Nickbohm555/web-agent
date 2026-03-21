@@ -93,6 +93,55 @@ export interface ResolvedRunRetrievalPolicy {
   fetch: Pick<ResolvedFetchControls, "maxAgeMs" | "fresh">;
 }
 
+const ResolvedRunRetrievalPolicySchema = z.object({
+  search: z.object({
+    country: z.string().trim().min(1),
+    language: z.string().trim().min(1),
+    freshness: RetrievalFreshnessSchema,
+    domainScope: z.object({
+      includeDomains: z.array(z.string()).default([]),
+      excludeDomains: z.array(z.string()).default([]),
+    }).strict(),
+  }).strict(),
+  fetch: z.object({
+    maxAgeMs: z.coerce.number().int().min(0).max(FETCH_MAX_AGE_MAX_MS),
+    fresh: z.coerce.boolean(),
+  }).strict(),
+}).strict();
+
+const PROMPT_DOMAIN_HINTS = [
+  { pattern: /\bopenai\b/i, domains: ["openai.com", "platform.openai.com"] },
+  { pattern: /\breact\b/i, domains: ["react.dev"] },
+  { pattern: /\bnext(?:\.js|js)?\b/i, domains: ["nextjs.org", "vercel.com"] },
+  { pattern: /\bvercel\b/i, domains: ["vercel.com"] },
+  { pattern: /\bnode(?:\.js|js)?\b/i, domains: ["nodejs.org"] },
+  { pattern: /\bpython\b/i, domains: ["docs.python.org", "python.org"] },
+  { pattern: /\bfastapi\b/i, domains: ["fastapi.tiangolo.com"] },
+  { pattern: /\bdocker\b/i, domains: ["docs.docker.com", "docker.com"] },
+  { pattern: /\bstripe\b/i, domains: ["docs.stripe.com", "stripe.com"] },
+  { pattern: /\baws\b|amazon web services/i, domains: ["docs.aws.amazon.com", "aws.amazon.com"] },
+  { pattern: /\btailwind(?:css)?\b/i, domains: ["tailwindcss.com"] },
+] as const;
+
+const OFFICIAL_SOURCE_PATTERN =
+  /\b(official docs?(?: only)?|official documentation|official source(?:s)?|official site|primary source(?:s)?|company filing|regulatory filing|sec filing)\b/i;
+const SEC_FILING_PATTERN =
+  /\b(sec filing|10-k|10-q|8-k|annual report|quarterly report|earnings filing)\b/i;
+const TODAY_PATTERN =
+  /\b(today|breaking|just announced|just released|as of today|newly announced)\b/i;
+const WEEK_PATTERN =
+  /\b(this week|past week|last week|recent|recent coverage|latest|most recent|newest|current)\b/i;
+const MONTH_PATTERN = /\b(this month|past month|last month)\b/i;
+const YEAR_PATTERN = /\b(this year|past year|last year)\b/i;
+const DOMAIN_PATTERN = /\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi;
+const FETCH_MAX_AGE_BY_FRESHNESS: Record<z.output<typeof RetrievalFreshnessSchema>, number> = {
+  any: FETCH_MAX_AGE_DEFAULT_MS,
+  day: 60 * 60 * 1000,
+  week: 6 * 60 * 60 * 1000,
+  month: 24 * 60 * 60 * 1000,
+  year: 24 * 60 * 60 * 1000,
+};
+
 export function resolveSearchControls(input?: unknown): ResolvedSearchControls {
   const parsed = SearchControlsInputSchema.parse(input ?? {});
   const locale = LocaleSchema.parse({
@@ -126,18 +175,36 @@ export function resolveFetchControls(input?: unknown): ResolvedFetchControls {
 
 export function resolveRunRetrievalPolicy(
   input?: unknown,
+  prompt?: string,
 ): ResolvedRunRetrievalPolicy {
+  const inferred = inferRunRetrievalPolicy(prompt);
+  const resolvedInput = ResolvedRunRetrievalPolicySchema.safeParse(input);
+  if (resolvedInput.success) {
+    return {
+      search: {
+        country: resolvedInput.data.search.country.toUpperCase(),
+        language: resolvedInput.data.search.language.toLowerCase(),
+        freshness: resolvedInput.data.search.freshness,
+        domainScope: resolveDomainScope(resolvedInput.data.search.domainScope),
+      },
+      fetch: {
+        maxAgeMs: resolvedInput.data.fetch.maxAgeMs,
+        fresh: resolvedInput.data.fetch.fresh,
+      },
+    };
+  }
+
   const parsed = RunRetrievalPolicyInputSchema.parse(input ?? {});
   const search = resolveSearchControls({
-    country: parsed.country,
-    language: parsed.language,
-    freshness: parsed.freshness,
-    includeDomains: parsed.includeDomains,
-    excludeDomains: parsed.excludeDomains,
+    country: parsed.country ?? inferred.search.country,
+    language: parsed.language ?? inferred.search.language,
+    freshness: parsed.freshness ?? inferred.search.freshness,
+    includeDomains: parsed.includeDomains ?? inferred.search.domainScope.includeDomains,
+    excludeDomains: parsed.excludeDomains ?? inferred.search.domainScope.excludeDomains,
   });
   const fetch = resolveFetchControls({
-    maxAgeMs: parsed.maxAgeMs,
-    fresh: parsed.fresh,
+    maxAgeMs: parsed.maxAgeMs ?? inferred.fetch.maxAgeMs,
+    fresh: parsed.fresh ?? inferred.fetch.fresh,
   });
 
   return {
@@ -152,6 +219,73 @@ export function resolveRunRetrievalPolicy(
       fresh: fetch.fresh,
     },
   };
+}
+
+export function inferRunRetrievalPolicy(prompt?: string): ResolvedRunRetrievalPolicy {
+  const normalizedPrompt = prompt?.trim() ?? "";
+  const inferredFreshness = inferPromptFreshness(normalizedPrompt);
+  const inferredDomains = inferPromptIncludeDomains(normalizedPrompt);
+
+  return {
+    search: {
+      country: "US",
+      language: "en",
+      freshness: inferredFreshness,
+      domainScope: {
+        includeDomains: inferredDomains,
+        excludeDomains: [],
+      },
+    },
+    fetch: {
+      maxAgeMs: FETCH_MAX_AGE_BY_FRESHNESS[inferredFreshness],
+      fresh: inferredFreshness !== "any",
+    },
+  };
+}
+
+function inferPromptFreshness(
+  prompt: string,
+): z.output<typeof RetrievalFreshnessSchema> {
+  if (!prompt) {
+    return "any";
+  }
+
+  if (TODAY_PATTERN.test(prompt)) {
+    return "day";
+  }
+  if (MONTH_PATTERN.test(prompt) || SEC_FILING_PATTERN.test(prompt)) {
+    return "month";
+  }
+  if (YEAR_PATTERN.test(prompt)) {
+    return "year";
+  }
+  if (WEEK_PATTERN.test(prompt)) {
+    return "week";
+  }
+  return "any";
+}
+
+function inferPromptIncludeDomains(prompt: string): string[] {
+  if (!prompt) {
+    return [];
+  }
+
+  const explicitDomains = Array.from(prompt.matchAll(DOMAIN_PATTERN), (match) => match[0]);
+  const hintedDomains = PROMPT_DOMAIN_HINTS.flatMap((hint) =>
+    hint.pattern.test(prompt) ? hint.domains : [],
+  );
+  const shouldScopeToOfficialSources =
+    OFFICIAL_SOURCE_PATTERN.test(prompt) || SEC_FILING_PATTERN.test(prompt);
+
+  if (!shouldScopeToOfficialSources && explicitDomains.length === 0) {
+    return [];
+  }
+
+  const domains = SEC_FILING_PATTERN.test(prompt)
+    ? ["sec.gov", ...explicitDomains, ...hintedDomains]
+    : [...explicitDomains, ...hintedDomains];
+
+  return resolveDomainScope({ includeDomains: domains }).includeDomains;
 }
 
 export function mergeRunPolicyIntoSearchControls(

@@ -193,6 +193,41 @@ describe("fetch controls integration", () => {
       },
     );
   });
+
+  it("applies inferred recency controls from prompt intent to downstream fetch behavior", async () => {
+    const { fetch: sdkFetch } = await import("../sdk/index.js");
+    const {
+      mergeRunPolicyIntoFetchInput,
+      resolveRunRetrievalPolicy,
+    } = await import("../core/policy/retrieval-controls.js");
+
+    runFetchOrchestratorMock.mockResolvedValueOnce(
+      createFetchResponse("https://example.com/article", "latest article"),
+    );
+
+    const response = await sdkFetch(
+      "https://example.com/article",
+      mergeRunPolicyIntoFetchInput(
+        resolveRunRetrievalPolicy(
+          undefined,
+          "Find the latest coverage of this product launch.",
+        ),
+        {
+          timeoutMs: 2_000,
+        },
+      ),
+    );
+
+    expect(response.text).toBe("latest article");
+    expect(runFetchOrchestratorMock).toHaveBeenCalledWith(
+      "https://example.com/article",
+      {
+        http: {
+          timeoutMs: 2_000,
+        },
+      },
+    );
+  });
 });
 
 function createFetchResponse(url: string, text: string): FetchResponse {

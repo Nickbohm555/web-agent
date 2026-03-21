@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 from time import perf_counter
 from typing import Any, Callable, Protocol
 from urllib.parse import urlsplit, urlunsplit
@@ -80,6 +81,45 @@ QUICK_SEARCH_ERROR_MESSAGE_BY_KIND = {
     "timeout": "quick search timed out",
     "invalid_request": "prompt is invalid for quick search",
 }
+PROMPT_DOMAIN_HINTS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
+    (re.compile(r"\bopenai\b", re.IGNORECASE), ("openai.com", "platform.openai.com")),
+    (re.compile(r"\breact\b", re.IGNORECASE), ("react.dev",)),
+    (re.compile(r"\bnext(?:\.js|js)?\b", re.IGNORECASE), ("nextjs.org", "vercel.com")),
+    (re.compile(r"\bvercel\b", re.IGNORECASE), ("vercel.com",)),
+    (re.compile(r"\bnode(?:\.js|js)?\b", re.IGNORECASE), ("nodejs.org",)),
+    (re.compile(r"\bpython\b", re.IGNORECASE), ("docs.python.org", "python.org")),
+    (re.compile(r"\bfastapi\b", re.IGNORECASE), ("fastapi.tiangolo.com",)),
+    (re.compile(r"\bdocker\b", re.IGNORECASE), ("docs.docker.com", "docker.com")),
+    (re.compile(r"\bstripe\b", re.IGNORECASE), ("docs.stripe.com", "stripe.com")),
+    (re.compile(r"\baws\b|amazon web services", re.IGNORECASE), ("docs.aws.amazon.com", "aws.amazon.com")),
+    (re.compile(r"\btailwind(?:css)?\b", re.IGNORECASE), ("tailwindcss.com",)),
+)
+OFFICIAL_SOURCE_PATTERN = re.compile(
+    r"\b(official docs?(?: only)?|official documentation|official source(?:s)?|official site|primary source(?:s)?|company filing|regulatory filing|sec filing)\b",
+    re.IGNORECASE,
+)
+SEC_FILING_PATTERN = re.compile(
+    r"\b(sec filing|10-k|10-q|8-k|annual report|quarterly report|earnings filing)\b",
+    re.IGNORECASE,
+)
+TODAY_PATTERN = re.compile(
+    r"\b(today|breaking|just announced|just released|as of today|newly announced)\b",
+    re.IGNORECASE,
+)
+WEEK_PATTERN = re.compile(
+    r"\b(this week|past week|last week|recent|recent coverage|latest|most recent|newest|current)\b",
+    re.IGNORECASE,
+)
+MONTH_PATTERN = re.compile(r"\b(this month|past month|last month)\b", re.IGNORECASE)
+YEAR_PATTERN = re.compile(r"\b(this year|past year|last year)\b", re.IGNORECASE)
+DOMAIN_PATTERN = re.compile(r"\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b", re.IGNORECASE)
+FETCH_MAX_AGE_BY_FRESHNESS = {
+    "any": 300_000,
+    "day": 60 * 60 * 1000,
+    "week": 6 * 60 * 60 * 1000,
+    "month": 24 * 60 * 60 * 1000,
+    "year": 24 * 60 * 60 * 1000,
+}
 
 
 class AgentExecutor(Protocol):
@@ -88,7 +128,12 @@ class AgentExecutor(Protocol):
 
 
 class AgentFactory(Protocol):
-    def __call__(self, profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -> AgentExecutor:
+    def __call__(
+        self,
+        profile: AgentRuntimeProfile,
+        tools: tuple[Any, ...],
+        retrieval_policy: AgentRunRetrievalPolicy,
+    ) -> AgentExecutor:
         ...
 
 
@@ -199,7 +244,10 @@ def run_agent_once(
 
     try:
         profile = get_runtime_profile(mode)
-        effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
+        effective_policy = _resolve_effective_retrieval_policy(
+            prompt=prompt,
+            retrieval_policy=retrieval_policy,
+        )
         dependencies = runtime_dependencies or build_runtime_dependencies()
         if profile.name == "quick":
             return _run_quick_mode(
@@ -286,7 +334,7 @@ def _resolve_agent(
 
     tools = _get_tools_for_profile(profile, retrieval_policy)
     _assert_canonical_tool_names(tools)
-    return runtime_dependencies.agent_factory(profile, tools)
+    return runtime_dependencies.agent_factory(profile, tools, retrieval_policy)
 
 
 def _run_quick_mode(
@@ -336,7 +384,11 @@ def _run_quick_mode(
     )
 
 
-def _build_default_agent(profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -> AgentExecutor:
+def _build_default_agent(
+    profile: AgentRuntimeProfile,
+    tools: tuple[Any, ...],
+    retrieval_policy: AgentRunRetrievalPolicy,
+) -> AgentExecutor:
     try:
         from langchain_openai import ChatOpenAI
     except Exception as exc:  # pragma: no cover - exercised only in integrated environments
@@ -354,7 +406,7 @@ def _build_default_agent(profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -
     return agent_factory(
         model=model,
         tools=tools,
-        prompt=build_system_prompt(profile),
+        prompt=build_system_prompt(profile, retrieval_policy),
     )
 
 
@@ -379,6 +431,120 @@ def _load_agent_factory() -> Callable[..., AgentExecutor]:
 
 def _build_inputs(prompt: str) -> dict[str, Any]:
     return {"messages": [{"role": "user", "content": prompt}]}
+
+
+def _resolve_effective_retrieval_policy(
+    *,
+    prompt: str,
+    retrieval_policy: AgentRunRetrievalPolicy | None,
+) -> AgentRunRetrievalPolicy:
+    inferred_policy = _infer_retrieval_policy_from_prompt(prompt)
+    if retrieval_policy is None:
+        return inferred_policy
+
+    return AgentRunRetrievalPolicy.model_validate(
+        {
+            "search": {
+                "country": retrieval_policy.search.country or inferred_policy.search.country,
+                "language": retrieval_policy.search.language or inferred_policy.search.language,
+                "freshness": (
+                    retrieval_policy.search.freshness
+                    if retrieval_policy.search.freshness != "any"
+                    else inferred_policy.search.freshness
+                ),
+                "include_domains": (
+                    retrieval_policy.search.include_domains
+                    or inferred_policy.search.include_domains
+                ),
+                "exclude_domains": (
+                    retrieval_policy.search.exclude_domains
+                    or inferred_policy.search.exclude_domains
+                ),
+            },
+            "fetch": {
+                "max_age_ms": (
+                    retrieval_policy.fetch.max_age_ms
+                    if retrieval_policy.fetch.max_age_ms != 300_000
+                    else inferred_policy.fetch.max_age_ms
+                ),
+                "fresh": retrieval_policy.fetch.fresh or inferred_policy.fetch.fresh,
+            },
+        }
+    )
+
+
+def _infer_retrieval_policy_from_prompt(prompt: str) -> AgentRunRetrievalPolicy:
+    normalized_prompt = prompt.strip()
+    inferred_freshness = _infer_prompt_freshness(normalized_prompt)
+    inferred_domains = _infer_prompt_include_domains(normalized_prompt)
+    return AgentRunRetrievalPolicy.model_validate(
+        {
+            "search": {
+                "freshness": inferred_freshness,
+                "include_domains": inferred_domains,
+            },
+            "fetch": {
+                "max_age_ms": FETCH_MAX_AGE_BY_FRESHNESS[inferred_freshness],
+                "fresh": inferred_freshness != "any",
+            },
+        }
+    )
+
+
+def _infer_prompt_freshness(prompt: str) -> str:
+    if not prompt:
+        return "any"
+    if TODAY_PATTERN.search(prompt):
+        return "day"
+    if MONTH_PATTERN.search(prompt) or SEC_FILING_PATTERN.search(prompt):
+        return "month"
+    if YEAR_PATTERN.search(prompt):
+        return "year"
+    if WEEK_PATTERN.search(prompt):
+        return "week"
+    return "any"
+
+
+def _infer_prompt_include_domains(prompt: str) -> list[str]:
+    if not prompt:
+        return []
+
+    explicit_domains = DOMAIN_PATTERN.findall(prompt)
+    hinted_domains = [
+        domain
+        for pattern, domains in PROMPT_DOMAIN_HINTS
+        if pattern.search(prompt)
+        for domain in domains
+    ]
+    should_scope_to_official_sources = bool(
+        OFFICIAL_SOURCE_PATTERN.search(prompt) or SEC_FILING_PATTERN.search(prompt)
+    )
+    if not should_scope_to_official_sources and not explicit_domains:
+        return []
+
+    inferred_domains = (
+        ["sec.gov", *explicit_domains, *hinted_domains]
+        if SEC_FILING_PATTERN.search(prompt)
+        else [*explicit_domains, *hinted_domains]
+    )
+    normalized_domains = AgentRunRetrievalPolicy.model_validate(
+        {"search": {"include_domains": inferred_domains}}
+    ).search.include_domains
+    return _collapse_domains(normalized_domains)
+
+
+def _collapse_domains(domains: list[str]) -> list[str]:
+    collapsed: list[str] = []
+    for domain in sorted(domains):
+        if any(domain == existing or domain.endswith(f".{existing}") for existing in collapsed):
+            continue
+        collapsed = [
+            existing
+            for existing in collapsed
+            if not existing.endswith(f".{domain}")
+        ]
+        collapsed.append(domain)
+    return collapsed
 
 
 def _build_runtime_config(

@@ -293,6 +293,52 @@ describe("search controls integration", () => {
       tbs: "qdr:w",
     });
   });
+
+  it("applies inferred official-source and recency controls from prompt intent", async () => {
+    const { search } = await import("../sdk/index.js");
+    const {
+      mergeRunPolicyIntoSearchInput,
+      resolveRunRetrievalPolicy,
+    } = await import("../core/policy/retrieval-controls.js");
+
+    requestMock.mockResolvedValueOnce(
+      createResponse(200, {
+        organic: [
+          { title: "OpenAI docs", link: "https://platform.openai.com/docs/intro", position: 1 },
+          { title: "Blog recap", link: "https://thirdparty.dev/openai", position: 2 },
+        ],
+      }),
+    );
+
+    const response = await search(
+      "Responses API update",
+      mergeRunPolicyIntoSearchInput(
+        resolveRunRetrievalPolicy(
+          undefined,
+          "Use official docs only to find the latest OpenAI Responses API update.",
+        ),
+      ),
+    );
+
+    expect(response.results).toEqual([
+      {
+        title: "OpenAI docs",
+        url: "https://platform.openai.com/docs/intro",
+        snippet: "",
+        rank: {
+          position: 1,
+          providerPosition: 1,
+        },
+      },
+    ]);
+    expect(getRequestBody(0)).toEqual({
+      q: "Responses API update site:openai.com",
+      num: 10,
+      gl: "us",
+      hl: "en",
+      tbs: "qdr:w",
+    });
+  });
 });
 
 function createResponse(statusCode: number, payload: unknown) {

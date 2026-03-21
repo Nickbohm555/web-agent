@@ -40,6 +40,15 @@ def expected_runtime_config(mode: AgentRunMode = "agentic") -> dict[str, Any]:
     }
 
 
+def expected_runtime_config_with_policy(
+    retrieval_policy: AgentRunRetrievalPolicy,
+    mode: AgentRunMode = "agentic",
+) -> dict[str, Any]:
+    config = expected_runtime_config(mode)
+    config["retrieval_policy"] = retrieval_policy.model_dump()
+    return config
+
+
 @dataclass
 class StubAgent:
     raw_result: dict[str, Any]
@@ -69,11 +78,18 @@ class CapturingAgentFactory:
     raw_result: dict[str, Any]
     captured_profile: AgentRuntimeProfile | None = None
     captured_tools: tuple[Any, ...] | None = None
+    captured_retrieval_policy: AgentRunRetrievalPolicy | None = None
     agent: StubAgent | None = None
 
-    def __call__(self, profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -> StubAgent:
+    def __call__(
+        self,
+        profile: AgentRuntimeProfile,
+        tools: tuple[Any, ...],
+        retrieval_policy: AgentRunRetrievalPolicy,
+    ) -> StubAgent:
         self.captured_profile = profile
         self.captured_tools = tools
+        self.captured_retrieval_policy = retrieval_policy
         self.agent = StubAgent(raw_result=self.raw_result)
         return self.agent
 
@@ -262,6 +278,31 @@ def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
     assert str(profile.max_crawl_chars) in prompt
 
 
+def test_system_prompt_includes_effective_retrieval_policy_details() -> None:
+    profile = get_runtime_profile("agentic")
+    prompt = build_system_prompt(
+        profile,
+        AgentRunRetrievalPolicy.model_validate(
+            {
+                "search": {
+                    "freshness": "week",
+                    "include_domains": ["openai.com"],
+                },
+                "fetch": {
+                    "max_age_ms": 21_600_000,
+                    "fresh": True,
+                },
+            }
+        ),
+    )
+
+    assert "Translate clear prompt intent like official-docs-only" in prompt
+    assert "freshness=week" in prompt
+    assert "include domains=['openai.com']" in prompt
+    assert "fetch fresh=True" in prompt
+    assert "fetch max_age_ms=21600000" in prompt
+
+
 def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
@@ -323,7 +364,7 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     ]
     assert search_runner.captured_query == "latest agent news"
     assert search_runner.captured_max_results == 5
-    assert search_runner.captured_freshness == "any"
+    assert search_runner.captured_freshness == "week"
     assert search_runner.captured_include_domains == []
     assert search_runner.captured_exclude_domains == []
     assert agent.captured_inputs is None
@@ -365,6 +406,34 @@ def test_run_agent_once_threads_retrieval_policy_into_runtime_and_quick_search()
     assert search_runner.captured_freshness == "week"
     assert search_runner.captured_include_domains == ["example.com"]
     assert search_runner.captured_exclude_domains == ["blocked.com"]
+
+
+def test_run_agent_once_infers_retrieval_policy_from_prompt_intent() -> None:
+    search_runner = StubQuickSearchRunner(
+        payload={
+            "query": "Responses API update",
+            "results": [],
+            "metadata": {"result_count": 0, "provider": "serper"},
+            "meta": {
+                "operation": "web_search",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12, "provider_ms": 8},
+            },
+        }
+    )
+
+    result = run_agent_once(
+        "Use official docs only to find the latest OpenAI Responses API update.",
+        "quick",
+        runtime_dependencies=RuntimeDependencies(quick_search_runner=search_runner),
+    )
+
+    assert result.status == "completed"
+    assert search_runner.captured_freshness == "week"
+    assert search_runner.captured_include_domains == ["openai.com"]
+    assert search_runner.captured_exclude_domains == []
 
 
 def test_run_agent_once_maps_quick_search_provider_failures() -> None:
@@ -471,8 +540,39 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert factory.captured_tools is not None
     assert tuple(tool.name for tool in factory.captured_tools) == CANONICAL_TOOL_NAMES
     assert factory.captured_tools != (web_search, web_crawl)
+    assert factory.captured_retrieval_policy == AgentRunRetrievalPolicy()
     assert factory.agent is not None
     assert factory.agent.captured_config == expected_runtime_config("deep_research")
+
+
+def test_run_agent_once_passes_inferred_retrieval_policy_into_agent_factory_and_config() -> None:
+    factory = CapturingAgentFactory(raw_result={"output": "Research answer."})
+    expected_policy = AgentRunRetrievalPolicy.model_validate(
+        {
+            "search": {
+                "freshness": "week",
+                "include_domains": ["openai.com"],
+            },
+            "fetch": {
+                "max_age_ms": 21_600_000,
+                "fresh": True,
+            },
+        }
+    )
+
+    result = run_agent_once(
+        "Use official docs only to find the latest OpenAI Responses API update.",
+        "agentic",
+        runtime_dependencies=RuntimeDependencies(agent_factory=factory),
+    )
+
+    assert result.status == "completed"
+    assert factory.captured_retrieval_policy == expected_policy
+    assert factory.agent is not None
+    assert factory.agent.captured_config == expected_runtime_config_with_policy(
+        expected_policy,
+        "agentic",
+    )
 
 
 def test_run_agent_once_preserves_explicit_structured_final_answer_citations() -> None:

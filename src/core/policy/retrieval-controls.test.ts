@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  inferRunRetrievalPolicy,
   mergeRunPolicyIntoFetchControls,
   mergeRunPolicyIntoSearchControls,
   resolveFetchControls,
@@ -134,6 +135,55 @@ describe("retrieval controls policy", () => {
       timeoutMs: 1_000,
       maxAgeMs: 60_000,
       fresh: false,
+    });
+  });
+
+  it("infers freshness and official-source domain scope from prompt intent", () => {
+    expect(
+      inferRunRetrievalPolicy(
+        "Use official docs only to find the latest OpenAI Responses API update.",
+      ),
+    ).toEqual({
+      search: {
+        country: "US",
+        language: "en",
+        freshness: "week",
+        domainScope: {
+          includeDomains: ["openai.com"],
+          excludeDomains: [],
+        },
+      },
+      fetch: {
+        maxAgeMs: 6 * 60 * 60 * 1_000,
+        fresh: true,
+      },
+    });
+  });
+
+  it("lets explicit retrieval policy inputs override inferred prompt controls", () => {
+    expect(
+      resolveRunRetrievalPolicy(
+        {
+          freshness: "year",
+          includeDomains: ["example.com"],
+          fresh: false,
+        },
+        "Use official docs only to find the latest OpenAI Responses API update.",
+      ),
+    ).toEqual({
+      search: {
+        country: "US",
+        language: "en",
+        freshness: "year",
+        domainScope: {
+          includeDomains: ["example.com"],
+          excludeDomains: [],
+        },
+      },
+      fetch: {
+        maxAgeMs: 6 * 60 * 60 * 1_000,
+        fresh: false,
+      },
     });
   });
 });

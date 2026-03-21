@@ -193,7 +193,7 @@ export const RunStartRequestSchema = z
   .transform((input) => ({
     prompt: input.prompt,
     mode: input.mode,
-    retrievalPolicy: resolveRunRetrievalPolicy(input.retrievalPolicy),
+    retrievalPolicy: resolveRunRetrievalPolicy(input.retrievalPolicy, input.prompt),
   }));
 
 export const RunStartStatusSchema = z.enum(["queued", "running"]);
