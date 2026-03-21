@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 16
+Current Section: 17
 
 ## Section 1: Define Search Mode Contract
 
@@ -358,6 +358,8 @@ Completed with `npm run test -- src/tests/frontend-api/run-events.contracts.test
 
 ## Section 16: Map Canonical Tools To Richer Action Records
 
+✓ Completed: Added backend-side search/crawl action-record normalizers that preserve stable tool outputs while exposing result previews, target/final URLs, fallback diagnostics, and error metadata; threaded matching `retrieval_action` metadata into frontend observability tool-call events; and hardened invalid-URL handling so malformed requests do not break route contracts.
+
 Task:
 Keep `web_search` and `web_crawl` as backend primitives, but map them to richer user-visible retrieval action records and metadata.
 
@@ -376,7 +378,7 @@ How to Test:
 Success looks like canonical tools still returning stable normalized outputs while the observability layer exposes richer action metadata on top. We know this section is working when low-level tool contracts stay unchanged but the frontend-facing traces become more descriptive and still correlate correctly.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `pytest backend/tests/tools/test_web_search_tool.py -q`, `pytest backend/tests/tools/test_web_crawl_tool.py -q`, `npm run test -- src/tests/frontend-api/observability-correlation.test.ts`, `npm run typecheck`, `npm run test`, `npm run build`, and `pytest backend/tests -q`.
 
 ## Section 17: Assemble Source Registry During Execution
 
