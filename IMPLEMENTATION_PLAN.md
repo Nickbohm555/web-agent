@@ -1,7 +1,7 @@
 # Implementation Plan
-Current Section: 1
+Current Section: 2
 
-## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction
+## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
 Task:
 Add an optional `objective` input to `web_crawl` and expand the crawl success payload to support focused excerpt-style outputs without breaking existing normalized crawl behavior.
@@ -22,6 +22,7 @@ Success looks like `web_crawl` accepting both legacy URL-only requests and new o
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: Added optional `objective` request support, added contract-valid excerpt payload fields to `web_crawl` success responses, preserved legacy URL-only behavior, and verified with `pytest backend/tests/tools/test_web_crawl_tool.py -q` and `pytest backend/tests/crawler/test_http_worker.py -q`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
