@@ -14,6 +14,7 @@ from backend.app.config import get_settings
 from backend.app.contracts.web_search import WebSearchInput, WebSearchResponse
 from backend.app.providers.serper_client import SerperClient, SerperClientError
 from backend.app.tools._tool_utils import (
+    build_tool_action_error_record,
     build_tool_error_payload,
     domain_scope_kwargs,
     has_domain_scope,
@@ -69,35 +70,29 @@ def run_web_search(
         validated_response = WebSearchResponse.model_validate(response)
         return validated_response.model_dump(mode="json")
     except ValidationError as exc:
-        total_ms = _elapsed_ms(operation_start)
-        return build_tool_error_payload(
+        return _build_search_error_payload(
+            operation_start=operation_start,
             kind="invalid_request",
             message=validation_error_message(exc),
             retryable=False,
-            total_ms=total_ms,
-            operation="web_search",
         )
     except SerperClientError as exc:
-        total_ms = _elapsed_ms(operation_start)
-        attempts = exc.attempt_number or 1
-        return build_tool_error_payload(
+        return _build_search_error_payload(
+            operation_start=operation_start,
             kind=exc.kind,
             message=exc.message,
             retryable=exc.retryable,
-            total_ms=total_ms,
             operation=exc.operation,
             status_code=exc.status_code,
-            attempt_number=attempts,
+            attempt_number=exc.attempt_number or 1,
             provider_ms=exc.provider_ms,
         )
     except Exception:
-        total_ms = _elapsed_ms(operation_start)
-        return build_tool_error_payload(
+        return _build_search_error_payload(
+            operation_start=operation_start,
             kind="internal_error",
             message="unexpected web_search failure",
             retryable=False,
-            total_ms=total_ms,
-            operation="web_search",
         )
 
 
@@ -108,16 +103,35 @@ def _elapsed_ms(start: float) -> int:
     return int((perf_counter() - start) * 1000)
 
 
+def _build_search_error_payload(
+    *,
+    operation_start: float,
+    kind: str,
+    message: str,
+    retryable: bool,
+    operation: str = "web_search",
+    status_code: int | None = None,
+    attempt_number: int = 1,
+    provider_ms: int | None = None,
+) -> dict[str, Any]:
+    return build_tool_error_payload(
+        kind=kind,
+        message=message,
+        retryable=retryable,
+        total_ms=_elapsed_ms(operation_start),
+        operation=operation,
+        status_code=status_code,
+        attempt_number=attempt_number,
+        provider_ms=provider_ms,
+    )
+
+
 def _apply_domain_scope_to_query(
     query: str,
     search_policy: AgentRunRetrievalSearchPolicy,
 ) -> str:
-    include_terms = [
-        f"site:{domain}" for domain in search_policy.include_domains
-    ]
-    exclude_terms = [
-        f"-site:{domain}" for domain in search_policy.exclude_domains
-    ]
+    include_terms = [f"site:{domain}" for domain in search_policy.include_domains]
+    exclude_terms = [f"-site:{domain}" for domain in search_policy.exclude_domains]
     scope_terms = [*include_terms, *exclude_terms]
 
     if not scope_terms:
@@ -183,20 +197,13 @@ def build_web_search_action_record(
     except ValidationError:
         pass
 
-    error = payload.get("error")
-    meta = payload.get("meta")
-    if isinstance(error, dict):
-        action_record = {
-            "action_type": "search",
-            "query": normalized_query,
-            "error_kind": error.get("kind"),
-            "message": error.get("message"),
-            "retryable": error.get("retryable"),
-        }
-        if isinstance(meta, dict):
-            action_record["attempts"] = meta.get("attempts")
-        if error.get("status_code") is not None:
-            action_record["status_code"] = error.get("status_code")
+    action_record = build_tool_action_error_record(
+        action_type="search",
+        subject_key="query",
+        subject_value=normalized_query,
+        payload=payload,
+    )
+    if action_record is not None:
         return action_record
 
     return {

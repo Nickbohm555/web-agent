@@ -11,6 +11,7 @@ from backend.app.contracts.web_crawl import WebCrawlError, WebCrawlInput, WebCra
 from backend.app.crawler.extractor import extract_content, extraction_result_from_fetch_failure
 from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchWorker
 from backend.app.tools._tool_utils import (
+    build_tool_action_error_record,
     build_tool_error_payload,
     domain_scope_kwargs,
     is_url_allowed,
@@ -84,22 +85,18 @@ def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> d
             meta=fetch_result.meta,
         ).model_dump(mode="json")
     except ValidationError as exc:
-        total_ms = _elapsed_ms(operation_start)
-        return build_tool_error_payload(
+        return _build_crawl_error_payload(
+            operation_start=operation_start,
             kind="invalid_request",
             message=validation_error_message(exc),
             retryable=False,
-            total_ms=total_ms,
-            operation="web_crawl",
         )
     except Exception:
-        total_ms = _elapsed_ms(operation_start)
-        return build_tool_error_payload(
+        return _build_crawl_error_payload(
+            operation_start=operation_start,
             kind="internal_error",
             message="unexpected web_crawl failure",
             retryable=False,
-            total_ms=total_ms,
-            operation="web_crawl",
         )
 
 
@@ -108,6 +105,23 @@ web_crawl = build_web_crawl_tool()
 
 def _elapsed_ms(start: float) -> int:
     return int((perf_counter() - start) * 1000)
+
+
+def _build_crawl_error_payload(
+    *,
+    operation_start: float,
+    kind: str,
+    message: str,
+    retryable: bool,
+    operation: str = "web_crawl",
+) -> dict[str, Any]:
+    return build_tool_error_payload(
+        kind=kind,
+        message=message,
+        retryable=retryable,
+        total_ms=_elapsed_ms(operation_start),
+        operation=operation,
+    )
 
 
 def _build_fetch_failure_success(
@@ -172,20 +186,13 @@ def build_web_crawl_action_record(
     except ValidationError:
         pass
 
-    error = payload.get("error")
-    meta = payload.get("meta")
-    if isinstance(error, dict):
-        action_record = {
-            "action_type": "open_page",
-            "url": normalized_url,
-            "error_kind": error.get("kind"),
-            "message": error.get("message"),
-            "retryable": error.get("retryable"),
-        }
-        if isinstance(meta, dict):
-            action_record["attempts"] = meta.get("attempts")
-        if error.get("status_code") is not None:
-            action_record["status_code"] = error.get("status_code")
+    action_record = build_tool_action_error_record(
+        action_type="open_page",
+        subject_key="url",
+        subject_value=normalized_url,
+        payload=payload,
+    )
+    if action_record is not None:
         return action_record
 
     return {

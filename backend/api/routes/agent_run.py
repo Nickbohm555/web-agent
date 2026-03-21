@@ -33,12 +33,10 @@ async def run_agent(
     runner = _get_runtime_runner(request)
     route_response = execute_agent_run_request(runner, payload)
     if isinstance(route_response, JSONResponse):
-        route_response.headers["x-run-route"] = "legacy-compat"
-        route_response.headers["x-run-execution-surface"] = "sync"
+        _set_route_headers(route_response)
         return route_response
 
-    response.headers["x-run-route"] = "legacy-compat"
-    response.headers["x-run-execution-surface"] = "sync"
+    _set_route_headers(response)
     return route_response
 
 
@@ -47,3 +45,8 @@ def _get_runtime_runner(request: Request) -> AgentRuntimeRunner:
     if runner is None:
         raise RuntimeError("agent runtime is not configured")
     return runner
+
+
+def _set_route_headers(response: Response) -> None:
+    response.headers["x-run-route"] = "legacy-compat"
+    response.headers["x-run-execution-surface"] = "sync"
