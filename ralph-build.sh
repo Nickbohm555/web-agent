@@ -4,12 +4,15 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
+  ralph-build [N]
   ralph-build [--max-iterations N]
 
-Runs a loop of Codex build+cleanup sessions. If --max-iterations is set,
-the loop stops after N iterations. Use 0 for infinite (default: 0).
+Runs a loop of Codex build+cleanup sessions. If N or --max-iterations is set,
+the loop stops after that total number of iterations. Use 0 for infinite
+(default: 0).
 
 Options:
+  N                     Total iterations to run (default: 0)
   --max-iterations N    Safety cap on iterations (default: 0)
 USAGE
 }
@@ -19,6 +22,10 @@ max_iterations=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --max-iterations)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: --max-iterations requires a value." >&2
+        exit 1
+      fi
       max_iterations="$2"
       shift 2
       ;;
@@ -26,10 +33,18 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
-    *)
+    ''|*[!0-9]*)
       echo "Unknown arg: $1" >&2
       usage
       exit 1
+      ;;
+    *)
+      if [[ "$max_iterations" -ne 0 ]]; then
+        echo "Error: max iterations specified more than once." >&2
+        exit 1
+      fi
+      max_iterations="$1"
+      shift
       ;;
   esac
 done
