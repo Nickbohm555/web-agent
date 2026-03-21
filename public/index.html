@@ -91,6 +91,65 @@
         flex-wrap: wrap;
       }
 
+      .mode-picker {
+        margin-top: 18px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .mode-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .mode-option {
+        position: relative;
+      }
+
+      .mode-option input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .mode-card {
+        display: grid;
+        gap: 8px;
+        min-height: 100%;
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(62, 45, 30, 0.14);
+        background: rgba(255, 255, 255, 0.58);
+        cursor: pointer;
+        transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+      }
+
+      .mode-option input:checked + .mode-card {
+        border-color: rgba(183, 102, 53, 0.58);
+        box-shadow: 0 0 0 1px rgba(183, 102, 53, 0.18);
+        transform: translateY(-1px);
+      }
+
+      .mode-option input:focus-visible + .mode-card {
+        outline: 2px solid #b76635;
+        outline-offset: 3px;
+      }
+
+      .mode-title {
+        font-size: 1rem;
+      }
+
+      .mode-copy {
+        color: rgba(31, 26, 20, 0.7);
+        line-height: 1.45;
+      }
+
+      .mode-hint {
+        color: rgba(31, 26, 20, 0.66);
+      }
+
       button {
         border: 0;
         border-radius: 999px;
@@ -424,6 +483,10 @@
           padding: 24px;
         }
 
+        .mode-grid {
+          grid-template-columns: 1fr;
+        }
+
         .workspace {
           grid-template-columns: 1fr;
         }
@@ -458,6 +521,35 @@
           name="prompt"
           placeholder="Find the most reliable sources about..."
         ></textarea>
+        <div class="mode-picker">
+          <p class="status-label">Mode</p>
+          <div class="mode-grid" role="radiogroup" aria-label="Run mode">
+            <label class="mode-option" for="mode-quick">
+              <input id="mode-quick" type="radio" name="run-mode" value="quick" />
+              <span class="mode-card">
+                <strong class="mode-title">Quick search</strong>
+                <span class="mode-copy">Fast answer from a single web-grounded pass.</span>
+              </span>
+            </label>
+            <label class="mode-option" for="mode-agentic">
+              <input id="mode-agentic" type="radio" name="run-mode" value="agentic" checked />
+              <span class="mode-card">
+                <strong class="mode-title">Agentic search</strong>
+                <span class="mode-copy">Balanced exploration with bounded search and crawl steps.</span>
+              </span>
+            </label>
+            <label class="mode-option" for="mode-deep-research">
+              <input id="mode-deep-research" type="radio" name="run-mode" value="deep_research" />
+              <span class="mode-card">
+                <strong class="mode-title">Deep research</strong>
+                <span class="mode-copy">Longer background research for broader source expansion.</span>
+              </span>
+            </label>
+          </div>
+          <p id="mode-hint" class="mode-hint">
+            Balanced exploration. Uses bounded search and crawl steps before answering.
+          </p>
+        </div>
         <p id="prompt-error" class="error" role="alert"></p>
         <div class="controls">
           <button id="run-submit" type="submit">Start run</button>

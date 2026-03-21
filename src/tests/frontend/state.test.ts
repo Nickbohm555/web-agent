@@ -7,6 +7,42 @@ import {
 } from "../../frontend/client/state.js";
 
 describe("run state reducer", () => {
+  it("tracks the selected run mode and preserves it across run start", () => {
+    const state = applyActions([
+      { type: "mode_updated", mode: "deep_research" },
+      { type: "prompt_updated", prompt: "Build a market map" },
+      { type: "run_requested" },
+      {
+        type: "run_started",
+        response: {
+          runId: "run-123",
+          status: "queued",
+        },
+      },
+    ]);
+
+    expect(state.selectedMode).toBe("deep_research");
+    expect(state.runEvents[0]).toMatchObject({
+      event_type: "run_started",
+      tool_input: {
+        prompt: "Build a market map",
+        mode: "deep_research",
+      },
+    });
+    expect(state.runEvents[1]).toMatchObject({
+      event_type: "research_planning_started",
+      progress: {
+        stage: "planning",
+        message:
+          "Preparing a longer background research plan with broader source expansion.",
+      },
+      tool_input: {
+        prompt: "Build a market map",
+        mode: "deep_research",
+      },
+    });
+  });
+
   it("merges out-of-order tool events by toolCallId without duplicating records", () => {
     const state = applyActions([
       { type: "prompt_updated", prompt: "Find sources" },
@@ -217,6 +253,7 @@ describe("run state reducer", () => {
   it("adds research progress milestones around live run events", () => {
     const state = applyActions([
       { type: "prompt_updated", prompt: "Investigate provider reliability" },
+      { type: "mode_updated", mode: "quick" },
       { type: "run_requested" },
       {
         type: "run_started",
@@ -261,6 +298,11 @@ describe("run state reducer", () => {
       event_type: "research_planning_started",
       progress: {
         stage: "planning",
+        message: "Starting a fast search pass for a concise answer.",
+      },
+      tool_input: {
+        prompt: "Investigate provider reliability",
+        mode: "quick",
       },
     });
     expect(state.runEvents[2]).toMatchObject({

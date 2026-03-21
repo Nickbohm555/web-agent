@@ -6,6 +6,7 @@ import {
   type RunErrorEvent,
   type RunStateEvent,
   type ToolCallEvent,
+  type RunMode,
   createRunEventKey,
 } from "../contracts.js";
 
@@ -28,6 +29,7 @@ export interface ToolCallRecord {
 export interface RunState {
   phase: RunPhase;
   prompt: string;
+  selectedMode: RunMode;
   activeRunId: string | null;
   error: string | null;
   finalAnswer: string | null;
@@ -40,6 +42,7 @@ export interface RunState {
 
 export type RunAction =
   | { type: "prompt_updated"; prompt: string }
+  | { type: "mode_updated"; mode: RunMode }
   | { type: "run_requested" }
   | { type: "run_started"; response: RunStartResponse }
   | { type: "run_failed"; message: string }
@@ -53,6 +56,7 @@ export type RunAction =
 export const initialRunState: RunState = {
   phase: "idle",
   prompt: "",
+  selectedMode: "agentic",
   activeRunId: null,
   error: null,
   finalAnswer: null,
@@ -69,6 +73,12 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
       return {
         ...state,
         prompt: action.prompt,
+        ...(state.phase === "failed" ? { phase: "idle", error: null } : {}),
+      };
+    case "mode_updated":
+      return {
+        ...state,
+        selectedMode: action.mode,
         ...(state.phase === "failed" ? { phase: "idle", error: null } : {}),
       };
     case "run_requested":
@@ -111,6 +121,7 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
             ts: new Date().toISOString(),
             tool_input: {
               prompt: state.prompt,
+              mode: state.selectedMode,
             },
           },
           createResearchProgressEvent(
@@ -119,10 +130,11 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
             new Date().toISOString(),
             {
               stage: "planning",
-              message: "Building an initial research plan and selecting retrieval paths.",
+              message: getPlanningMessage(state.selectedMode),
             },
             {
               prompt: state.prompt,
+              mode: state.selectedMode,
             },
           ),
         ]),
@@ -447,6 +459,17 @@ function formatToolLabel(toolName: ToolCallEvent["toolName"]): string {
       return "web search";
     case "web_crawl":
       return "web crawl";
+  }
+}
+
+function getPlanningMessage(mode: RunMode): string {
+  switch (mode) {
+    case "quick":
+      return "Starting a fast search pass for a concise answer.";
+    case "agentic":
+      return "Building an exploratory research plan and selecting retrieval paths.";
+    case "deep_research":
+      return "Preparing a longer background research plan with broader source expansion.";
   }
 }
 

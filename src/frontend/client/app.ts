@@ -15,6 +15,7 @@ import {
   type RunStreamSubscription,
 } from "./api-client.js";
 import { initialRunState, reduceRunState, type RunState } from "./state.js";
+import type { RunMode } from "../contracts.js";
 import { toRunEventTimelineRows } from "./timeline.js";
 
 interface SelectedRunView {
@@ -28,7 +29,9 @@ interface SelectedRunView {
 }
 
 const promptInput = requireElement<HTMLTextAreaElement>("prompt-input");
+const modeInputs = document.querySelectorAll<HTMLInputElement>('input[name="run-mode"]');
 const promptError = requireElement<HTMLElement>("prompt-error");
+const modeHint = requireElement<HTMLElement>("mode-hint");
 const runForm = requireElement<HTMLFormElement>("run-form");
 const runButton = requireElement<HTMLButtonElement>("run-submit");
 const previewButton = requireElement<HTMLButtonElement>("preview-events");
@@ -68,6 +71,19 @@ promptInput.addEventListener("input", () => {
     prompt: promptInput.value,
   });
 });
+
+for (const input of modeInputs) {
+  input.addEventListener("change", () => {
+    if (!input.checked) {
+      return;
+    }
+
+    dispatch({
+      type: "mode_updated",
+      mode: parseRunModeInput(input.value),
+    });
+  });
+}
 
 previewButton.addEventListener("click", () => {
   closeRunStream();
@@ -123,7 +139,7 @@ runForm.addEventListener("submit", async (event) => {
   closeRunStream();
   dispatch({ type: "run_requested" });
 
-  const result = await createRun({ prompt, mode: "agentic" });
+  const result = await createRun({ prompt, mode: state.selectedMode });
   if (result.ok) {
     dispatch({
       type: "run_started",
@@ -158,6 +174,10 @@ function dispatch(action: Parameters<typeof reduceRunState>[1]) {
 
 function render() {
   promptInput.value = state.prompt;
+  for (const input of modeInputs) {
+    input.checked = input.value === state.selectedMode;
+    input.disabled = state.phase === "starting" || state.phase === "running";
+  }
   runButton.disabled = state.phase === "starting" || state.phase === "running";
   historyRefreshButton.disabled = historyRefreshInFlight;
 
@@ -165,6 +185,7 @@ function render() {
     state.phase === "failed" && state.prompt.length === 0
       ? state.error
       : "";
+  modeHint.textContent = describeMode(state.selectedMode);
 
   runStatus.textContent = statusLabel(state);
   runStatus.dataset.phase = state.phase;
@@ -195,18 +216,48 @@ function statusLabel(currentState: RunState): string {
 function detailsLabel(currentState: RunState): string {
   switch (currentState.phase) {
     case "idle":
-      return "Enter a prompt to start one run, select prior history, or load the preview.";
+      return `Selected mode: ${formatModeLabel(currentState.selectedMode)}. Enter a prompt to start one run, select prior history, or load the preview.`;
     case "starting":
-      return "Creating run...";
+      return `Creating ${formatModeLabel(currentState.selectedMode)} run...`;
     case "running":
       return currentState.activeRunId === null
-        ? "Run active."
-        : `Run ${currentState.activeRunId} is active. Live events stream into the run viewer below.`;
+        ? `${formatModeLabel(currentState.selectedMode)} run active.`
+        : `${formatModeLabel(currentState.selectedMode)} run ${currentState.activeRunId} is active. Live events stream into the run viewer below.`;
     case "completed":
       return currentState.finalAnswer ?? "Run completed.";
     case "failed":
       return currentState.error ?? "Run could not be started.";
   }
+}
+
+function formatModeLabel(mode: RunMode): string {
+  switch (mode) {
+    case "quick":
+      return "Quick search";
+    case "agentic":
+      return "Agentic search";
+    case "deep_research":
+      return "Deep research";
+  }
+}
+
+function describeMode(mode: RunMode): string {
+  switch (mode) {
+    case "quick":
+      return "Fastest path. One quick web-grounded pass for a concise answer.";
+    case "agentic":
+      return "Balanced exploration. Uses bounded search and crawl steps before answering.";
+    case "deep_research":
+      return "Longest path. Runs broader background research and streams progress over time.";
+  }
+}
+
+function parseRunModeInput(input: string): RunMode {
+  if (input === "quick" || input === "agentic" || input === "deep_research") {
+    return input;
+  }
+
+  throw new Error(`Unsupported run mode: ${input}`);
 }
 
 function renderHistoryList() {

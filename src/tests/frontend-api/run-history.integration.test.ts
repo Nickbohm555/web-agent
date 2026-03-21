@@ -236,6 +236,10 @@ describe("run history API", () => {
   });
 
   it("persists deep-research progress before the run stream is consumed", async () => {
+    let allowCompletion = () => {};
+    const completionGate = new Promise<void>((resolve) => {
+      allowCompletion = resolve;
+    });
     const harness = await createHarness({
       runEventStream: async function* (context) {
         yield {
@@ -264,6 +268,7 @@ describe("run history API", () => {
           },
         };
         await new Promise((resolve) => setTimeout(resolve, 5));
+        await completionGate;
         yield {
           event: "run_complete",
           data: {
@@ -296,6 +301,7 @@ describe("run history API", () => {
         "tool_call_succeeded",
       ]);
 
+      allowCompletion();
       await new Promise((resolve) => setTimeout(resolve, 8));
 
       const streamText = await harness.getText(`/api/runs/${runId}/events`);
