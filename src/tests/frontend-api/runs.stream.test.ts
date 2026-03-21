@@ -79,6 +79,68 @@ describe("run stream API contracts", () => {
       },
     });
   });
+
+  it("starts and completes runs through /api/runs using the configured executor", async () => {
+    const { createFrontendServerApp } = await import("../../frontend/server.js");
+    const app = createFrontendServerApp();
+    const runExecutor = vi.fn(async ({ runId, prompt, mode }) => ({
+      status: "completed" as const,
+      finalAnswer: `Completed ${mode} run for ${prompt}.`,
+      durationMs: 42,
+      completedAt: 1_710_000_000_420,
+    }));
+    app.locals.runExecutor = runExecutor;
+
+    const server = await new Promise<import("node:http").Server>((resolve) => {
+      const listeningServer = app.listen(0, "127.0.0.1", () => {
+        resolve(listeningServer);
+      });
+    });
+    const address = server.address() as AddressInfo;
+
+    try {
+      const startResponse = await fetch(`http://127.0.0.1:${address.port}/api/runs`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: "Find sources",
+          mode: "deep_research",
+        }),
+      });
+
+      expect(startResponse.status).toBe(201);
+      const startPayload = await startResponse.json() as { runId: string };
+      const streamResponse = await fetch(
+        `http://127.0.0.1:${address.port}/api/runs/${startPayload.runId}/events`,
+      );
+
+      expect(streamResponse.status).toBe(200);
+      const frames = parseSseFrames(await streamResponse.text());
+      expect(frames.map((frame) => frame.event)).toEqual([
+        "run_state",
+        "run_complete",
+      ]);
+      expect(runExecutor).toHaveBeenCalledWith({
+        runId: startPayload.runId,
+        prompt: "Find sources",
+        mode: "deep_research",
+        signal: expect.any(AbortSignal),
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    }
+  });
 });
 
 describe("run stream client", () => {

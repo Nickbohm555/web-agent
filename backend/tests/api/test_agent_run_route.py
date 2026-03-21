@@ -12,6 +12,8 @@ from backend.api.errors import map_runtime_failure
 from backend.app.config import get_settings
 from backend.main import create_app
 
+RUN_ROUTE_PATH = "/api/agent/run"
+
 
 class StubRuntimeRunner:
     def __init__(self, result: AgentRunResult) -> None:
@@ -120,7 +122,7 @@ def test_runtime_error_mapping_is_explicit_and_stable(
 
 
 def test_run_route_rejects_blank_prompt_payload(client: TestClient) -> None:
-    response = client.post("/api/agent/run", json={"prompt": "   ", "mode": "agentic"})
+    response = post_run(client, prompt="   ", mode="agentic")
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["msg"] == "Value error, prompt must not be empty"
@@ -128,7 +130,7 @@ def test_run_route_rejects_blank_prompt_payload(client: TestClient) -> None:
 
 def test_run_route_rejects_unknown_request_fields(client: TestClient) -> None:
     response = client.post(
-        "/api/agent/run",
+        RUN_ROUTE_PATH,
         json={"prompt": "find one source", "mode": "quick", "unexpected": True},
     )
 
@@ -137,7 +139,7 @@ def test_run_route_rejects_unknown_request_fields(client: TestClient) -> None:
 
 
 def test_run_route_rejects_unknown_modes(client: TestClient) -> None:
-    response = client.post("/api/agent/run", json={"prompt": "find one source", "mode": "turbo"})
+    response = post_run(client, prompt="find one source", mode="turbo")
 
     assert response.status_code == 422
     assert "Input should be 'quick', 'agentic' or 'deep_research'" in response.json()["detail"][0]["msg"]
@@ -155,7 +157,7 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
     )
     client.app.state.run_agent_once = runner
 
-    response = client.post("/api/agent/run", json={"prompt": "  find one source  ", "mode": "quick"})
+    response = post_run(client, prompt="  find one source  ", mode="quick")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -169,6 +171,8 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
             "elapsed_ms": 81,
         },
     }
+    assert response.headers["x-run-route"] == "legacy-compat"
+    assert response.headers["x-run-execution-surface"] == "sync"
     assert runner.calls == [("find one source", "quick")]
 
 
@@ -235,8 +239,14 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     )
     client.app.state.run_agent_once = runner
 
-    response = client.post("/api/agent/run", json={"prompt": "find one source", "mode": "deep_research"})
+    response = post_run(client, prompt="find one source", mode="deep_research")
 
     assert response.status_code == expected_status
     assert response.json() == expected_payload
+    assert response.headers["x-run-route"] == "legacy-compat"
+    assert response.headers["x-run-execution-surface"] == "sync"
     assert runner.calls == [("find one source", "deep_research")]
+
+
+def post_run(client: TestClient, *, prompt: str, mode: str):
+    return client.post(RUN_ROUTE_PATH, json={"prompt": prompt, "mode": mode})

@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 2
+Current Section: 3
 
 ## Section 1: Define Search Mode Contract
 
@@ -23,6 +23,8 @@ Completion Note:
 Do not end this section until it has been thoroughly tested.
 
 ## Section 2: Route Mode Execution Through Run APIs
+
+✓ Completed: `/api/runs` now registers mode-aware runs, executes them through an executor-backed SSE flow when a run executor is configured, preserves stream/history integration, and keeps `/api/agent/run` as a thin legacy compatibility route with explicit compatibility headers.
 
 Task:
 Make `/api/runs` the primary execution surface for mode-aware runs and limit the legacy synchronous agent route to compatibility behavior.

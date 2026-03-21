@@ -9,7 +9,10 @@ import ts from "typescript";
 import { withRunContext } from "../core/telemetry/run-context.js";
 import { createFetchRouter } from "./routes/fetch.js";
 import { createRunHistoryRouter } from "./routes/run-history.js";
-import { createRunsRouter } from "./routes/runs.js";
+import {
+  createHttpAgentRunExecutor,
+  createRunsRouter,
+} from "./routes/runs.js";
 import { createSearchRouter } from "./routes/search.js";
 import { createRunHistoryStore } from "./run-history/store.js";
 
@@ -35,8 +38,12 @@ function createApiRouter(): Router {
 export function createFrontendServerApp(): Application {
   const app = express();
   const apiRouter = createApiRouter();
+  const backendAgentOrigin = process.env.AGENT_BACKEND_ORIGIN?.trim();
 
   app.locals.runHistoryStore = createRunHistoryStore();
+  if (backendAgentOrigin) {
+    app.locals.runExecutor = createHttpAgentRunExecutor(backendAgentOrigin);
+  }
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: JSON_LIMIT }));
