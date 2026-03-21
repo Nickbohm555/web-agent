@@ -134,6 +134,68 @@ def test_run_success_contract_normalizes_required_response_fields() -> None:
     }
 
 
+def test_run_success_contract_preserves_structured_citations() -> None:
+    result = AgentRunResult(
+        run_id="run-456",
+        status="completed",
+        final_answer={
+            "text": "Alpha leads Beta.",
+            "citations": [
+                {
+                    "source_id": "alpha-report",
+                    "title": "Alpha report",
+                    "url": "https://example.com/alpha",
+                    "start_index": 0,
+                    "end_index": 5,
+                }
+            ],
+        },
+        sources=[
+            {
+                "source_id": "alpha-report",
+                "title": "Alpha report",
+                "url": "https://example.com/alpha",
+                "snippet": "Alpha evidence.",
+            }
+        ],
+        tool_call_count=1,
+        elapsed_ms=33,
+    )
+
+    payload = AgentRunSuccessResponse.from_run_result(result)
+
+    assert payload.model_dump(mode="json") == {
+        "run_id": "run-456",
+        "status": "completed",
+        "final_answer": {
+            "text": "Alpha leads Beta.",
+            "citations": [
+                {
+                    "source_id": "alpha-report",
+                    "title": "Alpha report",
+                    "url": "https://example.com/alpha",
+                    "start_index": 0,
+                    "end_index": 5,
+                }
+            ],
+        },
+        "sources": [
+            {
+                "source_id": "alpha-report",
+                "title": "Alpha report",
+                "url": "https://example.com/alpha",
+                "snippet": "Alpha evidence.",
+            }
+        ],
+        "tool_call_count": 1,
+        "elapsed_ms": 33,
+        "metadata": {
+            "tool_call_count": 1,
+            "elapsed_ms": 33,
+        },
+    }
+
+
 @pytest.mark.parametrize(
     ("category", "retryable", "expected_status", "expected_code"),
     [

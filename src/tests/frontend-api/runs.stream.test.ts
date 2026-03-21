@@ -386,6 +386,129 @@ describe("run stream client", () => {
     expect(eventSource.closeCount).toBe(1);
   });
 
+  it("parses citation-aware completion payloads and forwards structured sources", async () => {
+    const {
+      subscribeToRunEvents,
+    } = await import("../../frontend/client/api-client.js");
+    const eventSource = new FakeEventSource();
+    const handlers = {
+      onRunComplete: vi.fn(),
+      onInvalidEvent: vi.fn(),
+    };
+
+    subscribeToRunEvents("run-123", handlers, {
+      eventSourceFactory: () => eventSource,
+    });
+
+    eventSource.emitMessage(
+      "run_complete",
+      JSON.stringify({
+        runId: "run-123",
+        finalAnswer: "Alpha remains ahead of Beta.",
+        structuredAnswer: {
+          text: "Alpha remains ahead of Beta.",
+          citations: [
+            {
+              source_id: "alpha-report",
+              title: "Alpha report",
+              url: "https://example.com/alpha",
+              start_index: 0,
+              end_index: 5,
+            },
+          ],
+        },
+        sources: [
+          {
+            source_id: "alpha-report",
+            title: "Alpha report",
+            url: "https://example.com/alpha",
+            snippet: "Alpha evidence.",
+          },
+        ],
+        completedAt: 20,
+        durationMs: 10,
+      }),
+    );
+
+    expect(handlers.onRunComplete).toHaveBeenCalledWith({
+      runId: "run-123",
+      finalAnswer: "Alpha remains ahead of Beta.",
+      structuredAnswer: {
+        text: "Alpha remains ahead of Beta.",
+        citations: [
+          {
+            source_id: "alpha-report",
+            title: "Alpha report",
+            url: "https://example.com/alpha",
+            start_index: 0,
+            end_index: 5,
+          },
+        ],
+      },
+      sources: [
+        {
+          source_id: "alpha-report",
+          title: "Alpha report",
+          url: "https://example.com/alpha",
+          snippet: "Alpha evidence.",
+        },
+      ],
+      completedAt: 20,
+      durationMs: 10,
+    });
+    expect(handlers.onInvalidEvent).not.toHaveBeenCalled();
+    expect(eventSource.closeCount).toBe(1);
+  });
+
+  it("rejects malformed citation-rich completion payloads without crashing the stream client", async () => {
+    const {
+      subscribeToRunEvents,
+    } = await import("../../frontend/client/api-client.js");
+    const eventSource = new FakeEventSource();
+    const handlers = {
+      onRunComplete: vi.fn(),
+      onInvalidEvent: vi.fn(),
+    };
+
+    subscribeToRunEvents("run-123", handlers, {
+      eventSourceFactory: () => eventSource,
+    });
+
+    eventSource.emitMessage(
+      "run_complete",
+      JSON.stringify({
+        runId: "run-123",
+        finalAnswer: "Broken citation payload.",
+        structuredAnswer: {
+          text: "Broken citation payload.",
+          citations: [
+            {
+              source_id: "broken-source",
+              title: "",
+              url: "not-a-url",
+              start_index: 7,
+              end_index: 3,
+            },
+          ],
+        },
+        sources: [
+          {
+            source_id: "broken-source",
+            title: "",
+            url: "not-a-url",
+            snippet: "Broken evidence.",
+          },
+        ],
+        completedAt: 20,
+        durationMs: 10,
+      }),
+    );
+
+    expect(handlers.onRunComplete).not.toHaveBeenCalled();
+    expect(handlers.onInvalidEvent).toHaveBeenCalledTimes(1);
+    expect(eventSource.closeCount).toBe(0);
+  });
+
   it("ignores malformed frames without crashing and closes superseded streams", async () => {
     const {
       subscribeToRunEvents,

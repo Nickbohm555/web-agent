@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 21
+Current Section: 22
 
 ## Section 1: Define Search Mode Contract
 
@@ -472,6 +472,8 @@ Completed with `npm install`, `npm run test -- src/tests/safety/url-policy.test.
 
 ## Section 21: Lock Down Citation And Output Coverage
 
+✓ Completed: Added regression coverage for citation-rich legacy backend success envelopes and citation-aware `run_complete` SSE payloads, including malformed completion payload rejection in the stream client, then re-ran the full repo validation loop cleanly.
+
 Task:
 Add full contract, rendering, and regression coverage for citation-aware answers, source lists, and retrieval-action stream events.
 
@@ -492,4 +494,4 @@ How to Test:
 Success looks like citation-aware answers, source lists, and retrieval action events all surviving full-suite validation across contracts, runtime, persistence, and rendering. We know this section is working when focused citation tests pass and the full repo validation loop still succeeds without regressions.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm install`, `npm run test -- src/tests/frontend-api/runs.stream.test.ts`, `pytest backend/tests/api/test_agent_run_route.py -q`, `npm run typecheck`, `npm run test`, `npm run build`, and `pytest backend/tests -q`.
