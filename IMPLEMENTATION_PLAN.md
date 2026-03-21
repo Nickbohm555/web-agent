@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 10
+Current Section: 11
 
 ## Section 1: Define Search Mode Contract
 
@@ -216,6 +216,8 @@ Completed with `pytest backend/tests/api/test_agent_run_route.py -q`, `pytest ba
 
 ## Section 10: Preserve Observability And Safety Bounds
 
+✓ Completed: Added resumable run-context sequencing, hard-capped observability payload bytes, bounded deep-research background concurrency and replay buffers, trimmed retained truncation metadata, and enforced backend retry-attempt guardrails with new frontend/backend coverage.
+
 Task:
 Ensure all run modes emit stable telemetry and remain bounded on retries, payload size, concurrency, and retained history.
 
@@ -235,7 +237,7 @@ How to Test:
 Success looks like telemetry, truncation, and retry bounds staying intact even as run complexity increases across modes. We know this section is working when event correlation remains stable, oversized payloads are handled safely, and no mode bypasses the existing guardrails.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm run test -- src/tests/frontend-api/observability-correlation.test.ts`, `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`, `pytest backend/tests -q`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 ## Section 11: Add Mode Selection To The Frontend
 
