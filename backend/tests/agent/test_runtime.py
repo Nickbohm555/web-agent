@@ -9,13 +9,26 @@ import pytest
 from backend.agent.runtime import (
     CANONICAL_TOOL_NAMES,
     DEFAULT_RECURSION_LIMIT,
+    RUNTIME_PROFILES,
     RuntimeDependencies,
     _assert_canonical_tool_names,
+    get_runtime_profile,
     run_agent_once,
 )
-from backend.agent.types import AgentRunResult
+from backend.agent.types import AgentRunMode, AgentRunResult, AgentRuntimeProfile
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
+
+
+def expected_runtime_config(mode: AgentRunMode = "agentic") -> dict[str, Any]:
+    profile = get_runtime_profile(mode)
+    return {
+        "recursion_limit": profile.recursion_limit,
+        "run_mode": profile.name,
+        "execution_mode": profile.execution_mode,
+        "timeout_seconds": profile.timeout_seconds,
+        "model": profile.model,
+    }
 
 
 @dataclass
@@ -40,6 +53,20 @@ class RaisingStubAgent:
         self.captured_inputs = inputs
         self.captured_config = config
         raise self.exc
+
+
+@dataclass
+class CapturingAgentFactory:
+    raw_result: dict[str, Any]
+    captured_profile: AgentRuntimeProfile | None = None
+    captured_tools: tuple[Any, ...] | None = None
+    agent: StubAgent | None = None
+
+    def __call__(self, profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -> StubAgent:
+        self.captured_profile = profile
+        self.captured_tools = tools
+        self.agent = StubAgent(raw_result=self.raw_result)
+        return self.agent
 
 
 class GraphRecursionError(RuntimeError):
@@ -91,10 +118,7 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
     assert agent.captured_inputs == {
         "messages": [{"role": "user", "content": "find one source and summarize"}]
     }
-    assert agent.captured_config == {
-        "recursion_limit": DEFAULT_RECURSION_LIMIT,
-        "run_mode": "agentic",
-    }
+    assert agent.captured_config == expected_runtime_config()
     assert "provider_payload" not in result.model_dump()
 
 
@@ -135,10 +159,7 @@ def test_run_agent_once_maps_recursion_limit_failures() -> None:
     assert result.error.category == "loop_limit"
     assert result.error.message == "agent exceeded bounded execution limit"
     assert result.error.retryable is False
-    assert agent.captured_config == {
-        "recursion_limit": DEFAULT_RECURSION_LIMIT,
-        "run_mode": "agentic",
-    }
+    assert agent.captured_config == expected_runtime_config()
 
 
 def test_run_agent_once_passes_selected_mode_into_runtime_config() -> None:
@@ -151,10 +172,47 @@ def test_run_agent_once_passes_selected_mode_into_runtime_config() -> None:
     )
 
     assert result.status == "completed"
-    assert agent.captured_config == {
-        "recursion_limit": DEFAULT_RECURSION_LIMIT,
-        "run_mode": "quick",
-    }
+    assert agent.captured_config == expected_runtime_config("quick")
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_model", "expected_recursion_limit", "expected_timeout", "expected_execution_mode"),
+    [
+        ("quick", "gpt-4.1-mini", 4, 20, "single_pass"),
+        ("agentic", "gpt-4.1-mini", DEFAULT_RECURSION_LIMIT, 45, "bounded_agent_loop"),
+        ("deep_research", "gpt-4.1", 24, 180, "background_research"),
+    ],
+)
+def test_get_runtime_profile_exposes_distinct_policy_per_mode(
+    mode: AgentRunMode,
+    expected_model: str,
+    expected_recursion_limit: int,
+    expected_timeout: int,
+    expected_execution_mode: str,
+) -> None:
+    profile = get_runtime_profile(mode)
+
+    assert profile == RUNTIME_PROFILES[mode]
+    assert profile.model == expected_model
+    assert profile.recursion_limit == expected_recursion_limit
+    assert profile.timeout_seconds == expected_timeout
+    assert profile.execution_mode == expected_execution_mode
+
+
+def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
+    factory = CapturingAgentFactory(raw_result={"output": "Research answer."})
+
+    result = run_agent_once(
+        "investigate a topic",
+        "deep_research",
+        runtime_dependencies=RuntimeDependencies(agent_factory=factory),
+    )
+
+    assert result.status == "completed"
+    assert factory.captured_profile == get_runtime_profile("deep_research")
+    assert factory.captured_tools == (web_search, web_crawl)
+    assert factory.agent is not None
+    assert factory.agent.captured_config == expected_runtime_config("deep_research")
 
 
 def test_run_agent_once_maps_tool_failures() -> None:

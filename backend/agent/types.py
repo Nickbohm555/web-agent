@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -7,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 AgentRunMode = Literal["quick", "agentic", "deep_research"]
 AgentRunStatus = Literal["completed", "failed"]
+AgentRuntimeExecutionMode = Literal["single_pass", "bounded_agent_loop", "background_research"]
 AgentRunErrorCategory = Literal[
     "invalid_prompt",
     "loop_limit",
@@ -47,3 +49,12 @@ class AgentRunResult(BaseModel):
         if self.error is None:
             raise ValueError("failed runs require an error")
         return self
+
+
+@dataclass(frozen=True)
+class AgentRuntimeProfile:
+    name: AgentRunMode
+    model: str
+    recursion_limit: int
+    timeout_seconds: int
+    execution_mode: AgentRuntimeExecutionMode

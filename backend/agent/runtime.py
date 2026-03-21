@@ -5,13 +5,41 @@ from time import perf_counter
 from typing import Any, Callable, Protocol
 from uuid import uuid4
 
-from backend.agent.prompts import SYSTEM_PROMPT
-from backend.agent.types import AgentRunError, AgentRunMode, AgentRunResult
+from backend.agent.prompts import build_system_prompt
+from backend.agent.types import (
+    AgentRunError,
+    AgentRunMode,
+    AgentRunResult,
+    AgentRuntimeProfile,
+)
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
 
 CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")
 DEFAULT_RECURSION_LIMIT = 12
+RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
+    "quick": AgentRuntimeProfile(
+        name="quick",
+        model="gpt-4.1-mini",
+        recursion_limit=4,
+        timeout_seconds=20,
+        execution_mode="single_pass",
+    ),
+    "agentic": AgentRuntimeProfile(
+        name="agentic",
+        model="gpt-4.1-mini",
+        recursion_limit=DEFAULT_RECURSION_LIMIT,
+        timeout_seconds=45,
+        execution_mode="bounded_agent_loop",
+    ),
+    "deep_research": AgentRuntimeProfile(
+        name="deep_research",
+        model="gpt-4.1",
+        recursion_limit=24,
+        timeout_seconds=180,
+        execution_mode="background_research",
+    ),
+}
 
 
 class AgentExecutor(Protocol):
@@ -19,9 +47,15 @@ class AgentExecutor(Protocol):
         ...
 
 
+class AgentFactory(Protocol):
+    def __call__(self, profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -> AgentExecutor:
+        ...
+
+
 @dataclass(frozen=True)
 class RuntimeDependencies:
-    agent: AgentExecutor
+    agent: AgentExecutor | None = None
+    agent_factory: AgentFactory | None = None
 
 
 def run_agent_once(
@@ -42,10 +76,12 @@ def run_agent_once(
         )
 
     try:
+        profile = get_runtime_profile(mode)
         dependencies = runtime_dependencies or build_runtime_dependencies()
-        raw_result = dependencies.agent.invoke(
+        agent = _resolve_agent(dependencies, profile)
+        raw_result = agent.invoke(
             _build_inputs(prompt),
-            {"recursion_limit": DEFAULT_RECURSION_LIMIT, "run_mode": mode},
+            _build_runtime_config(profile),
         )
         return AgentRunResult(
             run_id=run_id,
@@ -61,7 +97,11 @@ def run_agent_once(
 def build_runtime_dependencies() -> RuntimeDependencies:
     tools = _get_canonical_tools()
     _assert_canonical_tool_names(tools)
-    return RuntimeDependencies(agent=_build_default_agent(tools))
+    return RuntimeDependencies(agent_factory=_build_default_agent)
+
+
+def get_runtime_profile(mode: AgentRunMode) -> AgentRuntimeProfile:
+    return RUNTIME_PROFILES[mode]
 
 
 def _get_canonical_tools() -> tuple[Any, Any]:
@@ -77,7 +117,22 @@ def _assert_canonical_tool_names(tools: tuple[Any, ...]) -> None:
         )
 
 
-def _build_default_agent(tools: tuple[Any, ...]) -> AgentExecutor:
+def _resolve_agent(
+    runtime_dependencies: RuntimeDependencies,
+    profile: AgentRuntimeProfile,
+) -> AgentExecutor:
+    if runtime_dependencies.agent is not None:
+        return runtime_dependencies.agent
+
+    if runtime_dependencies.agent_factory is None:
+        raise RuntimeError("Runtime dependencies must include an agent or agent_factory")
+
+    tools = _get_canonical_tools()
+    _assert_canonical_tool_names(tools)
+    return runtime_dependencies.agent_factory(profile, tools)
+
+
+def _build_default_agent(profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -> AgentExecutor:
     try:
         from langchain_openai import ChatOpenAI
     except Exception as exc:  # pragma: no cover - exercised only in integrated environments
@@ -87,8 +142,16 @@ def _build_default_agent(tools: tuple[Any, ...]) -> AgentExecutor:
 
     agent_factory = _load_agent_factory()
 
-    model = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-    return agent_factory(model=model, tools=tools)
+    model = ChatOpenAI(
+        model=profile.model,
+        temperature=0,
+        timeout=profile.timeout_seconds,
+    )
+    return agent_factory(
+        model=model,
+        tools=tools,
+        prompt=build_system_prompt(profile.name),
+    )
 
 
 def _load_agent_factory() -> Callable[..., AgentExecutor]:
@@ -97,21 +160,31 @@ def _load_agent_factory() -> Callable[..., AgentExecutor]:
     except ImportError:
         from langgraph.prebuilt import create_react_agent
 
-        return lambda *, model, tools: create_react_agent(
+        return lambda *, model, tools, prompt: create_react_agent(
             model=model,
             tools=list(tools),
-            prompt=SYSTEM_PROMPT,
+            prompt=prompt,
         )
 
-    return lambda *, model, tools: create_agent(
+    return lambda *, model, tools, prompt: create_agent(
         model=model,
         tools=list(tools),
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=prompt,
     )
 
 
 def _build_inputs(prompt: str) -> dict[str, Any]:
     return {"messages": [{"role": "user", "content": prompt}]}
+
+
+def _build_runtime_config(profile: AgentRuntimeProfile) -> dict[str, Any]:
+    return {
+        "recursion_limit": profile.recursion_limit,
+        "run_mode": profile.name,
+        "execution_mode": profile.execution_mode,
+        "timeout_seconds": profile.timeout_seconds,
+        "model": profile.model,
+    }
 
 
 def _extract_final_answer(raw_result: Any) -> str:
