@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from time import perf_counter
-from typing import Any
+from typing import Any, Callable
 
 from langchain_core.tools import tool
 from pydantic import ValidationError
@@ -14,6 +14,23 @@ from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchWorker
 
 def create_http_fetch_worker() -> HttpFetchWorker:
     return HttpFetchWorker()
+
+
+def build_web_crawl_tool(
+    *,
+    max_content_chars: int = 6000,
+    crawl_runner: Callable[..., dict[str, Any]] | None = None,
+):
+    bounded_limit = max(0, max_content_chars)
+    runner = crawl_runner or run_web_crawl
+
+    @tool("web_crawl", args_schema=WebCrawlInput)
+    def bounded_web_crawl(url: str) -> dict[str, Any]:
+        """Fetch a URL, extract main content, and return a structured result or error envelope."""
+        payload = runner(url=url)
+        return _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
+
+    return bounded_web_crawl
 
 
 def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> dict[str, Any]:
@@ -92,10 +109,7 @@ def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> d
         ).model_dump(mode="json")
 
 
-@tool("web_crawl", args_schema=WebCrawlInput)
-def web_crawl(url: str) -> dict[str, Any]:
-    """Fetch a URL, extract main content, and return a structured result or error envelope."""
-    return run_web_crawl(url=url)
+web_crawl = build_web_crawl_tool()
 
 
 def _elapsed_ms(start: float) -> int:
@@ -108,3 +122,24 @@ def _validation_error_message(exc: ValidationError) -> str:
     if location:
         return f"{location}: {first_error['msg']}"
     return str(exc)
+
+
+def _truncate_crawl_payload(payload: dict[str, Any], *, max_content_chars: int) -> dict[str, Any]:
+    try:
+        success = WebCrawlSuccess.model_validate(payload)
+    except ValidationError:
+        return payload
+
+    if max_content_chars <= 0:
+        truncated_text = ""
+        truncated_markdown = ""
+    else:
+        truncated_text = success.text[:max_content_chars].strip()
+        truncated_markdown = success.markdown[:max_content_chars].strip()
+
+    return success.model_copy(
+        update={
+            "text": truncated_text,
+            "markdown": truncated_markdown,
+        }
+    ).model_dump(mode="json")

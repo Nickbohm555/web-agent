@@ -20,8 +20,8 @@ from backend.agent.types import (
 )
 from backend.app.contracts.tool_errors import ToolErrorEnvelope
 from backend.app.contracts.web_search import WebSearchResponse
-from backend.app.tools.web_crawl import web_crawl
-from backend.app.tools.web_search import web_search
+from backend.app.tools.web_crawl import build_web_crawl_tool, web_crawl
+from backend.app.tools.web_search import build_web_search_tool, web_search
 
 CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")
 DEFAULT_RECURSION_LIMIT = 12
@@ -32,6 +32,9 @@ RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
         recursion_limit=4,
         timeout_seconds=20,
         execution_mode="single_pass",
+        max_tool_steps=1,
+        max_search_results=DEFAULT_QUICK_SEARCH_MAX_RESULTS,
+        max_crawl_chars=0,
     ),
     "agentic": AgentRuntimeProfile(
         name="agentic",
@@ -39,6 +42,9 @@ RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
         recursion_limit=DEFAULT_RECURSION_LIMIT,
         timeout_seconds=45,
         execution_mode="bounded_agent_loop",
+        max_tool_steps=6,
+        max_search_results=4,
+        max_crawl_chars=4000,
     ),
     "deep_research": AgentRuntimeProfile(
         name="deep_research",
@@ -46,7 +52,24 @@ RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
         recursion_limit=24,
         timeout_seconds=180,
         execution_mode="background_research",
+        max_tool_steps=16,
+        max_search_results=8,
+        max_crawl_chars=12000,
     ),
+}
+QUICK_SEARCH_ERROR_CATEGORY_BY_KIND = {
+    "provider_unavailable": "provider_failure",
+    "provider_timeout": "provider_failure",
+    "rate_limited": "provider_failure",
+    "timeout": "timeout",
+    "invalid_request": "invalid_prompt",
+}
+QUICK_SEARCH_ERROR_MESSAGE_BY_KIND = {
+    "provider_unavailable": "quick search provider request failed",
+    "provider_timeout": "quick search provider request failed",
+    "rate_limited": "quick search provider request failed",
+    "timeout": "quick search timed out",
+    "invalid_request": "prompt is invalid for quick search",
 }
 
 
@@ -126,6 +149,16 @@ def _get_canonical_tools() -> tuple[Any, Any]:
     return (web_search, web_crawl)
 
 
+def _get_tools_for_profile(profile: AgentRuntimeProfile) -> tuple[Any, Any]:
+    if profile.name == "quick":
+        return _get_canonical_tools()
+
+    return (
+        build_web_search_tool(max_results_cap=profile.max_search_results),
+        build_web_crawl_tool(max_content_chars=profile.max_crawl_chars),
+    )
+
+
 def _assert_canonical_tool_names(tools: tuple[Any, ...]) -> None:
     actual_names = tuple(getattr(tool, "name", None) for tool in tools)
     if actual_names != CANONICAL_TOOL_NAMES:
@@ -145,7 +178,7 @@ def _resolve_agent(
     if runtime_dependencies.agent_factory is None:
         raise RuntimeError("Runtime dependencies must include an agent or agent_factory")
 
-    tools = _get_canonical_tools()
+    tools = _get_tools_for_profile(profile)
     _assert_canonical_tool_names(tools)
     return runtime_dependencies.agent_factory(profile, tools)
 
@@ -157,7 +190,7 @@ def _run_quick_mode(
     started_at: float,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
-    payload = (runtime_dependencies.quick_search_runner or run_quick_search)(
+    payload = _get_quick_search_runner(runtime_dependencies)(
         query=prompt,
         max_results=DEFAULT_QUICK_SEARCH_MAX_RESULTS,
     )
@@ -210,7 +243,7 @@ def _build_default_agent(profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -
     return agent_factory(
         model=model,
         tools=tools,
-        prompt=build_system_prompt(profile.name),
+        prompt=build_system_prompt(profile),
     )
 
 
@@ -244,6 +277,11 @@ def _build_runtime_config(profile: AgentRuntimeProfile) -> dict[str, Any]:
         "execution_mode": profile.execution_mode,
         "timeout_seconds": profile.timeout_seconds,
         "model": profile.model,
+        "tool_limits": {
+            "max_tool_steps": profile.max_tool_steps,
+            "max_search_results": profile.max_search_results,
+            "max_crawl_chars": profile.max_crawl_chars,
+        },
     }
 
 
@@ -325,24 +363,16 @@ def _coerce_tool_error(payload: Any) -> ToolErrorEnvelope | None:
     return ToolErrorEnvelope.model_validate(payload)
 
 
+def _get_quick_search_runner(runtime_dependencies: RuntimeDependencies) -> QuickSearchRunner:
+    return runtime_dependencies.quick_search_runner or run_quick_search
+
+
 def _map_quick_search_error_category(kind: str) -> str:
-    if kind in {"provider_unavailable", "provider_timeout", "rate_limited"}:
-        return "provider_failure"
-    if kind == "timeout":
-        return "timeout"
-    if kind == "invalid_request":
-        return "invalid_prompt"
-    return "tool_failure"
+    return QUICK_SEARCH_ERROR_CATEGORY_BY_KIND.get(kind, "tool_failure")
 
 
 def _map_quick_search_error_message(kind: str) -> str:
-    if kind in {"provider_unavailable", "provider_timeout", "rate_limited"}:
-        return "quick search provider request failed"
-    if kind == "timeout":
-        return "quick search timed out"
-    if kind == "invalid_request":
-        return "prompt is invalid for quick search"
-    return "quick search failed"
+    return QUICK_SEARCH_ERROR_MESSAGE_BY_KIND.get(kind, "quick search failed")
 
 
 def _map_runtime_failure(*, exc: Exception, run_id: str, started_at: float) -> AgentRunResult:

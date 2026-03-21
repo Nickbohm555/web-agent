@@ -58,3 +58,6 @@ class AgentRuntimeProfile:
     recursion_limit: int
     timeout_seconds: int
     execution_mode: AgentRuntimeExecutionMode
+    max_tool_steps: int
+    max_search_results: int
+    max_crawl_chars: int

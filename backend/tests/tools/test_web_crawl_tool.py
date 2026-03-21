@@ -4,7 +4,7 @@ import httpx
 
 from backend.app.contracts.web_crawl import WebCrawlError, WebCrawlSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
-from backend.app.tools.web_crawl import run_web_crawl, web_crawl
+from backend.app.tools.web_crawl import build_web_crawl_tool, run_web_crawl, web_crawl
 
 
 web_crawl_module = importlib.import_module("backend.app.tools.web_crawl")
@@ -61,6 +61,35 @@ def test_run_web_crawl_returns_success_fallback_for_low_content_quality() -> Non
     assert result.fallback_reason == "low-content-quality"
     assert result.text == ""
     assert result.markdown == ""
+
+
+def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -> None:
+    tool_instance = build_web_crawl_tool(
+        max_content_chars=40,
+        crawl_runner=lambda *, url: {
+            "url": url,
+            "final_url": url,
+            "text": "A" * 60,
+            "markdown": "B" * 60,
+            "status_code": 200,
+            "content_type": "text/html",
+            "fallback_reason": None,
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 10,
+                "timings": {"total_ms": 10},
+            },
+        },
+    )
+
+    payload = tool_instance.invoke({"url": "https://example.com/article"})
+    result = WebCrawlSuccess.model_validate(payload)
+
+    assert tool_instance.name == "web_crawl"
+    assert len(result.text) == 40
+    assert len(result.markdown) == 40
 
 
 def test_run_web_crawl_returns_structured_retryable_error_metadata() -> None:

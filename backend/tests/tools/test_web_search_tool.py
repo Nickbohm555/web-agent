@@ -15,7 +15,7 @@ from backend.app.providers.serper_client import (
     RetryableSerperError,
     SerperClient,
 )
-from backend.app.tools.web_search import run_web_search, web_search
+from backend.app.tools.web_search import build_web_search_tool, run_web_search, web_search
 
 
 def test_web_search_input_normalizes_query_and_bounds_max_results() -> None:
@@ -395,6 +395,41 @@ def test_web_search_tool_returns_contract_valid_success_payload() -> None:
     ]
     assert [result.rank.position for result in response.results] == [1, 2]
     assert response.meta.operation == "web_search"
+
+
+def test_build_web_search_tool_caps_agent_requested_result_count() -> None:
+    captured_max_results: int | None = None
+
+    def search_runner(*, query: str, max_results: int = 5) -> dict[str, object]:
+        nonlocal captured_max_results
+        captured_max_results = max_results
+        return {
+            "query": query,
+            "results": [
+                {
+                    "title": "Example result",
+                    "url": "https://example.com/article",
+                    "snippet": "Summary",
+                    "rank": {"position": 1, "provider_position": 1},
+                }
+            ],
+            "metadata": {"result_count": 1, "provider": "serper"},
+            "meta": {
+                "operation": "web_search",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 10,
+                "timings": {"total_ms": 10, "provider_ms": 8},
+            },
+        }
+
+    tool_instance = build_web_search_tool(max_results_cap=2, search_runner=search_runner)
+    payload = tool_instance.invoke({"query": "agents", "max_results": 7})
+    response = WebSearchResponse.model_validate(payload)
+
+    assert tool_instance.name == "web_search"
+    assert captured_max_results == 2
+    assert response.metadata.result_count == 1
 
 
 def test_web_search_tool_returns_structured_error_for_retryable_provider_failure() -> None:

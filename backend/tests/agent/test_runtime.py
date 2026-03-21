@@ -6,12 +6,14 @@ from typing import Any
 import httpx
 import pytest
 
+from backend.agent.prompts import build_system_prompt
 from backend.agent.runtime import (
     CANONICAL_TOOL_NAMES,
     DEFAULT_RECURSION_LIMIT,
     RUNTIME_PROFILES,
     RuntimeDependencies,
     _assert_canonical_tool_names,
+    _get_tools_for_profile,
     get_runtime_profile,
     run_agent_once,
 )
@@ -28,6 +30,11 @@ def expected_runtime_config(mode: AgentRunMode = "agentic") -> dict[str, Any]:
         "execution_mode": profile.execution_mode,
         "timeout_seconds": profile.timeout_seconds,
         "model": profile.model,
+        "tool_limits": {
+            "max_tool_steps": profile.max_tool_steps,
+            "max_search_results": profile.max_search_results,
+            "max_crawl_chars": profile.max_crawl_chars,
+        },
     }
 
 
@@ -187,6 +194,26 @@ def test_run_agent_once_passes_selected_mode_into_runtime_config_for_agentic_mod
     assert agent.captured_config == expected_runtime_config("agentic")
 
 
+def test_agentic_profile_uses_bounded_profile_tools() -> None:
+    profile = get_runtime_profile("agentic")
+
+    search_tool, crawl_tool = _get_tools_for_profile(profile)
+
+    assert (search_tool.name, crawl_tool.name) == CANONICAL_TOOL_NAMES
+    assert search_tool is not web_search
+    assert crawl_tool is not web_crawl
+
+
+def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
+    profile = get_runtime_profile("agentic")
+    prompt = build_system_prompt(profile)
+
+    assert "bounded multi-step reasoning" in prompt
+    assert f"at most {profile.max_tool_steps} tool calls total" in prompt
+    assert f"no more than {profile.max_search_results} results per call" in prompt
+    assert str(profile.max_crawl_chars) in prompt
+
+
 def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
@@ -288,11 +315,20 @@ def test_run_agent_once_rejects_invalid_quick_search_payloads() -> None:
 
 
 @pytest.mark.parametrize(
-    ("mode", "expected_model", "expected_recursion_limit", "expected_timeout", "expected_execution_mode"),
+    (
+        "mode",
+        "expected_model",
+        "expected_recursion_limit",
+        "expected_timeout",
+        "expected_execution_mode",
+        "expected_tool_steps",
+        "expected_search_results",
+        "expected_crawl_chars",
+    ),
     [
-        ("quick", "gpt-4.1-mini", 4, 20, "single_pass"),
-        ("agentic", "gpt-4.1-mini", DEFAULT_RECURSION_LIMIT, 45, "bounded_agent_loop"),
-        ("deep_research", "gpt-4.1", 24, 180, "background_research"),
+        ("quick", "gpt-4.1-mini", 4, 20, "single_pass", 1, 5, 0),
+        ("agentic", "gpt-4.1-mini", DEFAULT_RECURSION_LIMIT, 45, "bounded_agent_loop", 6, 4, 4000),
+        ("deep_research", "gpt-4.1", 24, 180, "background_research", 16, 8, 12000),
     ],
 )
 def test_get_runtime_profile_exposes_distinct_policy_per_mode(
@@ -301,6 +337,9 @@ def test_get_runtime_profile_exposes_distinct_policy_per_mode(
     expected_recursion_limit: int,
     expected_timeout: int,
     expected_execution_mode: str,
+    expected_tool_steps: int,
+    expected_search_results: int,
+    expected_crawl_chars: int,
 ) -> None:
     profile = get_runtime_profile(mode)
 
@@ -309,6 +348,9 @@ def test_get_runtime_profile_exposes_distinct_policy_per_mode(
     assert profile.recursion_limit == expected_recursion_limit
     assert profile.timeout_seconds == expected_timeout
     assert profile.execution_mode == expected_execution_mode
+    assert profile.max_tool_steps == expected_tool_steps
+    assert profile.max_search_results == expected_search_results
+    assert profile.max_crawl_chars == expected_crawl_chars
 
 
 def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
@@ -322,7 +364,9 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
 
     assert result.status == "completed"
     assert factory.captured_profile == get_runtime_profile("deep_research")
-    assert factory.captured_tools == (web_search, web_crawl)
+    assert factory.captured_tools is not None
+    assert tuple(tool.name for tool in factory.captured_tools) == CANONICAL_TOOL_NAMES
+    assert factory.captured_tools != (web_search, web_crawl)
     assert factory.agent is not None
     assert factory.agent.captured_config == expected_runtime_config("deep_research")
 

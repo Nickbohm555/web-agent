@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from time import perf_counter
-from typing import Any
+from typing import Any, Callable
 
 from langchain_core.tools import tool
 from pydantic import ValidationError
@@ -14,6 +14,22 @@ from backend.app.providers.serper_client import SerperClient, SerperClientError
 
 def create_serper_client() -> SerperClient:
     return SerperClient(api_key=get_settings().SERPER_API_KEY)
+
+
+def build_web_search_tool(
+    *,
+    max_results_cap: int = 5,
+    search_runner: Callable[..., dict[str, Any]] | None = None,
+):
+    bounded_cap = max(1, min(max_results_cap, 10))
+    runner = search_runner or run_web_search
+
+    @tool("web_search", args_schema=WebSearchInput)
+    def bounded_web_search(query: str, max_results: int = 5) -> dict[str, Any]:
+        """Search the web and return normalized results or a structured error envelope."""
+        return runner(query=query, max_results=min(max_results, bounded_cap))
+
+    return bounded_web_search
 
 
 def run_web_search(
@@ -93,10 +109,7 @@ def run_web_search(
         ).model_dump(mode="json")
 
 
-@tool("web_search", args_schema=WebSearchInput)
-def web_search(query: str, max_results: int = 5) -> dict[str, Any]:
-    """Search the web and return normalized results or a structured error envelope."""
-    return run_web_search(query=query, max_results=max_results)
+web_search = build_web_search_tool()
 
 
 def _elapsed_ms(start: float) -> int:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.agent.types import AgentRunMode
+from backend.agent.types import AgentRuntimeProfile
 
 BASE_SYSTEM_PROMPT = """
 You are a web research agent.
@@ -15,13 +15,18 @@ If a tool fails, either recover with the other available tool when appropriate o
 Do not expose provider internals or raw tool payload details unless they are directly relevant.
 """.strip()
 
-PROFILE_PROMPT_APPENDICES: dict[AgentRunMode, str] = {
+PROFILE_PROMPT_APPENDICES: dict[str, str] = {
     "quick": "Optimize for speed. Prefer a single decisive pass and avoid exploratory follow-up.",
     "agentic": "Use bounded multi-step reasoning when the prompt needs verification or synthesis across sources.",
     "deep_research": "Work methodically, validate competing claims, and spend more budget on coverage before answering.",
 }
 
 
-def build_system_prompt(mode: AgentRunMode) -> str:
-    appendix = PROFILE_PROMPT_APPENDICES[mode]
-    return f"{BASE_SYSTEM_PROMPT}\n\nMode guidance: {appendix}"
+def build_system_prompt(profile: AgentRuntimeProfile) -> str:
+    appendix = PROFILE_PROMPT_APPENDICES[profile.name]
+    bounded_guidance = (
+        f"Tool budget: at most {profile.max_tool_steps} tool calls total. "
+        f"Use web_search for no more than {profile.max_search_results} results per call. "
+        f"Use web_crawl selectively and keep extracted evidence under about {profile.max_crawl_chars} characters per page."
+    )
+    return f"{BASE_SYSTEM_PROMPT}\n\nMode guidance: {appendix}\n{bounded_guidance}"
