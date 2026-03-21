@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 20
+Current Section: 21
 
 ## Section 1: Define Search Mode Contract
 
@@ -449,6 +449,8 @@ Completed with `npm run test -- src/tests/frontend-api/run-history.integration.t
 
 ## Section 20: Enforce Safe Citation URL Exposure
 
+✓ Completed: Hardened backend runtime source assembly so only normalized safe `http`/`https` URLs enter the source registry, redirect/final URL aliases resolve through the same normalized lookup path, citations must resolve against policy-cleared source records before emission, and fallback URL-like citation titles are replaced by stronger explicit source metadata when available.
+
 Task:
 Ensure citation URLs and source links are emitted only from normalized, policy-cleared source records.
 
@@ -466,7 +468,7 @@ How to Test:
 Success looks like only normalized, policy-cleared URLs becoming clickable citations or source links in rendered output. We know this section is working when unsafe or malformed URLs are rejected before they can appear as citations, even if upstream content tries to surface them.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm install`, `npm run test -- src/tests/safety/url-policy.test.ts`, `npm run test -- src/tests/fetch/fetch.safety-compliance.integration.test.ts`, `pytest backend/tests/agent/test_runtime.py -q`, `npm run typecheck`, `npm run test`, `npm run build`, and `pytest backend/tests -q`.
 
 ## Section 21: Lock Down Citation And Output Coverage
 
