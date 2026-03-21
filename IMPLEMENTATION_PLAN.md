@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 4
+Current Section: 5
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -79,7 +79,7 @@ Completed: Added query-aware rerank scoring to normalized search results, enrich
 Commit Note:
 Commit and push this section atomically once its tests pass.
 
-## Section 4: Make Retrieval Policy Controls More Intelligent And Automatic
+## Section 4: Make Retrieval Policy Controls More Intelligent And Automatic ✓
 
 Task:
 Extend the existing domain and freshness policy system so the agent can infer and apply tighter source controls from prompt intent instead of relying only on explicit user inputs.
@@ -101,6 +101,7 @@ Success looks like prompts with clear recency or source-governance intent produc
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: Added deterministic prompt-intent inference for freshness and official-source domain scope, threaded effective retrieval policy into runtime config and system prompts, and verified with `pytest backend/tests/agent/test_runtime.py -q`, `npm run test -- src/tests/search-controls.integration.test.ts`, `npm run test -- src/tests/fetch-controls.integration.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
