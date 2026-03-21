@@ -121,6 +121,23 @@ export function createRunsRouter(): Router {
         },
         safety: createEmptyRunEventSafety(),
       });
+      ingestRunHistoryEvent(
+        req.app.locals.runHistoryStore,
+        createRunProgressEvent(
+          runId,
+          1,
+          "research_planning_started",
+          new Date().toISOString(),
+          {
+            stage: "planning",
+            message: getPlanningMessage(request.mode),
+          },
+          {
+            prompt: request.prompt,
+            mode: request.mode,
+          },
+        ),
+      );
 
       startBackgroundRunIfNeeded({
         request,
@@ -445,12 +462,11 @@ function resolveBackgroundEventProducer(
   }
 
   if (typeof executorLike === "function") {
-    return createExecutorBackedEventProducer(executorLike as RunExecutor, {
+    return createExecutorBackedEventProducer(
+      executorLike as RunExecutor,
       runId,
-      prompt: request.prompt,
-      mode: request.mode,
-      retrievalPolicy: request.retrievalPolicy,
-    });
+      request,
+    );
   }
 
   return undefined;
@@ -466,12 +482,13 @@ async function* createValidatedEventProducer(
 
 async function* createExecutorBackedEventProducer(
   executor: RunExecutor,
-  run: PendingRun & { runId: string },
+  runId: string,
+  run: PendingRun,
 ): AsyncIterable<RunStreamEvent> {
   const result = await executor(
-    createRunExecutorContext(run.runId, new AbortController().signal, run),
+    createRunExecutorContext(runId, new AbortController().signal, run),
   );
-  yield createRunExecutorEvent(run.runId, result);
+  yield createRunExecutorEvent(runId, result);
 }
 
 function finalizeBackgroundRun(options: {
@@ -600,26 +617,18 @@ function resolveRunEventStreamFactory(
 }
 
 function serializeRunRetrievalPolicy(policy: RunRetrievalPolicy) {
+  const { search, fetch } = policy;
   return {
-    search: {
-      country: policy.search.country,
-      language: policy.search.language,
-      freshness: policy.search.freshness,
-      domainScope: serializeDomainScope(policy),
-    },
-    fetch: serializeFetchPolicy(policy),
+    search: serializeSearchPolicy(search),
+    fetch: serializeFetchPolicy(fetch),
   };
 }
 
 function serializeBackendRetrievalPolicy(policy: RunRetrievalPolicy) {
+  const { search, fetch } = policy;
   return {
-    search: {
-      country: policy.search.country,
-      language: policy.search.language,
-      freshness: policy.search.freshness,
-      ...serializeBackendDomainScope(policy),
-    },
-    fetch: serializeBackendFetchPolicy(policy),
+    search: serializeBackendSearchPolicy(search),
+    fetch: serializeBackendFetchPolicy(fetch),
   };
 }
 
@@ -642,22 +651,81 @@ function ingestRunStreamEventHistory(
   switch (event.event) {
     case "run_state":
       return nextEventSeq;
-    case "retrieval_action":
+    case "retrieval_action": {
+      const progressEvents = createRetrievalProgressEvents(event.data, nextEventSeq);
+      for (const progressEvent of progressEvents) {
+        ingestRunHistoryEvent(store, progressEvent);
+      }
       ingestRunHistoryEvent(
         store,
-        createCanonicalRetrievalActionEvent(event.data, nextEventSeq),
+        createCanonicalRetrievalActionEvent(
+          event.data,
+          nextEventSeq + progressEvents.length,
+        ),
       );
-      return nextEventSeq + 1;
-    case "tool_call":
-      ingestRunHistoryEvent(store, createCanonicalToolEvent(event.data, nextEventSeq));
-      return nextEventSeq + 1;
+      return nextEventSeq + progressEvents.length + 1;
+    }
+    case "tool_call": {
+      const progressEvents = createToolProgressEvents(event.data, nextEventSeq);
+      for (const progressEvent of progressEvents) {
+        ingestRunHistoryEvent(store, progressEvent);
+      }
+      const sourceExpansionEvents = createSourceExpansionEvents(
+        store,
+        event.data,
+        nextEventSeq + progressEvents.length,
+      );
+      for (const sourceExpansionEvent of sourceExpansionEvents) {
+        ingestRunHistoryEvent(store, sourceExpansionEvent);
+      }
+      ingestRunHistoryEvent(
+        store,
+        createCanonicalToolEvent(
+          event.data,
+          nextEventSeq + progressEvents.length + sourceExpansionEvents.length,
+        ),
+      );
+      return nextEventSeq + progressEvents.length + sourceExpansionEvents.length + 1;
+    }
     case "run_complete": {
       const completedAt = toIsoTimestamp(event.data.completedAt);
       ingestRunHistoryEvent(
         store,
-        createRunCompletionEvent(
+        createRunProgressEvent(
           event.data.runId,
           nextEventSeq,
+          "research_verification_started",
+          completedAt,
+          {
+            stage: "verification",
+            message: "Validating retrieval evidence before final synthesis.",
+          },
+          {
+            sourceCount: event.data.sources.length,
+          },
+        ),
+      );
+      ingestRunHistoryEvent(
+        store,
+        createRunProgressEvent(
+          event.data.runId,
+          nextEventSeq + 1,
+          "research_synthesis_started",
+          completedAt,
+          {
+            stage: "synthesis",
+            message: "Synthesizing collected evidence into the final answer.",
+          },
+          {
+            sourceCount: event.data.sources.length,
+          },
+        ),
+      );
+      ingestRunHistoryEvent(
+        store,
+        createRunCompletionEvent(
+          event.data.runId,
+          nextEventSeq + 2,
           "final_answer_generated",
           completedAt,
           event.data.finalAnswer,
@@ -669,7 +737,7 @@ function ingestRunStreamEventHistory(
         store,
         createRunCompletionEvent(
           event.data.runId,
-          nextEventSeq + 1,
+          nextEventSeq + 3,
           "run_completed",
           completedAt,
           event.data.finalAnswer,
@@ -677,7 +745,7 @@ function ingestRunStreamEventHistory(
           event.data.sources,
         ),
       );
-      return nextEventSeq + 2;
+      return nextEventSeq + 4;
     }
     case "run_error":
       ingestRunHistoryEvent(
@@ -742,6 +810,47 @@ function createCanonicalRetrievalActionEvent(
   };
 }
 
+function createRunProgressEvent(
+  runId: string,
+  eventSeq: number,
+  eventType:
+    | "research_planning_started"
+    | "research_search_started"
+    | "research_crawl_started"
+    | "research_verification_started"
+    | "research_sources_expanded"
+    | "research_synthesis_started",
+  timestamp: string,
+  progress: NonNullable<CanonicalRunEvent["progress"]>,
+  payload?: CanonicalRunEvent["tool_input"] | CanonicalRunEvent["tool_output"],
+): CanonicalRunEvent {
+  if (
+    eventType === "research_planning_started" ||
+    eventType === "research_search_started" ||
+    eventType === "research_crawl_started"
+  ) {
+    return {
+      run_id: runId,
+      event_seq: eventSeq,
+      event_type: eventType,
+      ts: timestamp,
+      progress,
+      ...(payload !== undefined ? { tool_input: payload } : {}),
+      safety: createEmptyRunEventSafety(),
+    };
+  }
+
+  return {
+    run_id: runId,
+    event_seq: eventSeq,
+    event_type: eventType,
+    ts: timestamp,
+    progress,
+    ...(payload !== undefined ? { tool_output: payload } : {}),
+    safety: createEmptyRunEventSafety(),
+  };
+}
+
 function createCanonicalToolEvent(
   event: ToolCallEvent,
   eventSeq: number,
@@ -772,6 +881,135 @@ function createCanonicalToolEvent(
     event_type: "tool_call_started",
     tool_input: toPreviewPayload(event.inputPreview),
   };
+}
+
+function createRetrievalProgressEvents(
+  event: RetrievalActionEvent,
+  nextEventSeq: number,
+): CanonicalRunEvent[] {
+  if (event.status !== "started") {
+    return [];
+  }
+
+  const timestamp = toIsoTimestamp(event.startedAt ?? Date.now());
+
+  switch (event.actionType) {
+    case "search":
+      return [
+        createRunProgressEvent(
+          event.runId,
+          nextEventSeq,
+          "research_search_started",
+          timestamp,
+          {
+            stage: "search",
+            message: `Searching and reranking sources for "${event.query}".`,
+          },
+          createRetrievalActionInputPayload(event),
+        ),
+      ];
+    case "open_page":
+      return [
+        createRunProgressEvent(
+          event.runId,
+          nextEventSeq,
+          "research_crawl_started",
+          timestamp,
+          {
+            stage: "crawl",
+            message: "Selecting an objective-driven page crawl.",
+          },
+          createRetrievalActionInputPayload(event),
+        ),
+      ];
+    case "find_in_page":
+      return [
+        createRunProgressEvent(
+          event.runId,
+          nextEventSeq,
+          "research_verification_started",
+          timestamp,
+          {
+            stage: "verification",
+            message: `Checking evidence for "${event.pattern}" within the opened page.`,
+          },
+          createRetrievalActionInputPayload(event),
+        ),
+      ];
+  }
+}
+
+function createToolProgressEvents(
+  event: ToolCallEvent,
+  nextEventSeq: number,
+): CanonicalRunEvent[] {
+  if (event.status !== "started") {
+    return [];
+  }
+
+  const timestamp = toIsoTimestamp(event.startedAt ?? Date.now());
+
+  switch (event.toolName) {
+    case "web_search":
+      return [
+        createRunProgressEvent(
+          event.runId,
+          nextEventSeq,
+          "research_search_started",
+          timestamp,
+          {
+            stage: "search",
+            message: "Searching and reranking candidate sources.",
+          },
+          toPreviewPayload(event.inputPreview),
+        ),
+      ];
+    case "web_crawl":
+      return [
+        createRunProgressEvent(
+          event.runId,
+          nextEventSeq,
+          "research_crawl_started",
+          timestamp,
+          {
+            stage: "crawl",
+            message: "Selecting an objective-driven page crawl.",
+          },
+          toPreviewPayload(event.inputPreview),
+        ),
+      ];
+  }
+}
+
+function createSourceExpansionEvents(
+  store: RunHistoryStoreLike | null,
+  event: ToolCallEvent,
+  nextEventSeq: number,
+): CanonicalRunEvent[] {
+  if (
+    store === null ||
+    event.toolName !== "web_search" ||
+    event.status === "started" ||
+    store.getRun(event.runId)?.events.some((runEvent) => {
+      return runEvent.event_type === "research_sources_expanded";
+    })
+  ) {
+    return [];
+  }
+
+  return [
+    createRunProgressEvent(
+      event.runId,
+      nextEventSeq,
+      "research_sources_expanded",
+      toIsoTimestamp(event.endedAt ?? event.startedAt ?? Date.now()),
+      {
+        stage: "source_expansion",
+        message: "Collecting broad coverage from search before targeted crawling.",
+      },
+      toPreviewPayload(event.outputPreview),
+    ),
+  ];
 }
 
 function createToolEventBase(
@@ -924,6 +1162,17 @@ function createRunErrorEvent(
       failedAt,
     },
   };
+}
+
+function getPlanningMessage(mode: RunMode): string {
+  switch (mode) {
+    case "quick":
+      return "Starting a fast search pass for a concise answer.";
+    case "agentic":
+      return "Building an exploratory research plan and selecting retrieval paths.";
+    case "deep_research":
+      return "Preparing a longer background research plan with broader source expansion.";
+  }
 }
 
 function createRunNotFoundEvent(runId: string): RunStreamEvent {
@@ -1082,31 +1331,51 @@ function toPreviewPayload(preview: string | undefined): { preview: string } | un
   return preview === undefined ? undefined : { preview };
 }
 
-function serializeDomainScope(policy: RunRetrievalPolicy) {
+function serializeSearchPolicy(searchPolicy: RunRetrievalPolicy["search"]) {
   return {
-    includeDomains: [...policy.search.domainScope.includeDomains],
-    excludeDomains: [...policy.search.domainScope.excludeDomains],
+    country: searchPolicy.country,
+    language: searchPolicy.language,
+    freshness: searchPolicy.freshness,
+    domainScope: serializeDomainScope(searchPolicy.domainScope),
   };
 }
 
-function serializeBackendDomainScope(policy: RunRetrievalPolicy) {
+function serializeDomainScope(domainScope: RunRetrievalPolicy["search"]["domainScope"]) {
   return {
-    include_domains: [...policy.search.domainScope.includeDomains],
-    exclude_domains: [...policy.search.domainScope.excludeDomains],
+    includeDomains: [...domainScope.includeDomains],
+    excludeDomains: [...domainScope.excludeDomains],
   };
 }
 
-function serializeFetchPolicy(policy: RunRetrievalPolicy) {
+function serializeBackendSearchPolicy(searchPolicy: RunRetrievalPolicy["search"]) {
   return {
-    maxAgeMs: policy.fetch.maxAgeMs,
-    fresh: policy.fetch.fresh,
+    country: searchPolicy.country,
+    language: searchPolicy.language,
+    freshness: searchPolicy.freshness,
+    ...serializeBackendDomainScope(searchPolicy.domainScope),
   };
 }
 
-function serializeBackendFetchPolicy(policy: RunRetrievalPolicy) {
+function serializeBackendDomainScope(
+  domainScope: RunRetrievalPolicy["search"]["domainScope"],
+) {
   return {
-    max_age_ms: policy.fetch.maxAgeMs,
-    fresh: policy.fetch.fresh,
+    include_domains: [...domainScope.includeDomains],
+    exclude_domains: [...domainScope.excludeDomains],
+  };
+}
+
+function serializeFetchPolicy(fetchPolicy: RunRetrievalPolicy["fetch"]) {
+  return {
+    maxAgeMs: fetchPolicy.maxAgeMs,
+    fresh: fetchPolicy.fresh,
+  };
+}
+
+function serializeBackendFetchPolicy(fetchPolicy: RunRetrievalPolicy["fetch"]) {
+  return {
+    max_age_ms: fetchPolicy.maxAgeMs,
+    fresh: fetchPolicy.fresh,
   };
 }
 

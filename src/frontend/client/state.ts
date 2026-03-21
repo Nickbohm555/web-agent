@@ -4,6 +4,7 @@ import {
   type CanonicalRunEvent,
   type RunCompleteEvent,
   type RunErrorEvent,
+  type RetrievalActionEvent,
   type RunStateEvent,
   type ToolCallEvent,
   type RunMode,
@@ -64,6 +65,7 @@ export type RunAction =
   | { type: "run_started"; response: RunStartResponse }
   | { type: "run_failed"; message: string }
   | { type: "run_state_received"; event: RunStateEvent }
+  | { type: "retrieval_action_received"; event: RetrievalActionEvent }
   | { type: "tool_call_received"; event: ToolCallEvent }
   | { type: "run_completed"; event: RunCompleteEvent }
   | { type: "run_error_received"; event: RunErrorEvent }
@@ -169,6 +171,19 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
             error: state.error ?? "Run failed.",
           };
       }
+    case "retrieval_action_received":
+      if (shouldIgnoreRunUpdate(state, action.event.runId)) {
+        return state;
+      }
+
+      return {
+        ...state,
+        phase: "running",
+        ...appendRunEvents(state, [
+          ...createRetrievalProgressEvents(action.event),
+          createCanonicalRetrievalEvent(action.event),
+        ]),
+      };
     case "tool_call_received":
       if (shouldIgnoreRunUpdate(state, action.event.runId)) {
         return state;
@@ -179,6 +194,7 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         phase: "running",
         toolCalls: mergeToolCall(state.toolCalls, action.event),
         ...appendRunEvents(state, [
+          ...createToolProgressEvents(action.event),
           ...createSourceExpansionEvents(state, action.event),
           createCanonicalToolEvent(action.event),
         ]),
@@ -197,6 +213,21 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         completedAt: action.event.completedAt,
         error: null,
         ...appendRunEvents(state, [
+          createResearchProgressEvent(
+            action.event.runId,
+            "research_verification_started",
+            completedAtIso,
+            {
+              stage: "verification",
+              message: "Validating retrieval evidence before final synthesis.",
+              completed: completedToolCalls,
+              total: state.toolCalls.length,
+            },
+            {
+              toolCalls: state.toolCalls.length,
+              completedToolCalls,
+            },
+          ),
           createResearchProgressEvent(
             action.event.runId,
             "research_synthesis_started",
@@ -370,6 +401,47 @@ function createCanonicalToolEvent(
   }
 }
 
+function createCanonicalRetrievalEvent(
+  event: RetrievalActionEvent,
+): DraftRunEvent {
+  const timestamp =
+    event.status === "started"
+      ? event.startedAt ?? Date.now()
+      : event.endedAt ?? event.startedAt ?? Date.now();
+  const retrievalAction = createRetrievalActionMetadata(event);
+
+  if (event.status === "completed") {
+    return {
+      run_id: event.runId,
+      event_type: "retrieval_action_succeeded",
+      ts: toIsoTimestamp(timestamp),
+      retrieval_action: retrievalAction,
+      tool_output: createRetrievalOutputPayload(event),
+    };
+  }
+
+  if (event.status === "failed") {
+    return {
+      run_id: event.runId,
+      event_type: "retrieval_action_failed",
+      ts: toIsoTimestamp(timestamp),
+      retrieval_action: retrievalAction,
+      tool_input: createRetrievalInputPayload(event),
+      error_output: {
+        message: event.error ?? "Retrieval action failed.",
+      },
+    };
+  }
+
+  return {
+    run_id: event.runId,
+    event_type: "retrieval_action_started",
+    ts: toIsoTimestamp(timestamp),
+    retrieval_action: retrievalAction,
+    tool_input: createRetrievalInputPayload(event),
+  };
+}
+
 function createToolEventBase(
   event: ToolCallEvent,
   eventType: CanonicalRunEvent["event_type"],
@@ -397,13 +469,20 @@ function createResearchProgressEvent(
   runId: string,
   eventType:
     | "research_planning_started"
+    | "research_search_started"
+    | "research_crawl_started"
+    | "research_verification_started"
     | "research_sources_expanded"
     | "research_synthesis_started",
   timestamp: string,
   progress: CanonicalRunProgress,
   payload?: CanonicalRunEvent["tool_input"] | CanonicalRunEvent["tool_output"],
 ): DraftRunEvent {
-  if (eventType === "research_planning_started") {
+  if (
+    eventType === "research_planning_started" ||
+    eventType === "research_search_started" ||
+    eventType === "research_crawl_started"
+  ) {
     return {
       run_id: runId,
       event_type: eventType,
@@ -426,7 +505,11 @@ function createSourceExpansionEvents(
   state: RunState,
   event: ToolCallEvent,
 ): DraftRunEvent[] {
-  if (hasRunEventType(state.runEvents, "research_sources_expanded")) {
+  if (
+    event.toolName !== "web_search" ||
+    event.status !== "completed" ||
+    hasRunEventType(state.runEvents, "research_sources_expanded")
+  ) {
     return [];
   }
 
@@ -440,18 +523,175 @@ function createSourceExpansionEvents(
         message: `Expanding sources with ${formatToolLabel(event.toolName)}.`,
         completed: countDistinctToolCalls(state.toolCalls, event.toolCallId),
       },
-      event.status === "started"
-        ? undefined
-        : {
-            tool: event.toolName,
-            preview:
-              event.outputPreview ??
-              event.inputPreview ??
-              event.error ??
-              "Research source update recorded.",
-          },
+      {
+        tool: event.toolName,
+        preview:
+          event.outputPreview ??
+          event.inputPreview ??
+          event.error ??
+          "Research source update recorded.",
+      },
     ),
   ];
+}
+
+function createToolProgressEvents(event: ToolCallEvent): DraftRunEvent[] {
+  if (event.status !== "started") {
+    return [];
+  }
+
+  const timestamp = toIsoTimestamp(event.startedAt ?? Date.now());
+
+  switch (event.toolName) {
+    case "web_search":
+      return [
+        createResearchProgressEvent(
+          event.runId,
+          "research_search_started",
+          timestamp,
+          {
+            stage: "search",
+            message: "Searching and reranking candidate sources.",
+          },
+          createPreviewPayload(
+            event.inputPreview,
+            "Search input preview unavailable.",
+          ),
+        ),
+      ];
+    case "web_crawl":
+      return [
+        createResearchProgressEvent(
+          event.runId,
+          "research_crawl_started",
+          timestamp,
+          {
+            stage: "crawl",
+            message: "Selecting an objective-driven page crawl.",
+          },
+          createPreviewPayload(
+            event.inputPreview,
+            "Crawl input preview unavailable.",
+          ),
+        ),
+      ];
+  }
+}
+
+function createRetrievalProgressEvents(
+  event: RetrievalActionEvent,
+): DraftRunEvent[] {
+  if (event.status !== "started") {
+    return [];
+  }
+
+  const timestamp = toIsoTimestamp(event.startedAt ?? Date.now());
+
+  switch (event.actionType) {
+    case "search":
+      return [
+        createResearchProgressEvent(
+          event.runId,
+          "research_search_started",
+          timestamp,
+          {
+            stage: "search",
+            message: `Searching and reranking sources for "${event.query}".`,
+          },
+          createRetrievalInputPayload(event),
+        ),
+      ];
+    case "open_page":
+      return [
+        createResearchProgressEvent(
+          event.runId,
+          "research_crawl_started",
+          timestamp,
+          {
+            stage: "crawl",
+            message: "Selecting an objective-driven page crawl.",
+          },
+          createRetrievalInputPayload(event),
+        ),
+      ];
+    case "find_in_page":
+      return [
+        createResearchProgressEvent(
+          event.runId,
+          "research_verification_started",
+          timestamp,
+          {
+            stage: "verification",
+            message: `Checking evidence for "${event.pattern}" within the opened page.`,
+          },
+          createRetrievalInputPayload(event),
+        ),
+      ];
+  }
+}
+
+function createRetrievalActionMetadata(event: RetrievalActionEvent) {
+  return {
+    action_id: event.actionId,
+    action_type: event.actionType,
+    ...(event.actionType === "search" ? { query: event.query } : {}),
+    ...(event.actionType === "open_page" ? { url: event.url } : {}),
+    ...(event.actionType === "find_in_page"
+      ? {
+          url: event.url,
+          pattern: event.pattern,
+        }
+      : {}),
+    ...(event.resultCount !== undefined ? { result_count: event.resultCount } : {}),
+    ...(event.matchCount !== undefined ? { match_count: event.matchCount } : {}),
+  };
+}
+
+function createRetrievalInputPayload(
+  event: RetrievalActionEvent,
+): CanonicalRunEvent["tool_input"] | undefined {
+  switch (event.actionType) {
+    case "search":
+      return {
+        query: event.query,
+        ...(event.inputPreview !== undefined ? { preview: event.inputPreview } : {}),
+      };
+    case "open_page":
+      return {
+        url: event.url,
+        ...(event.inputPreview !== undefined ? { preview: event.inputPreview } : {}),
+      };
+    case "find_in_page":
+      return {
+        url: event.url,
+        pattern: event.pattern,
+        ...(event.inputPreview !== undefined ? { preview: event.inputPreview } : {}),
+      };
+  }
+}
+
+function createRetrievalOutputPayload(
+  event: RetrievalActionEvent,
+): CanonicalRunEvent["tool_output"] | undefined {
+  const payload: Record<string, string | number> = {};
+
+  if (event.outputPreview !== undefined) {
+    payload.preview = event.outputPreview;
+  }
+
+  if (event.title !== undefined) {
+    payload.title = event.title;
+  }
+
+  if (event.resultCount !== undefined) {
+    payload.result_count = event.resultCount;
+  }
+
+  if (event.matchCount !== undefined) {
+    payload.match_count = event.matchCount;
+  }
+
+  return Object.keys(payload).length > 0 ? payload : undefined;
 }
 
 function createRunOutcomeEvent(

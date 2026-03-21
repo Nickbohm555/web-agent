@@ -151,6 +151,14 @@ describe("timeline helpers", () => {
       }),
       createRunEvent({
         event_seq: 2,
+        event_type: "research_search_started",
+        progress: {
+          stage: "search",
+          message: "Searching and reranking candidate sources.",
+        },
+      }),
+      createRunEvent({
+        event_seq: 3,
         event_type: "tool_call_started",
         tool_name: "web_search",
         tool_call_id: "tool-1",
@@ -159,7 +167,15 @@ describe("timeline helpers", () => {
         },
       }),
       createRunEvent({
-        event_seq: 3,
+        event_seq: 4,
+        event_type: "research_verification_started",
+        progress: {
+          stage: "verification",
+          message: "Validating the strongest evidence.",
+        },
+      }),
+      createRunEvent({
+        event_seq: 5,
         event_type: "research_synthesis_started",
         progress: {
           stage: "synthesis",
@@ -173,13 +189,17 @@ describe("timeline helpers", () => {
     expect(rows.map((row) => row.eventTypeLabel)).toEqual([
       "Run started",
       "Planning",
+      "Search",
       "Tool started",
+      "Verification",
       "Synthesis",
     ]);
     expect(rows.map((row) => row.summary)).toEqual([
       null,
       "Building the research plan.",
+      "Searching and reranking candidate sources.",
       "web_search",
+      "Validating the strongest evidence.",
       "Combining evidence. (2/3)",
     ]);
   });

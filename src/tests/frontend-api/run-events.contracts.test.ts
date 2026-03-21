@@ -134,6 +134,46 @@ describe("run event contracts", () => {
     });
   });
 
+  it("parses typed search and verification progress events", () => {
+    const searchEvent = parseRunEvent({
+      run_id: "run-123",
+      event_seq: 5,
+      event_type: "research_search_started",
+      ts: "2026-03-17T12:00:01.750Z",
+      progress: {
+        stage: "search",
+        message: "Searching and reranking sources for \"sdk retry budget\".",
+      },
+      tool_input: {
+        query: "sdk retry budget",
+      },
+      safety: createEmptyRunEventSafety(),
+    });
+    const verificationEvent = parseRunEvent({
+      run_id: "run-123",
+      event_seq: 6,
+      event_type: "research_verification_started",
+      ts: "2026-03-17T12:00:01.900Z",
+      progress: {
+        stage: "verification",
+        message: "Checking evidence for \"retry budget\" within the opened page.",
+      },
+      tool_output: {
+        sourceCount: 2,
+      },
+      safety: createEmptyRunEventSafety(),
+    });
+
+    expect(searchEvent.progress?.stage).toBe("search");
+    expect(searchEvent.tool_input).toEqual({
+      query: "sdk retry budget",
+    });
+    expect(verificationEvent.progress?.stage).toBe("verification");
+    expect(verificationEvent.tool_output).toEqual({
+      sourceCount: 2,
+    });
+  });
+
   it("parses typed retrieval action events with explicit search/open/find metadata", () => {
     const event = parseRunEvent({
       run_id: "run-123",
@@ -192,6 +232,22 @@ describe("run event contracts", () => {
         safety: createEmptyRunEventSafety(),
       })
     ).toThrow(/synthesis stage/i);
+  });
+
+  it("rejects search progress events with a non-search stage", () => {
+    expect(() =>
+      parseRunEvent({
+        run_id: "run-123",
+        event_seq: 7,
+        event_type: "research_search_started",
+        ts: "2026-03-17T12:00:03.000Z",
+        progress: {
+          stage: "crawl",
+          message: "Wrong stage",
+        },
+        safety: createEmptyRunEventSafety(),
+      })
+    ).toThrow(/search stage/i);
   });
 
   it("rejects malformed retrieval actions that omit required typed fields", () => {

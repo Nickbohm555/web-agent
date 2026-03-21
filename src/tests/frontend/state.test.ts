@@ -308,8 +308,9 @@ describe("run state reducer", () => {
     expect(state.runEvents.map((event) => event.event_type)).toEqual([
       "run_started",
       "research_planning_started",
-      "research_sources_expanded",
+      "research_search_started",
       "tool_call_started",
+      "research_verification_started",
       "research_synthesis_started",
       "final_answer_generated",
       "run_completed",
@@ -326,13 +327,20 @@ describe("run state reducer", () => {
       },
     });
     expect(state.runEvents[2]).toMatchObject({
-      event_type: "research_sources_expanded",
+      event_type: "research_search_started",
       progress: {
-        stage: "source_expansion",
-        completed: 1,
+        stage: "search",
       },
     });
     expect(state.runEvents[4]).toMatchObject({
+      event_type: "research_verification_started",
+      progress: {
+        stage: "verification",
+        completed: 0,
+        total: 1,
+      },
+    });
+    expect(state.runEvents[5]).toMatchObject({
       event_type: "research_synthesis_started",
       progress: {
         stage: "synthesis",
@@ -340,11 +348,11 @@ describe("run state reducer", () => {
         total: 1,
       },
     });
-    expect(state.runEvents[5]).toMatchObject({
+    expect(state.runEvents[6]).toMatchObject({
       event_type: "final_answer_generated",
       final_answer: "Provider A had fewer outages.",
     });
-    expect(state.runEvents[5]?.tool_output).toEqual({
+    expect(state.runEvents[6]?.tool_output).toEqual({
       answer: {
         text: "Provider A had fewer outages.",
         basis: [],
@@ -366,6 +374,89 @@ describe("run state reducer", () => {
           snippet: "Weekly outage summary.",
         },
       ],
+    });
+  });
+
+  it("records retrieval actions as canonical search, crawl, and verification milestones", () => {
+    const state = applyActions([
+      { type: "run_requested" },
+      {
+        type: "run_started",
+        response: {
+          runId: "run-123",
+          status: "queued",
+        },
+      },
+      {
+        type: "retrieval_action_received",
+        event: {
+          runId: "run-123",
+          actionId: "action-search",
+          actionType: "search",
+          status: "started",
+          query: "provider reliability benchmark",
+          startedAt: 100,
+        },
+      },
+      {
+        type: "retrieval_action_received",
+        event: {
+          runId: "run-123",
+          actionId: "action-open",
+          actionType: "open_page",
+          status: "started",
+          url: "https://example.com/benchmark",
+          startedAt: 120,
+        },
+      },
+      {
+        type: "retrieval_action_received",
+        event: {
+          runId: "run-123",
+          actionId: "action-find",
+          actionType: "find_in_page",
+          status: "started",
+          url: "https://example.com/benchmark",
+          pattern: "outage rate",
+          startedAt: 140,
+        },
+      },
+    ]);
+
+    expect(state.runEvents.map((event) => event.event_type)).toEqual([
+      "run_started",
+      "research_planning_started",
+      "research_search_started",
+      "retrieval_action_started",
+      "research_crawl_started",
+      "retrieval_action_started",
+      "research_verification_started",
+      "retrieval_action_started",
+    ]);
+    expect(state.runEvents[2]).toMatchObject({
+      progress: {
+        stage: "search",
+      },
+      tool_input: {
+        query: "provider reliability benchmark",
+      },
+    });
+    expect(state.runEvents[4]).toMatchObject({
+      progress: {
+        stage: "crawl",
+      },
+      tool_input: {
+        url: "https://example.com/benchmark",
+      },
+    });
+    expect(state.runEvents[6]).toMatchObject({
+      progress: {
+        stage: "verification",
+      },
+      tool_output: {
+        url: "https://example.com/benchmark",
+        pattern: "outage rate",
+      },
     });
   });
 });

@@ -123,8 +123,8 @@ describe("run history API", () => {
       expect(listPayload.runs[0]).toMatchObject({
         runId,
         finalAnswer: "Answer with citations.",
-        eventCount: 5,
-        latestEventSeq: 4,
+        eventCount: 10,
+        latestEventSeq: 9,
       });
 
       const detailResponse = await harness.getJson(`/api/runs/${runId}/history`);
@@ -133,12 +133,17 @@ describe("run history API", () => {
       expect(detailPayload.runId).toBe(runId);
       expect(detailPayload.finalAnswer).toBe("Answer with citations.");
       expect(detailPayload.events.map((event) => event.event_seq)).toEqual([
-        0, 1, 2, 3, 4,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
       ]);
       expect(detailPayload.events.map((event) => event.event_type)).toEqual([
         "run_started",
+        "research_planning_started",
+        "research_search_started",
         "tool_call_started",
+        "research_sources_expanded",
         "tool_call_succeeded",
+        "research_verification_started",
+        "research_synthesis_started",
         "final_answer_generated",
         "run_completed",
       ]);
@@ -242,9 +247,9 @@ describe("run history API", () => {
       const detailPayload = parseRunHistoryRunSnapshot(detailResponse.json);
 
       expect(detailPayload.events.map((event) => event.event_seq)).toEqual([
-        3, 4, 5,
+        8, 9, 10,
       ]);
-      expect(detailPayload.retention.eventsDropped).toBe(3);
+      expect(detailPayload.retention.eventsDropped).toBe(8);
       expect(detailPayload.retention.payloadTruncations.length).toBeGreaterThan(0);
       expect(detailPayload.retention.payloadTruncations.some((entry) => {
         return entry.fields.includes("tool_input") || entry.fields.includes("tool_output");
@@ -433,7 +438,10 @@ describe("run history API", () => {
       const snapshotBeforeStream = parseRunHistoryRunSnapshot(detailBeforeStream.json);
       expect(snapshotBeforeStream.events.map((event) => event.event_type)).toEqual([
         "run_started",
+        "research_planning_started",
+        "research_search_started",
         "tool_call_started",
+        "research_sources_expanded",
         "tool_call_succeeded",
       ]);
 
@@ -453,8 +461,13 @@ describe("run history API", () => {
       const snapshotAfterStream = parseRunHistoryRunSnapshot(detailAfterStream.json);
       expect(snapshotAfterStream.events.map((event) => event.event_type)).toEqual([
         "run_started",
+        "research_planning_started",
+        "research_search_started",
         "tool_call_started",
+        "research_sources_expanded",
         "tool_call_succeeded",
+        "research_verification_started",
+        "research_synthesis_started",
         "final_answer_generated",
         "run_completed",
       ]);
@@ -563,6 +576,9 @@ describe("run history API", () => {
         expect(snapshot.finalAnswer).toBe(`Completed ${mode} run for Verify ${mode} lifecycle.`);
         expect(snapshot.events.map((event) => event.event_type)).toEqual([
           "run_started",
+          "research_planning_started",
+          "research_verification_started",
+          "research_synthesis_started",
           "final_answer_generated",
           "run_completed",
         ]);
@@ -617,9 +633,10 @@ describe("run history API", () => {
         expect(snapshot.finalAnswer).toBeNull();
         expect(snapshot.events.map((event) => event.event_type)).toEqual([
           "run_started",
+          "research_planning_started",
           "run_failed",
         ]);
-        expect(snapshot.events[1]).toMatchObject({
+        expect(snapshot.events[2]).toMatchObject({
           event_type: "run_failed",
           error_output: {
             message: `${mode} execution failed`,

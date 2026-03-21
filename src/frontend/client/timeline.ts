@@ -124,6 +124,12 @@ function formatRunEventTypeLabel(eventType: CanonicalRunEvent["event_type"]): st
       return "Run started";
     case "research_planning_started":
       return "Planning";
+    case "research_search_started":
+      return "Search";
+    case "research_crawl_started":
+      return "Crawl";
+    case "research_verification_started":
+      return "Verification";
     case "research_sources_expanded":
       return "Source expansion";
     case "research_synthesis_started":

@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 7
+Current Section: 8
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -180,6 +180,7 @@ Success looks like live and replayed run streams exposing meaningful retrieval m
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: ✓ Expanded typed run-event progress stages with search, crawl, and verification milestones; preserved those milestones across live SSE, client state, and run-history replay; and verified with `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts`, `npm run test -- src/tests/frontend-api/runs.stream.test.ts`, `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.

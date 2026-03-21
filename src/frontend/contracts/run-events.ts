@@ -17,6 +17,9 @@ export const RunEventTimestampSchema = z.string().datetime({ offset: true });
 export const RunEventTypeSchema = z.enum([
   "run_started",
   "research_planning_started",
+  "research_search_started",
+  "research_crawl_started",
+  "research_verification_started",
   "research_sources_expanded",
   "research_synthesis_started",
   "retrieval_action_started",
@@ -69,6 +72,9 @@ export const RunEventSafetySchema = z
 
 export const RunProgressStageSchema = z.enum([
   "planning",
+  "search",
+  "crawl",
+  "verification",
   "source_expansion",
   "synthesis",
 ]);
@@ -174,6 +180,33 @@ const ResearchPlanningStartedEventSchema = RunEventBaseSchema.extend({
   tool_input: RunEventJsonSchema.optional(),
 });
 
+const ResearchSearchStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("research_search_started"),
+  progress: RunProgressSchema.refine((progress) => progress.stage === "search", {
+    message: "Search progress events must use the search stage.",
+  }),
+  tool_input: RunEventJsonSchema.optional(),
+  tool_output: RunEventJsonSchema.optional(),
+});
+
+const ResearchCrawlStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("research_crawl_started"),
+  progress: RunProgressSchema.refine((progress) => progress.stage === "crawl", {
+    message: "Crawl progress events must use the crawl stage.",
+  }),
+  tool_input: RunEventJsonSchema.optional(),
+  tool_output: RunEventJsonSchema.optional(),
+});
+
+const ResearchVerificationStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("research_verification_started"),
+  progress: RunProgressSchema.refine((progress) => progress.stage === "verification", {
+    message: "Verification progress events must use the verification stage.",
+  }),
+  tool_input: RunEventJsonSchema.optional(),
+  tool_output: RunEventJsonSchema.optional(),
+});
+
 const ResearchSourcesExpandedEventSchema = RunEventBaseSchema.extend({
   event_type: z.literal("research_sources_expanded"),
   progress: RunProgressSchema.refine((progress) => progress.stage === "source_expansion", {
@@ -250,6 +283,9 @@ export const RunEventSchema = z
   .discriminatedUnion("event_type", [
     RunStartedEventSchema,
     ResearchPlanningStartedEventSchema,
+    ResearchSearchStartedEventSchema,
+    ResearchCrawlStartedEventSchema,
+    ResearchVerificationStartedEventSchema,
     ResearchSourcesExpandedEventSchema,
     ResearchSynthesisStartedEventSchema,
     RetrievalActionStartedEventSchema,

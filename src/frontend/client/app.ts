@@ -472,6 +472,12 @@ function openRunStream(runId: string) {
         event,
       });
     },
+    onRetrievalAction: (event) => {
+      dispatch({
+        type: "retrieval_action_received",
+        event,
+      });
+    },
     onToolCall: (event) => {
       dispatch({
         type: "tool_call_received",
@@ -869,6 +875,20 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     {
       run_id: "preview-run",
       event_seq: 2,
+      event_type: "research_search_started",
+      ts: "2026-03-17T12:00:00.700Z",
+      progress: {
+        stage: "search",
+        message: "Searching and reranking candidate sources.",
+      },
+      tool_input: {
+        query: "retrieval sdk reliability release notes",
+      },
+      safety: createEmptyRunEventSafety(),
+    },
+    {
+      run_id: "preview-run",
+      event_seq: 3,
       event_type: "research_sources_expanded",
       ts: "2026-03-17T12:00:00.800Z",
       progress: {
@@ -885,7 +905,7 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 3,
+      event_seq: 4,
       event_type: "tool_call_started",
       ts: "2026-03-17T12:00:01.000Z",
       tool_name: "web_search",
@@ -913,7 +933,7 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 4,
+      event_seq: 5,
       event_type: "tool_call_succeeded",
       ts: "2026-03-17T12:00:02.000Z",
       tool_name: "web_search",
@@ -947,7 +967,21 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 5,
+      event_seq: 6,
+      event_type: "research_crawl_started",
+      ts: "2026-03-17T12:00:02.300Z",
+      progress: {
+        stage: "crawl",
+        message: "Selecting an objective-driven page crawl.",
+      },
+      tool_input: {
+        url: "https://example.com/private",
+      },
+      safety: createEmptyRunEventSafety(),
+    },
+    {
+      run_id: "preview-run",
+      event_seq: 7,
       event_type: "tool_call_failed",
       ts: "2026-03-17T12:00:03.000Z",
       tool_name: "web_crawl",
@@ -989,7 +1023,23 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 6,
+      event_seq: 8,
+      event_type: "research_verification_started",
+      ts: "2026-03-17T12:00:03.250Z",
+      progress: {
+        stage: "verification",
+        message: "Validating the strongest supporting evidence before synthesis.",
+        completed: 2,
+        total: 2,
+      },
+      tool_output: {
+        sourcesConsidered: 2,
+      },
+      safety: createEmptyRunEventSafety(),
+    },
+    {
+      run_id: "preview-run",
+      event_seq: 9,
       event_type: "research_synthesis_started",
       ts: "2026-03-17T12:00:03.500Z",
       progress: {
@@ -1006,7 +1056,7 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 7,
+      event_seq: 10,
       event_type: "final_answer_generated",
       ts: "2026-03-17T12:00:04.000Z",
       final_answer:
@@ -1055,6 +1105,12 @@ function formatInspectorHeader(event: CanonicalRunEvent): string {
   switch (event.event_type) {
     case "research_planning_started":
       return "planning";
+    case "research_search_started":
+      return "search";
+    case "research_crawl_started":
+      return "crawl";
+    case "research_verification_started":
+      return "verification";
     case "research_sources_expanded":
       return "source expansion";
     case "research_synthesis_started":
