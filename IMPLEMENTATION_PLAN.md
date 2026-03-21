@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 3
+Current Section: 4
 
 ## Section 1: Define Search Mode Contract
 
@@ -47,6 +47,8 @@ Completion Note:
 Do not end this section until it has been thoroughly tested.
 
 ## Section 3: Refactor Backend Runtime Into Profiles
+
+✓ Completed: Backend runtime now selects explicit `quick`, `agentic`, and `deep_research` profiles with distinct model, recursion budget, timeout, execution mode, and prompt guidance, while preserving canonical tool binding and stable failure mapping through runtime tests.
 
 Task:
 Replace the fixed backend runtime configuration with a profile-driven executor that selects model, recursion budget, timeout policy, and execution mode per run profile.
