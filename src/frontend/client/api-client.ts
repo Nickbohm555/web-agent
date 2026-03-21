@@ -1,5 +1,6 @@
 import {
   parseRunStreamEvent,
+  type RunRetrievalPolicy,
   type RunMode,
   type RunCompleteEvent,
   type RunErrorEvent,
@@ -11,6 +12,15 @@ import {
 export interface RunStartRequest {
   prompt: string;
   mode: RunMode;
+  retrievalPolicy?: {
+    freshness?: RunRetrievalPolicy["search"]["freshness"];
+    includeDomains?: string[];
+    excludeDomains?: string[];
+    country?: string;
+    language?: string;
+    maxAgeMs?: number;
+    fresh?: boolean;
+  };
 }
 
 export interface RunStartResponse {
@@ -72,6 +82,11 @@ export interface RunStreamSubscriptionOptions {
 }
 
 let activeRunStream: RunStreamSubscription | null = null;
+const RUN_MODES: ReadonlySet<RunMode> = new Set([
+  "quick",
+  "agentic",
+  "deep_research",
+]);
 
 export async function createRun(request: RunStartRequest): Promise<RunStartResult> {
   try {
@@ -262,9 +277,8 @@ function isRunStartRequest(input: unknown): input is RunStartRequest {
   const record = asRecord(input);
   return (
     typeof record.prompt === "string" &&
-    (record.mode === "quick" ||
-      record.mode === "agentic" ||
-      record.mode === "deep_research")
+    isRunMode(record.mode) &&
+    (record.retrievalPolicy === undefined || isRecordLike(record.retrievalPolicy))
   );
 }
 
@@ -274,4 +288,12 @@ function asRecord(input: unknown): Record<string, unknown> {
   }
 
   return input as Record<string, unknown>;
+}
+
+function isRecordLike(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+
+function isRunMode(input: unknown): input is RunMode {
+  return typeof input === "string" && RUN_MODES.has(input as RunMode);
 }

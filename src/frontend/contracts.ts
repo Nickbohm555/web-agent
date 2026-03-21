@@ -39,6 +39,10 @@ import {
 } from "../sdk/contracts/search.js";
 import {
   FetchControlsInputSchema,
+  mergeRunPolicyIntoFetchInput,
+  mergeRunPolicyIntoSearchInput,
+  resolveRunRetrievalPolicy,
+  RunRetrievalPolicyInputSchema,
   SearchControlsInputSchema,
 } from "../core/policy/retrieval-controls.js";
 
@@ -159,12 +163,36 @@ const FetchApiErrorEnvelopeSchema = z
   })
   .strict();
 
+const NormalizedRunRetrievalPolicySchema = z
+  .object({
+    search: z.object({
+      country: z.string().length(2),
+      language: z.string().length(2),
+      freshness: z.enum(["day", "week", "month", "year", "any"]),
+      domainScope: z.object({
+        includeDomains: z.array(z.string()),
+        excludeDomains: z.array(z.string()),
+      }).strict(),
+    }).strict(),
+    fetch: z.object({
+      maxAgeMs: z.number().int().min(0).max(86_400_000),
+      fresh: z.boolean(),
+    }).strict(),
+  })
+  .strict();
+
 export const RunStartRequestSchema = z
   .object({
     prompt: z.string().trim().min(1),
     mode: RunModeSchema,
+    retrievalPolicy: RunRetrievalPolicyInputSchema.optional(),
   })
-  .strict();
+  .strict()
+  .transform((input) => ({
+    prompt: input.prompt,
+    mode: input.mode,
+    retrievalPolicy: resolveRunRetrievalPolicy(input.retrievalPolicy),
+  }));
 
 export const RunStartStatusSchema = z.enum(["queued", "running"]);
 
@@ -343,6 +371,7 @@ export type SearchApiRequest = z.output<typeof SearchRequestSchema>;
 export type FetchApiRequest = z.output<typeof FetchRequestSchema>;
 export type RunMode = z.output<typeof RunModeSchema>;
 export type RunStartRequest = z.output<typeof RunStartRequestSchema>;
+export type RunRetrievalPolicy = z.output<typeof NormalizedRunRetrievalPolicySchema>;
 export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
 export type CanonicalRunEvent = RunEvent;
 export type CanonicalRunEventType = RunEventType;
@@ -404,11 +433,19 @@ export function parseRunHistoryNotFoundError(input: unknown): RunHistoryNotFound
 }
 
 export function parseSearchSdkOptions(input: unknown): SearchOptions | undefined {
-  return SearchControlsInputSchema.optional().parse(asRecord(input).options);
+  const record = asRecord(input);
+  if (record.options === undefined && record.retrievalPolicy === undefined) {
+    return undefined;
+  }
+  return mergeRunPolicyIntoSearchInput(record.retrievalPolicy, record.options);
 }
 
 export function parseFetchSdkOptions(input: unknown): FetchOptions | undefined {
-  return FetchControlsInputSchema.optional().parse(asRecord(input).options);
+  const record = asRecord(input);
+  if (record.options === undefined && record.retrievalPolicy === undefined) {
+    return undefined;
+  }
+  return mergeRunPolicyIntoFetchInput(record.retrievalPolicy, record.options);
 }
 
 export function createSearchSuccessEnvelope(input: {

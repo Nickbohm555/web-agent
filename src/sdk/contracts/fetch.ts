@@ -2,7 +2,9 @@ import { z } from "zod";
 import { CallMetaSchema } from "../../core/telemetry/call-meta.js";
 import {
   FetchControlsInputSchema,
+  mergeRunPolicyIntoFetchControls,
   resolveFetchControls,
+  type ResolvedRunRetrievalPolicy,
   type ResolvedFetchControls,
 } from "../../core/policy/retrieval-controls.js";
 import { FetchDecisionMetadataSchema } from "./safety.js";
@@ -56,6 +58,7 @@ export const FetchResponseSchema = z
 export type FetchFallbackReason = z.output<typeof FetchFallbackReasonSchema>;
 export type FetchOptions = z.input<typeof FetchOptionsSchema>;
 export type NormalizedFetchOptions = ResolvedFetchControls;
+export type FetchRunRetrievalPolicy = ResolvedRunRetrievalPolicy;
 export type FetchCacheControlInput = z.input<typeof FetchCacheControlInputSchema>;
 export type NormalizedFetchCacheControl = Pick<
   ResolvedFetchControls,
@@ -67,6 +70,13 @@ export type FetchResponse = z.output<typeof FetchResponseSchema>;
 
 export function normalizeFetchOptions(input?: unknown): NormalizedFetchOptions {
   return FetchOptionsSchema.parse(input ?? {});
+}
+
+export function normalizeFetchOptionsWithRunPolicy(
+  policy?: unknown,
+  input?: unknown,
+): NormalizedFetchOptions {
+  return mergeRunPolicyIntoFetchControls(policy, input);
 }
 
 export function normalizeFetchCacheControl(

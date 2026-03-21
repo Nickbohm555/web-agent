@@ -58,6 +58,18 @@ export const FetchControlsInputSchema = z
   })
   .strict();
 
+export const RunRetrievalPolicyInputSchema = z
+  .object({
+    country: z.string().trim().min(1).optional(),
+    language: z.string().trim().min(1).optional(),
+    freshness: RetrievalFreshnessSchema.optional(),
+    includeDomains: z.array(z.string()).optional(),
+    excludeDomains: z.array(z.string()).optional(),
+    maxAgeMs: z.coerce.number().int().min(0).max(FETCH_MAX_AGE_MAX_MS).optional(),
+    fresh: z.coerce.boolean().optional(),
+  })
+  .strict();
+
 export interface ResolvedSearchControls {
   maxResults: number;
   timeoutMs: number;
@@ -71,6 +83,14 @@ export interface ResolvedFetchControls {
   timeoutMs: number;
   maxAgeMs: number;
   fresh: boolean;
+}
+
+export interface ResolvedRunRetrievalPolicy {
+  search: Pick<
+    ResolvedSearchControls,
+    "country" | "language" | "freshness" | "domainScope"
+  >;
+  fetch: Pick<ResolvedFetchControls, "maxAgeMs" | "fresh">;
 }
 
 export function resolveSearchControls(input?: unknown): ResolvedSearchControls {
@@ -102,4 +122,96 @@ export function resolveFetchControls(input?: unknown): ResolvedFetchControls {
     maxAgeMs: parsed.maxAgeMs ?? FETCH_MAX_AGE_DEFAULT_MS,
     fresh: parsed.fresh ?? false,
   };
+}
+
+export function resolveRunRetrievalPolicy(
+  input?: unknown,
+): ResolvedRunRetrievalPolicy {
+  const parsed = RunRetrievalPolicyInputSchema.parse(input ?? {});
+  const search = resolveSearchControls({
+    country: parsed.country,
+    language: parsed.language,
+    freshness: parsed.freshness,
+    includeDomains: parsed.includeDomains,
+    excludeDomains: parsed.excludeDomains,
+  });
+  const fetch = resolveFetchControls({
+    maxAgeMs: parsed.maxAgeMs,
+    fresh: parsed.fresh,
+  });
+
+  return {
+    search: {
+      country: search.country,
+      language: search.language,
+      freshness: search.freshness,
+      domainScope: search.domainScope,
+    },
+    fetch: {
+      maxAgeMs: fetch.maxAgeMs,
+      fresh: fetch.fresh,
+    },
+  };
+}
+
+export function mergeRunPolicyIntoSearchControls(
+  policy?: unknown,
+  input?: unknown,
+): ResolvedSearchControls {
+  const resolvedPolicy = resolveRunRetrievalPolicy(policy);
+  const parsedInput = SearchControlsInputSchema.parse(input ?? {});
+
+  return resolveSearchControls({
+    ...parsedInput,
+    country: parsedInput.country ?? resolvedPolicy.search.country,
+    language: parsedInput.language ?? resolvedPolicy.search.language,
+    freshness: parsedInput.freshness ?? resolvedPolicy.search.freshness,
+    includeDomains:
+      parsedInput.includeDomains ?? resolvedPolicy.search.domainScope.includeDomains,
+    excludeDomains:
+      parsedInput.excludeDomains ?? resolvedPolicy.search.domainScope.excludeDomains,
+  });
+}
+
+export function mergeRunPolicyIntoFetchControls(
+  policy?: unknown,
+  input?: unknown,
+): ResolvedFetchControls {
+  const resolvedPolicy = resolveRunRetrievalPolicy(policy);
+  const parsedInput = FetchControlsInputSchema.parse(input ?? {});
+
+  return resolveFetchControls({
+    ...parsedInput,
+    maxAgeMs: parsedInput.maxAgeMs ?? resolvedPolicy.fetch.maxAgeMs,
+    fresh: parsedInput.fresh ?? resolvedPolicy.fetch.fresh,
+  });
+}
+
+export function mergeRunPolicyIntoSearchInput(
+  policy?: unknown,
+  input?: unknown,
+): z.input<typeof SearchControlsInputSchema> {
+  const merged = mergeRunPolicyIntoSearchControls(policy, input);
+
+  return SearchControlsInputSchema.parse({
+    ...(SearchControlsInputSchema.parse(input ?? {})),
+    country: merged.country,
+    language: merged.language,
+    freshness: merged.freshness,
+    includeDomains: merged.domainScope.includeDomains,
+    excludeDomains: merged.domainScope.excludeDomains,
+  });
+}
+
+export function mergeRunPolicyIntoFetchInput(
+  policy?: unknown,
+  input?: unknown,
+): z.input<typeof FetchControlsInputSchema> {
+  const merged = mergeRunPolicyIntoFetchControls(policy, input);
+
+  return FetchControlsInputSchema.parse({
+    ...(FetchControlsInputSchema.parse(input ?? {})),
+    maxAgeMs: merged.maxAgeMs,
+    fresh: merged.fresh,
+  });
 }

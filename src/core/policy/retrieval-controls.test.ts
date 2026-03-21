@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  mergeRunPolicyIntoFetchControls,
+  mergeRunPolicyIntoSearchControls,
   resolveFetchControls,
+  resolveRunRetrievalPolicy,
   resolveSearchControls,
 } from "./retrieval-controls.js";
 
@@ -69,5 +72,68 @@ describe("retrieval controls policy", () => {
       excludeDomains: ["example.com", "github.com"],
     });
     expect(equivalent.domainScope).toEqual(resolved.domainScope);
+  });
+
+  it("normalizes a run-level retrieval policy into shared search and fetch controls", () => {
+    expect(
+      resolveRunRetrievalPolicy({
+        freshness: "month",
+        includeDomains: ["Docs.Example.com"],
+        excludeDomains: ["blocked.com"],
+        maxAgeMs: 60_000,
+        fresh: true,
+      }),
+    ).toEqual({
+      search: {
+        country: "US",
+        language: "en",
+        freshness: "month",
+        domainScope: {
+          includeDomains: ["example.com"],
+          excludeDomains: ["blocked.com"],
+        },
+      },
+      fetch: {
+        maxAgeMs: 60_000,
+        fresh: true,
+      },
+    });
+  });
+
+  it("merges run-level retrieval policy into search and fetch inputs without overriding explicit tool controls", () => {
+    const policy = {
+      freshness: "week",
+      includeDomains: ["example.com"],
+      maxAgeMs: 60_000,
+      fresh: true,
+    };
+
+    expect(
+      mergeRunPolicyIntoSearchControls(policy, {
+        maxResults: 3,
+        freshness: "day",
+      }),
+    ).toEqual({
+      maxResults: 3,
+      timeoutMs: 5_000,
+      country: "US",
+      language: "en",
+      freshness: "day",
+      domainScope: {
+        includeDomains: ["example.com"],
+        excludeDomains: [],
+      },
+    });
+
+    expect(
+      mergeRunPolicyIntoFetchControls(policy, {
+        timeoutMs: 1_000,
+        fresh: false,
+      }),
+    ).toEqual({
+      timeoutMs: 1_000,
+      maxAgeMs: 60_000,
+      fresh: false,
+    });
   });
 });

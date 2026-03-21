@@ -252,6 +252,47 @@ describe("search controls integration", () => {
       tbs: "qdr:m",
     });
   });
+
+  it("applies run-level retrieval policy to downstream search behavior", async () => {
+    const { search } = await import("../sdk/index.js");
+    const { mergeRunPolicyIntoSearchInput } = await import("../core/policy/retrieval-controls.js");
+
+    requestMock.mockResolvedValueOnce(
+      createResponse(200, {
+        organic: [
+          { title: "Allowed", link: "https://docs.example.com/page", position: 2 },
+          { title: "Blocked", link: "https://blocked.com/post", position: 1 },
+        ],
+      }),
+    );
+
+    const options = mergeRunPolicyIntoSearchInput(
+      {
+        freshness: "week",
+        includeDomains: ["example.com"],
+        excludeDomains: ["blocked.com"],
+      },
+      {
+        maxResults: 2,
+      },
+    );
+
+    const response = await search("agents", options);
+
+    expect(response.results).toEqual([
+      expect.objectContaining({
+        title: "Allowed",
+        url: "https://docs.example.com/page",
+      }),
+    ]);
+    expect(getRequestBody(0)).toEqual({
+      q: "agents site:example.com -site:blocked.com",
+      num: 2,
+      gl: "us",
+      hl: "en",
+      tbs: "qdr:w",
+    });
+  });
 });
 
 function createResponse(statusCode: number, payload: unknown) {

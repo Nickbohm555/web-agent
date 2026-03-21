@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { CallMetaSchema } from "../../core/telemetry/call-meta.js";
 import {
+  mergeRunPolicyIntoSearchControls,
   resolveSearchControls,
+  type ResolvedRunRetrievalPolicy,
   SearchControlsInputSchema,
   type ResolvedSearchControls,
 } from "../../core/policy/retrieval-controls.js";
@@ -54,6 +56,7 @@ export const SearchResponseSchema = z
 
 export type SearchOptions = z.input<typeof SearchOptionsSchema>;
 export type NormalizedSearchOptions = ResolvedSearchControls;
+export type SearchRunRetrievalPolicy = ResolvedRunRetrievalPolicy;
 export type SearchRequest = z.output<typeof SearchRequestSchema>;
 export type SearchRank = z.output<typeof SearchRankSchema>;
 export type SearchResultItem = z.output<typeof SearchResultItemSchema>;
@@ -61,6 +64,13 @@ export type SearchResponse = z.output<typeof SearchResponseSchema>;
 
 export function normalizeSearchOptions(input?: unknown): NormalizedSearchOptions {
   return SearchOptionsSchema.parse(input ?? {});
+}
+
+export function normalizeSearchOptionsWithRunPolicy(
+  policy?: unknown,
+  input?: unknown,
+): NormalizedSearchOptions {
+  return mergeRunPolicyIntoSearchControls(policy, input);
 }
 
 export function normalizeSearchQuery(input: string): string {

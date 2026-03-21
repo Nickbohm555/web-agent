@@ -161,6 +161,38 @@ describe("fetch controls integration", () => {
     });
     expect(runFetchOrchestratorMock).toHaveBeenCalledTimes(2);
   });
+
+  it("applies run-level retrieval policy freshness controls to downstream fetch behavior", async () => {
+    const { fetch: sdkFetch } = await import("../sdk/index.js");
+    const { mergeRunPolicyIntoFetchInput } = await import("../core/policy/retrieval-controls.js");
+
+    runFetchOrchestratorMock.mockResolvedValueOnce(
+      createFetchResponse("https://example.com/article", "policy article"),
+    );
+
+    const response = await sdkFetch(
+      "https://example.com/article",
+      mergeRunPolicyIntoFetchInput(
+        {
+          maxAgeMs: 60_000,
+          fresh: true,
+        },
+        {
+          timeoutMs: 2_000,
+        },
+      ),
+    );
+
+    expect(response.text).toBe("policy article");
+    expect(runFetchOrchestratorMock).toHaveBeenCalledWith(
+      "https://example.com/article",
+      {
+        http: {
+          timeoutMs: 2_000,
+        },
+      },
+    );
+  });
 });
 
 function createFetchResponse(url: string, text: string): FetchResponse {

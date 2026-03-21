@@ -9,6 +9,7 @@ import {
   createRunStartResponse,
   parseRunStartRequest,
   type CanonicalRunEvent,
+  type RunRetrievalPolicy,
   type RunMode,
   type RunHistoryRunSnapshot,
   type RunStreamEvent,
@@ -23,11 +24,13 @@ export interface RunEventStreamContext {
 export interface RunExecutorContext extends RunEventStreamContext {
   prompt: string;
   mode: RunMode;
+  retrievalPolicy: RunRetrievalPolicy;
 }
 
 interface PendingRun {
   prompt: string;
   mode: RunMode;
+  retrievalPolicy: RunRetrievalPolicy;
 }
 
 interface BackgroundRunRecord {
@@ -40,6 +43,9 @@ interface BackgroundRunRecord {
   completionError: Error | null;
   notifyCompleted: () => void;
 }
+
+const DEFAULT_RUN_FAILED_CODE = "RUN_FAILED";
+const MAX_BACKGROUND_RUNS = 25;
 
 export type RunExecutorResult =
   | {
@@ -89,6 +95,7 @@ export function createRunsRouter(): Router {
         tool_input: {
           prompt: request.prompt,
           mode: request.mode,
+          retrievalPolicy: serializeRunRetrievalPolicy(request.retrievalPolicy),
         },
         safety: createEmptyRunEventSafety(),
       });
@@ -183,10 +190,7 @@ export function createRunsRouter(): Router {
         );
         res.write(serializeRunStreamEvent(parsedEvent));
 
-        if (
-          parsedEvent.event === "run_complete" ||
-          parsedEvent.event === "run_error"
-        ) {
+        if (isTerminalRunStreamEvent(parsedEvent)) {
           break;
         }
       }
@@ -239,6 +243,7 @@ export function createExecutorBackedRunEventStreamFactory(
         signal: context.signal,
         prompt: pendingRun.prompt,
         mode: pendingRun.mode,
+        retrievalPolicy: pendingRun.retrievalPolicy,
       });
 
       if (result.status === "completed") {
@@ -252,7 +257,7 @@ export function createExecutorBackedRunEventStreamFactory(
       yield createRunErrorEvent(
         context.runId,
         result.message,
-        result.code ?? "RUN_FAILED",
+        result.code ?? DEFAULT_RUN_FAILED_CODE,
         result.failedAt ?? Date.now(),
       );
     } catch (error: unknown) {
@@ -354,7 +359,7 @@ async function executeBackgroundRun(options: {
       );
       emitBackgroundRunEvent(options.run, event);
 
-      if (event.event === "run_complete" || event.event === "run_error") {
+      if (isTerminalRunStreamEvent(event)) {
         break;
       }
     }
@@ -415,7 +420,7 @@ async function streamBackgroundRun(options: {
       }
 
       options.response.write(serializeRunStreamEvent(event));
-      if (event.event === "run_complete" || event.event === "run_error") {
+      if (isTerminalRunStreamEvent(event)) {
         cleanup();
         resolve();
       }
@@ -462,6 +467,7 @@ function resolveBackgroundEventProducer(
       runId,
       prompt: request.prompt,
       mode: request.mode,
+      retrievalPolicy: request.retrievalPolicy,
     });
   }
 
@@ -485,6 +491,7 @@ async function* createExecutorBackedEventProducer(
     signal: new AbortController().signal,
     prompt: run.prompt,
     mode: run.mode,
+    retrievalPolicy: run.retrievalPolicy,
   });
 
   if (result.status === "completed") {
@@ -498,14 +505,12 @@ async function* createExecutorBackedEventProducer(
   yield createRunErrorEvent(
     run.runId,
     result.message,
-    result.code ?? "RUN_FAILED",
+    result.code ?? DEFAULT_RUN_FAILED_CODE,
     result.failedAt ?? Date.now(),
   );
 }
 
 function trimBackgroundRuns(backgroundRuns: Map<string, BackgroundRunRecord>) {
-  const MAX_BACKGROUND_RUNS = 25;
-
   while (backgroundRuns.size > MAX_BACKGROUND_RUNS) {
     const oldestCompletedRun = [...backgroundRuns.values()].find((run) => run.isComplete);
     if (oldestCompletedRun === undefined) {
@@ -514,6 +519,10 @@ function trimBackgroundRuns(backgroundRuns: Map<string, BackgroundRunRecord>) {
 
     backgroundRuns.delete(oldestCompletedRun.runId);
   }
+}
+
+function isTerminalRunStreamEvent(event: RunStreamEvent): boolean {
+  return event.event === "run_complete" || event.event === "run_error";
 }
 
 export function createHttpAgentRunExecutor(
@@ -533,6 +542,7 @@ export function createHttpAgentRunExecutor(
         body: JSON.stringify({
           prompt: context.prompt,
           mode: context.mode,
+          retrievalPolicy: serializeBackendRetrievalPolicy(context.retrievalPolicy),
         }),
         signal: context.signal,
       },
@@ -602,6 +612,40 @@ function resolveRunEventStreamFactory(
   }
 
   return undefined;
+}
+
+function serializeRunRetrievalPolicy(policy: RunRetrievalPolicy) {
+  return {
+    search: {
+      country: policy.search.country,
+      language: policy.search.language,
+      freshness: policy.search.freshness,
+      domainScope: {
+        includeDomains: [...policy.search.domainScope.includeDomains],
+        excludeDomains: [...policy.search.domainScope.excludeDomains],
+      },
+    },
+    fetch: {
+      maxAgeMs: policy.fetch.maxAgeMs,
+      fresh: policy.fetch.fresh,
+    },
+  };
+}
+
+function serializeBackendRetrievalPolicy(policy: RunRetrievalPolicy) {
+  return {
+    search: {
+      country: policy.search.country,
+      language: policy.search.language,
+      freshness: policy.search.freshness,
+      include_domains: [...policy.search.domainScope.includeDomains],
+      exclude_domains: [...policy.search.domainScope.excludeDomains],
+    },
+    fetch: {
+      max_age_ms: policy.fetch.maxAgeMs,
+      fresh: policy.fetch.fresh,
+    },
+  };
 }
 
 function resolveNextEventSeq(
@@ -742,7 +786,7 @@ function createRunFailureEvent(
     event_type: "run_failed",
     ts: toIsoTimestamp(failedAt),
     error_output: {
-      code: code ?? "RUN_FAILED",
+      code: code ?? DEFAULT_RUN_FAILED_CODE,
       message,
     },
     safety: createEmptyRunEventSafety(),

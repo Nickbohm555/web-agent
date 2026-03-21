@@ -124,6 +124,21 @@ describe("run history API", () => {
       expect(detailPayload.events[0]?.tool_input).toEqual({
         prompt: "Find sources",
         mode: "quick",
+        retrievalPolicy: {
+          search: {
+            country: "US",
+            language: "en",
+            freshness: "any",
+            domainScope: {
+              includeDomains: [],
+              excludeDomains: [],
+            },
+          },
+          fetch: {
+            maxAgeMs: 300_000,
+            fresh: false,
+          },
+        },
       });
       expect(detailPayload.events.at(-1)?.final_answer).toBe(
         "Answer with citations.",

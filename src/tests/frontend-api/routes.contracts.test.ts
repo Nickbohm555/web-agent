@@ -74,10 +74,10 @@ describe("frontend API route contracts", () => {
     expect(searchMock).toHaveBeenCalledWith("agents", {
       maxResults: 2,
       timeoutMs: 1_500,
-      country: "us",
-      language: "EN",
+      country: "US",
+      language: "en",
       freshness: "week",
-      includeDomains: ["Docs.Example.com"],
+      includeDomains: ["example.com"],
       excludeDomains: ["blocked.com"],
     });
   });
