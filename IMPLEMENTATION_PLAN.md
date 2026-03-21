@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 18
+Current Section: 19
 
 ## Section 1: Define Search Mode Contract
 
@@ -404,6 +404,8 @@ Completed with `npm install`, `pytest backend/tests/agent/test_runtime.py -q`, `
 
 ## Section 18: Render Inline Citations And Sources In The Frontend
 
+✓ Completed: Threaded structured answers through frontend run completion events, added citation-aware answer segmentation/rendering with clickable inline links plus a dedicated source list panel, and kept live/history views compatible by deriving rich answer state from canonical run events while preserving plain-text fallbacks.
+
 Task:
 Replace plain-text final-answer rendering with citation-aware answer rendering and a visible source list.
 
@@ -421,7 +423,7 @@ How to Test:
 Success looks like the final answer rendering clickable inline citations and a readable source list in both active and historical views. We know this section is working when rendered citations point to the expected URLs/titles and the answer no longer needs to be displayed as plain text only.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm run test -- src/tests/frontend/state.test.ts`, `npm run test -- src/tests/frontend/timeline.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 ## Section 19: Make History Storage Citation-Aware
 
