@@ -5,6 +5,7 @@ import {
   parseRunEvent,
   type CanonicalRunEvent,
   type CanonicalRunEventJson,
+  type CanonicalRunEventRetrievalAction,
   type CanonicalRunEventPayloadSafety,
   type CanonicalRunEventToolName,
 } from "../../frontend/contracts.js";
@@ -102,6 +103,13 @@ function emitRunEvent(
   const toolInput = sanitizePayload(input.tool_input);
   const toolOutput = sanitizePayload(input.tool_output);
   const errorOutput = sanitizePayload(input.error_output);
+  const retrievalAction = deriveRetrievalAction({
+    toolName: input.tool_name,
+    toolCallId: input.tool_call_id,
+    toolInput: input.tool_input,
+    toolOutput: input.tool_output,
+    errorOutput: input.error_output,
+  });
 
   const event = parseRunEvent({
     run_id,
@@ -111,6 +119,9 @@ function emitRunEvent(
     ...(input.tool_name !== undefined ? { tool_name: input.tool_name } : {}),
     ...(input.tool_call_id !== undefined
       ? { tool_call_id: input.tool_call_id }
+      : {}),
+    ...(retrievalAction !== undefined
+      ? { retrieval_action: retrievalAction }
       : {}),
     ...(toolInput.payload !== undefined
       ? { tool_input: toolInput.payload }
@@ -131,6 +142,109 @@ function emitRunEvent(
 
   logger.info(event);
   return event;
+}
+
+function deriveRetrievalAction(input: {
+  toolName: CanonicalRunEventToolName | undefined;
+  toolCallId: string | undefined;
+  toolInput: unknown;
+  toolOutput: unknown;
+  errorOutput: unknown;
+}): CanonicalRunEventRetrievalAction | undefined {
+  if (input.toolName === "web_search") {
+    const query =
+      readStringField(input.toolInput, "query") ??
+      readStringField(input.toolOutput, "query");
+    if (query === undefined) {
+      return undefined;
+    }
+    const resultCount = readSearchResultCount(input.toolOutput);
+
+    return {
+      action_id: input.toolCallId ?? createToolCallId(),
+      action_type: "search",
+      query,
+      ...(resultCount !== undefined ? { result_count: resultCount } : {}),
+    };
+  }
+
+  if (input.toolName === "web_crawl") {
+    const url =
+      readUrlField(input.toolInput, "url") ??
+      readUrlField(input.toolOutput, "final_url") ??
+      readUrlField(input.toolOutput, "url");
+    if (url === undefined) {
+      return undefined;
+    }
+
+    return {
+      action_id: input.toolCallId ?? createToolCallId(),
+      action_type: "open_page",
+      url,
+    };
+  }
+
+  return undefined;
+}
+
+function readSearchResultCount(value: unknown): number | undefined {
+  const metadata = readObjectField(value, "metadata");
+  const explicitCount = readNumberField(metadata, "result_count");
+  if (explicitCount !== undefined) {
+    return explicitCount;
+  }
+
+  const results = readArrayField(value, "results");
+  return results?.length;
+}
+
+function readStringField(value: unknown, field: string): string | undefined {
+  const record = asRecord(value);
+  const candidate = record?.[field];
+  return typeof candidate === "string" && candidate.trim().length > 0
+    ? candidate
+    : undefined;
+}
+
+function readNumberField(value: unknown, field: string): number | undefined {
+  const record = asRecord(value);
+  const candidate = record?.[field];
+  return typeof candidate === "number" && Number.isFinite(candidate)
+    ? candidate
+    : undefined;
+}
+
+function readUrlField(value: unknown, field: string): string | undefined {
+  const candidate = readStringField(value, field);
+  if (candidate === undefined) {
+    return undefined;
+  }
+
+  try {
+    return new URL(candidate).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function readObjectField(
+  value: unknown,
+  field: string,
+): Record<string, unknown> | undefined {
+  const record = asRecord(value);
+  return asRecord(record?.[field]);
+}
+
+function readArrayField(value: unknown, field: string): unknown[] | undefined {
+  const record = asRecord(value);
+  const candidate = record?.[field];
+  return Array.isArray(candidate) ? candidate : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function sanitizePayload(input: unknown): {

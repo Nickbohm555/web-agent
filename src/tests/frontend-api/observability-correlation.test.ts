@@ -122,6 +122,22 @@ describe("observability correlation context", () => {
     expect(parsedEvents[0]?.tool_name).toBe("web_search");
     expect(parsedEvents[1]?.tool_name).toBe("web_search");
     expect(parsedEvents[2]?.tool_name).toBe("web_crawl");
+    expect(parsedEvents[0]?.retrieval_action).toEqual({
+      action_id: parsedEvents[0]?.tool_call_id,
+      action_type: "search",
+      query: "agents",
+    });
+    expect(parsedEvents[1]?.retrieval_action).toEqual({
+      action_id: parsedEvents[1]?.tool_call_id,
+      action_type: "search",
+      query: "agents",
+      result_count: 1,
+    });
+    expect(parsedEvents[2]?.retrieval_action).toEqual({
+      action_id: parsedEvents[2]?.tool_call_id,
+      action_type: "open_page",
+      url: "https://example.com/private",
+    });
 
     expect(parsedEvents[1]?.tool_output).toEqual({
       ...createSearchResponse({
@@ -359,6 +375,7 @@ function parseStructuredLogEvents(
         ts: record.ts,
         tool_name: record.tool_name,
         tool_call_id: record.tool_call_id,
+        retrieval_action: record.retrieval_action,
         tool_input: record.tool_input,
         tool_output: record.tool_output,
         error_output: record.error_output,
