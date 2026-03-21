@@ -55,7 +55,7 @@ def test_web_search_response_accepts_normalized_success_payload() -> None:
                 title="Example result",
                 url="https://example.com/article",
                 snippet="  Summary text.  ",
-                rank=SearchRank(position=1, provider_position=2),
+                rank=SearchRank(position=1, provider_position=2, rerank_score=12.5),
             )
         ],
         metadata=SearchMetadata(result_count=1, provider="serper"),
@@ -72,6 +72,7 @@ def test_web_search_response_accepts_normalized_success_payload() -> None:
     assert response.results[0].snippet == "Summary text."
     assert str(response.results[0].url) == "https://example.com/article"
     assert response.metadata.result_count == 1
+    assert response.results[0].rank.rerank_score == 12.5
 
 
 def test_build_web_search_action_record_summarizes_success_payload() -> None:
@@ -358,6 +359,37 @@ def test_serper_client_returns_normalized_results_on_success() -> None:
     assert '"num":2' in str(captured_request["json"])
 
 
+def test_serper_client_builds_provider_snippet_from_extra_fields() -> None:
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(
+            lambda _request: _json_response(
+                200,
+                {
+                    "organic": [
+                        {
+                            "title": "Result with metadata",
+                            "link": "https://example.com/metadata",
+                            "date": "Jan 5, 2025",
+                            "attributes": {
+                                "Author": "Example Team",
+                                "Reading time": "5 min",
+                            },
+                        }
+                    ]
+                },
+            )
+        ),
+    )
+
+    response = client.search(query="agents", max_results=1)
+
+    assert response.results[0].snippet == (
+        "Published: Jan 5, 2025 | Author: Example Team | Reading time: 5 min"
+    )
+    assert response.results[0].rank.provider_position == 1
+
+
 def test_serper_client_retries_429_and_recovers() -> None:
     attempts = {"count": 0}
 
@@ -471,7 +503,80 @@ def test_web_search_tool_returns_contract_valid_success_payload() -> None:
         "Later provider result",
     ]
     assert [result.rank.position for result in response.results] == [1, 2]
+    assert response.results[0].rank.rerank_score is not None
     assert response.meta.operation == "web_search"
+
+
+def test_web_search_tool_reranks_results_by_query_relevance() -> None:
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(
+            lambda _request: _json_response(
+                200,
+                {
+                    "organic": [
+                        {
+                            "title": "Company blog",
+                            "link": "https://example.com/blog",
+                            "snippet": "General company update with no pricing details.",
+                            "position": 1,
+                        },
+                        {
+                            "title": "Widget pricing and enterprise plans",
+                            "link": "https://example.com/pricing",
+                            "snippet": (
+                                "Overview. Widget pricing starts at $49 per seat for teams. "
+                                "Annual discounts are available."
+                            ),
+                            "position": 2,
+                        },
+                    ]
+                },
+            )
+        ),
+    )
+
+    payload = run_web_search(query="widget pricing", max_results=2, client=client)
+    response = WebSearchResponse.model_validate(payload)
+
+    assert [result.title for result in response.results] == [
+        "Widget pricing and enterprise plans",
+        "Company blog",
+    ]
+    assert response.results[0].rank.position == 1
+    assert response.results[0].rank.provider_position == 2
+    assert response.results[0].rank.rerank_score > response.results[1].rank.rerank_score
+
+
+def test_web_search_tool_builds_tighter_query_aligned_snippets() -> None:
+    client = SerperClient(
+        api_key="serper-test-key",
+        http_client=_mock_http_client(
+            lambda _request: _json_response(
+                200,
+                {
+                    "organic": [
+                        {
+                            "title": "Widget pricing",
+                            "link": "https://example.com/pricing",
+                            "snippet": (
+                                "Welcome to the overview page. Widget pricing starts at $49 per seat for teams. "
+                                "Contact sales for annual billing."
+                            ),
+                            "position": 1,
+                        }
+                    ]
+                },
+            )
+        ),
+    )
+
+    payload = run_web_search(query="widget pricing", max_results=1, client=client)
+    response = WebSearchResponse.model_validate(payload)
+
+    assert response.results[0].snippet == (
+        "Widget pricing starts at $49 per seat for teams. Contact sales for annual billing."
+    )
 
 
 def test_build_web_search_tool_caps_agent_requested_result_count() -> None:

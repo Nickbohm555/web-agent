@@ -223,24 +223,27 @@ def _normalize_results(payload: dict[str, Any], *, max_results: int) -> list[Web
     if not isinstance(organic, Iterable) or isinstance(organic, (str, bytes, dict)):
         organic = []
 
-    normalized: list[tuple[int | None, dict[str, Any]]] = []
-    for raw_item in organic:
+    normalized: list[tuple[int, dict[str, Any]]] = []
+    for fallback_position, raw_item in enumerate(organic, start=1):
         if not isinstance(raw_item, dict):
             continue
         title = _clean_text(raw_item.get("title"))
         url = _clean_text(raw_item.get("link"))
-        snippet = _clean_text(raw_item.get("snippet"), allow_empty=True)
+        snippet = _build_provider_snippet(raw_item)
         if not title or not url:
             continue
         provider_position = raw_item.get("position")
+        normalized_position = (
+            provider_position if isinstance(provider_position, int) and provider_position >= 1 else fallback_position
+        )
         normalized.append(
             (
-                provider_position if isinstance(provider_position, int) and provider_position >= 1 else None,
+                normalized_position,
                 {"title": title, "url": url, "snippet": snippet},
             )
         )
 
-    normalized.sort(key=lambda item: (item[0] is None, item[0] or 0))
+    normalized.sort(key=lambda item: item[0])
 
     results: list[WebSearchResult] = []
     for position, (provider_position, item) in enumerate(normalized[:max_results], start=1):
@@ -253,6 +256,45 @@ def _normalize_results(payload: dict[str, Any], *, max_results: int) -> list[Web
             )
         )
     return results
+
+
+def _build_provider_snippet(raw_item: dict[str, Any]) -> str:
+    parts: list[str] = []
+
+    snippet = _clean_text(raw_item.get("snippet"), allow_empty=True)
+    if snippet:
+        parts.append(snippet)
+
+    date = _clean_text(raw_item.get("date"), allow_empty=True)
+    if date:
+        parts.append(f"Published: {date}")
+
+    attributes = raw_item.get("attributes")
+    if isinstance(attributes, dict):
+        for key, value in attributes.items():
+            normalized_key = _clean_text(key, allow_empty=True)
+            normalized_value = _clean_text(value, allow_empty=True)
+            if normalized_key and normalized_value:
+                parts.append(f"{normalized_key}: {normalized_value}")
+
+    return _dedupe_parts(parts)
+
+
+def _dedupe_parts(parts: Iterable[str]) -> str:
+    unique_parts: list[str] = []
+    seen: set[str] = set()
+
+    for part in parts:
+        normalized = _clean_text(part, allow_empty=True)
+        if not normalized:
+            continue
+        lowered = normalized.casefold()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        unique_parts.append(normalized)
+
+    return " | ".join(unique_parts)
 
 
 def _clean_text(value: Any, *, allow_empty: bool = False) -> str:
