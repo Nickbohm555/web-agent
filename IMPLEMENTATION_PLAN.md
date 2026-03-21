@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 5
+Current Section: 6
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -127,6 +127,7 @@ Success looks like runtime fixtures showing the agent issuing more targeted sear
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: ✓ Updated runtime prompt wiring so agentic and deep-research runs receive explicit retrieval strategy guidance, require objective-bearing `web_crawl` calls, reinforce excerpt-driven search triage, and verified with `pytest backend/tests/agent/test_runtime.py -q`, `pytest backend/tests/tools/test_web_crawl_tool.py -q`, `pytest backend/tests/tools/test_web_search_tool.py -q`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
