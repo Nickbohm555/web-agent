@@ -132,13 +132,13 @@ class RuntimeSourceRegistry:
 
         source = self._sources_by_key.get(target_key)
         if source is None:
-            source = AgentSourceReference(title=title, url=url, snippet=snippet)
+            source = AgentSourceReference(title=title, url=canonical_key, snippet=snippet)
         else:
             source = source.model_copy(
                 update=_merge_source_metadata(
                     source=source,
                     incoming_title=title,
-                    incoming_url=url,
+                    incoming_url=canonical_key,
                     incoming_snippet=snippet,
                 )
             )
@@ -475,35 +475,29 @@ def _extract_sources(raw_result: Any) -> RuntimeSourceRegistry:
     if isinstance(direct_sources, list):
         _register_source_payload(registry, direct_sources)
 
+    direct_final_answer = raw_result.get("final_answer")
+    if isinstance(direct_final_answer, dict):
+        _register_citation_sources(registry, direct_final_answer.get("citations"))
+
     messages = raw_result.get("messages")
     if isinstance(messages, list):
         for message in messages:
             source_payload = _coerce_message_sources(message)
             if source_payload:
                 _register_source_payload(registry, source_payload)
+            _register_citation_sources(
+                registry,
+                _coerce_message_typed_field(message, "citations", list),
+            )
             _register_message_tool_sources(registry, message)
 
     return registry
 
 
 def _coerce_message_sources(message: Any) -> list[AgentSourceReference]:
-    if isinstance(message, dict):
-        direct_sources = message.get("sources")
-        if isinstance(direct_sources, list):
-            return _validate_sources(direct_sources)
-
-        additional_kwargs = message.get("additional_kwargs")
-        if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("sources"), list):
-            return _validate_sources(additional_kwargs["sources"])
-        return []
-
-    direct_sources = getattr(message, "sources", None)
-    if isinstance(direct_sources, list):
-        return _validate_sources(direct_sources)
-
-    additional_kwargs = getattr(message, "additional_kwargs", None)
-    if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("sources"), list):
-        return _validate_sources(additional_kwargs["sources"])
+    source_payload = _coerce_message_typed_field(message, "sources", list)
+    if isinstance(source_payload, list):
+        return _validate_sources(source_payload)
 
     return []
 
@@ -517,6 +511,31 @@ def _register_source_payload(
             url=str(source.url),
             title=source.title,
             snippet=source.snippet,
+        )
+
+
+def _register_citation_sources(
+    registry: RuntimeSourceRegistry,
+    citation_payload: Any,
+) -> None:
+    if not isinstance(citation_payload, list):
+        return
+
+    for entry in citation_payload:
+        if not isinstance(entry, dict):
+            continue
+
+        url = entry.get("url")
+        if url is None:
+            continue
+
+        title = str(entry.get("title") or url).strip()
+        if not title:
+            continue
+
+        registry.register(
+            url=str(url),
+            title=title,
         )
 
 
@@ -552,27 +571,7 @@ def _register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any
 
 
 def _coerce_message_final_answer(message: Any) -> dict[str, Any] | None:
-    if isinstance(message, dict):
-        direct_final_answer = message.get("final_answer")
-        if isinstance(direct_final_answer, dict):
-            return direct_final_answer
-
-        additional_kwargs = message.get("additional_kwargs")
-        if isinstance(additional_kwargs, dict) and isinstance(
-            additional_kwargs.get("final_answer"), dict
-        ):
-            return additional_kwargs["final_answer"]
-        return None
-
-    direct_final_answer = getattr(message, "final_answer", None)
-    if isinstance(direct_final_answer, dict):
-        return direct_final_answer
-
-    additional_kwargs = getattr(message, "additional_kwargs", None)
-    if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("final_answer"), dict):
-        return additional_kwargs["final_answer"]
-
-    return None
+    return _coerce_message_typed_field(message, "final_answer", dict)
 
 
 def _validate_sources(source_payload: list[Any]) -> list[AgentSourceReference]:
@@ -611,81 +610,25 @@ def _build_source_lookup(
     for source in sources:
         lookup[source.source_id] = source
         lookup[str(source.url)] = source
+        normalized_url = _normalize_source_url(str(source.url))
+        if normalized_url is not None:
+            lookup[normalized_url] = source
     return lookup
 
 
 def _coerce_message_tool_name(message: Any) -> str | None:
-    if isinstance(message, dict):
-        for key in ("name", "tool_name"):
-            value = message.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-        additional_kwargs = message.get("additional_kwargs")
-        if isinstance(additional_kwargs, dict):
-            for key in ("name", "tool_name"):
-                value = additional_kwargs.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-        return None
-
-    for key in ("name", "tool_name"):
-        value = getattr(message, key, None)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-
-    additional_kwargs = getattr(message, "additional_kwargs", None)
-    if isinstance(additional_kwargs, dict):
-        for key in ("name", "tool_name"):
-            value = additional_kwargs.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-
-    return None
+    return _coerce_named_message_field(message, ("name", "tool_name")) or _coerce_named_message_field(
+        _message_additional_kwargs(message),
+        ("name", "tool_name"),
+    )
 
 
 def _coerce_message_tool_payload(message: Any) -> dict[str, Any] | None:
-    if isinstance(message, dict):
-        payload = (
-            message.get("tool_output")
-            or message.get("artifact")
-            or message.get("payload")
-            or _decode_json_object(message.get("content"))
-        )
-        if isinstance(payload, dict):
-            return payload
-
-        additional_kwargs = message.get("additional_kwargs")
-        if isinstance(additional_kwargs, dict):
-            nested_payload = (
-                additional_kwargs.get("tool_output")
-                or additional_kwargs.get("artifact")
-                or additional_kwargs.get("payload")
-                or _decode_json_object(additional_kwargs.get("content"))
-            )
-            if isinstance(nested_payload, dict):
-                return nested_payload
-        return None
-
-    for key in ("tool_output", "artifact", "payload"):
-        payload = getattr(message, key, None)
-        if isinstance(payload, dict):
-            return payload
-
-    payload = _decode_json_object(getattr(message, "content", None))
+    payload = _coerce_message_payload_mapping(message)
     if isinstance(payload, dict):
         return payload
 
-    additional_kwargs = getattr(message, "additional_kwargs", None)
-    if isinstance(additional_kwargs, dict):
-        for key in ("tool_output", "artifact", "payload"):
-            payload = additional_kwargs.get(key)
-            if isinstance(payload, dict):
-                return payload
-        payload = _decode_json_object(additional_kwargs.get("content"))
-        if isinstance(payload, dict):
-            return payload
-
-    return None
+    return _coerce_message_payload_mapping(_message_additional_kwargs(message))
 
 
 def _decode_json_object(value: Any) -> dict[str, Any] | None:
@@ -705,25 +648,9 @@ def _coerce_message_citations(
     message: Any,
     source_lookup: dict[str, AgentSourceReference],
 ) -> list[AgentAnswerCitation]:
-    if isinstance(message, dict):
-        direct_citations = message.get("citations")
-        if isinstance(direct_citations, list):
-            return _validate_citations(direct_citations, source_lookup)
-
-        additional_kwargs = message.get("additional_kwargs")
-        if isinstance(additional_kwargs, dict) and isinstance(
-            additional_kwargs.get("citations"), list
-        ):
-            return _validate_citations(additional_kwargs["citations"], source_lookup)
-        return []
-
-    direct_citations = getattr(message, "citations", None)
-    if isinstance(direct_citations, list):
-        return _validate_citations(direct_citations, source_lookup)
-
-    additional_kwargs = getattr(message, "additional_kwargs", None)
-    if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("citations"), list):
-        return _validate_citations(additional_kwargs["citations"], source_lookup)
+    citation_payload = _coerce_message_typed_field(message, "citations", list)
+    if isinstance(citation_payload, list):
+        return _validate_citations(citation_payload, source_lookup)
 
     return []
 
@@ -743,10 +670,18 @@ def _validate_citations(
     citation_payload: list[Any],
     source_lookup: dict[str, AgentSourceReference],
 ) -> list[AgentAnswerCitation]:
-    citations = [
-        AgentAnswerCitation.model_validate(_hydrate_citation(entry, source_lookup))
-        for entry in citation_payload
-    ]
+    citations: list[AgentAnswerCitation] = []
+    for entry in citation_payload:
+        hydrated = _hydrate_citation(entry, source_lookup)
+        if not isinstance(hydrated, dict):
+            citations.append(AgentAnswerCitation.model_validate(hydrated))
+            continue
+
+        if not _citation_references_known_source(hydrated, source_lookup):
+            raise ValueError("citation must reference a policy-cleared source")
+
+        citations.append(AgentAnswerCitation.model_validate(hydrated))
+
     citations.sort(key=lambda citation: (citation.start_index, citation.end_index, citation.source_id))
     return citations
 
@@ -766,7 +701,7 @@ def _hydrate_citation(
     if isinstance(source_id, str) and source_id.strip():
         lookup_key = source_id.strip()
     elif source_url is not None:
-        lookup_key = str(source_url).strip()
+        lookup_key = _normalize_source_url(str(source_url)) or str(source_url).strip()
 
     source = source_lookup.get(lookup_key) if lookup_key else None
     if source is not None:
@@ -775,6 +710,25 @@ def _hydrate_citation(
         citation["url"] = str(source.url)
 
     return citation
+
+
+def _citation_references_known_source(
+    citation: dict[str, Any],
+    source_lookup: dict[str, AgentSourceReference],
+) -> bool:
+    source_id = citation.get("source_id")
+    if isinstance(source_id, str) and source_id.strip() and source_id.strip() in source_lookup:
+        return True
+
+    source_url = citation.get("url")
+    if source_url is None:
+        return False
+
+    normalized_source_url = _normalize_source_url(str(source_url))
+    if normalized_source_url is None:
+        return False
+
+    return normalized_source_url in source_lookup
 
 
 def _merge_source_metadata(
@@ -832,7 +786,12 @@ def _looks_like_fallback_title(title: str, url: str) -> bool:
     if normalized_title == normalized_url:
         return True
 
-    normalized_key = _normalize_source_url(url)
+    normalized_title_url = _normalize_source_url(title)
+    normalized_url_key = _normalize_source_url(url)
+    if normalized_title_url is not None and normalized_title_url == normalized_url_key:
+        return True
+
+    normalized_key = normalized_url_key
     if normalized_key is None:
         return False
 
@@ -846,13 +805,20 @@ def _normalize_source_url(url: str | None) -> str | None:
     if not isinstance(url, str) or not url.strip():
         return None
 
-    parsed = urlsplit(url.strip())
+    stripped_url = url.strip()
+    parsed = urlsplit(stripped_url)
     if not parsed.scheme or not parsed.netloc:
         return None
 
     scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        return None
+
+    if parsed.username or parsed.password:
+        return None
+
     hostname = (parsed.hostname or "").lower()
-    if not hostname:
+    if not hostname or not hostname.replace(".", ""):
         return None
 
     port = parsed.port
@@ -866,10 +832,56 @@ def _normalize_source_url(url: str | None) -> str | None:
 
 
 def _coerce_message_content(message: Any) -> str:
-    if isinstance(message, dict):
-        return _normalize_content_value(message.get("content"))
+    return _normalize_content_value(_message_field(message, "content"))
 
-    return _normalize_content_value(getattr(message, "content", None))
+
+def _message_field(message: Any, key: str) -> Any:
+    if isinstance(message, dict):
+        return message.get(key)
+    return getattr(message, key, None)
+
+
+def _message_additional_kwargs(message: Any) -> dict[str, Any] | None:
+    additional_kwargs = _message_field(message, "additional_kwargs")
+    return additional_kwargs if isinstance(additional_kwargs, dict) else None
+
+
+def _message_additional_field(message: Any, key: str) -> Any:
+    additional_kwargs = _message_additional_kwargs(message)
+    return additional_kwargs.get(key) if additional_kwargs is not None else None
+
+
+def _coerce_message_typed_field(
+    message: Any,
+    key: str,
+    expected_type: type[Any],
+) -> Any:
+    value = _message_field(message, key)
+    if isinstance(value, expected_type):
+        return value
+
+    value = _message_additional_field(message, key)
+    if isinstance(value, expected_type):
+        return value
+
+    return None
+
+
+def _coerce_named_message_field(message: Any, keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        value = _message_field(message, key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _coerce_message_payload_mapping(message: Any) -> dict[str, Any] | None:
+    for key in ("tool_output", "artifact", "payload"):
+        payload = _message_field(message, key)
+        if isinstance(payload, dict):
+            return payload
+
+    return _decode_json_object(_message_field(message, "content"))
 
 
 def _normalize_content_value(content: Any) -> str:

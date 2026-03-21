@@ -538,6 +538,41 @@ def test_run_agent_once_preserves_explicit_structured_final_answer_citations() -
     }
 
 
+def test_run_agent_once_rejects_citations_that_bypass_safe_source_registry() -> None:
+    agent = StubAgent(
+        raw_result={
+            "final_answer": {
+                "text": "Unsafe citation answer",
+                "citations": [
+                    {
+                        "title": "Unsafe Source",
+                        "url": "javascript:alert(1)",
+                        "start_index": 0,
+                        "end_index": 6,
+                    }
+                ],
+            },
+            "sources": [
+                {
+                    "title": "Unsafe Source",
+                    "url": "javascript:alert(1)",
+                    "snippet": "Should never become clickable.",
+                }
+            ],
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "invalid_prompt"
+    assert result.error.message == "citation must reference a policy-cleared source"
+
+
 def test_run_agent_once_assembles_consulted_sources_from_search_and_crawl_messages() -> None:
     agent = StubAgent(
         raw_result={
@@ -637,6 +672,55 @@ def test_run_agent_once_assembles_consulted_sources_from_search_and_crawl_messag
             "url": "https://example.com/other",
             "snippet": "Other snippet.",
         },
+    ]
+
+
+def test_run_agent_once_normalizes_safe_source_urls_before_emitting_citations() -> None:
+    agent = StubAgent(
+        raw_result={
+            "final_answer": {
+                "text": "Normalized citation",
+                "citations": [
+                    {
+                        "url": "https://Example.com/report#section-1",
+                        "start_index": 0,
+                        "end_index": 10,
+                    }
+                ],
+            },
+            "sources": [
+                {
+                    "title": "Example Report",
+                    "url": "https://Example.com/report#section-1",
+                    "snippet": "Normalized snippet.",
+                }
+            ],
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.final_answer is not None
+    assert result.final_answer.model_dump(mode="json")["citations"] == [
+        {
+            "source_id": "https-example-com-report",
+            "title": "Example Report",
+            "url": "https://example.com/report",
+            "start_index": 0,
+            "end_index": 10,
+        }
+    ]
+    assert result.model_dump(mode="json")["sources"] == [
+        {
+            "source_id": "https-example-com-report",
+            "title": "Example Report",
+            "url": "https://example.com/report",
+            "snippet": "Normalized snippet.",
+        }
     ]
 
 
