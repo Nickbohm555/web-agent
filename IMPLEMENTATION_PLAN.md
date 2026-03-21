@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 6
+Current Section: 7
 
 ## Section 1: Define Search Mode Contract
 
@@ -118,6 +118,8 @@ Completion Note:
 Do not end this section until it has been thoroughly tested.
 
 ## Section 6: Implement Deep Research Background Runs
+
+✓ Completed: `deep_research` now starts on `POST /api/runs`, executes in a buffered background registry instead of waiting for the SSE request, replays ordered progress events to late subscribers, and persists intermediate/final events into run history before stream consumption.
 
 Task:
 Add a `deep_research` execution path that runs as a long-lived background job and emits progress through the existing run stream/history system.
