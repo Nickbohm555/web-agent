@@ -215,6 +215,8 @@ export const RunSourceSchema = z
 export const StructuredAnswerCitationSchema = z
   .object({
     source_id: z.string().trim().min(1),
+    title: z.string().trim().min(1),
+    url: z.string().url(),
     start_index: z.number().int().nonnegative(),
     end_index: z.number().int().positive(),
   })

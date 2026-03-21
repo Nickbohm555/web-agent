@@ -5,6 +5,8 @@ from time import perf_counter
 from typing import Any, Callable, Protocol
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from backend.agent.prompts import build_system_prompt
 from backend.agent.quick_search import (
     DEFAULT_QUICK_SEARCH_MAX_RESULTS,
@@ -13,11 +15,13 @@ from backend.agent.quick_search import (
     synthesize_quick_answer,
 )
 from backend.agent.types import (
+    AgentAnswerCitation,
     AgentRunError,
     AgentRunMode,
     AgentRunResult,
     AgentRunRetrievalPolicy,
     AgentSourceReference,
+    AgentStructuredAnswer,
     AgentRuntimeProfile,
 )
 from backend.app.contracts.tool_errors import ToolErrorEnvelope
@@ -127,11 +131,12 @@ def run_agent_once(
             _build_inputs(prompt),
             _build_runtime_config(profile, effective_policy),
         )
+        sources = _extract_sources(raw_result)
         return AgentRunResult(
             run_id=run_id,
             status="completed",
-            final_answer=_extract_final_answer(raw_result),
-            sources=_extract_sources(raw_result),
+            final_answer=_extract_final_answer(raw_result, sources),
+            sources=sources,
             tool_call_count=_count_tool_calls(raw_result),
             elapsed_ms=_elapsed_ms(started_at),
         )
@@ -311,21 +316,41 @@ def _build_runtime_config(
     }
 
 
-def _extract_final_answer(raw_result: Any) -> str:
+def _extract_final_answer(
+    raw_result: Any,
+    sources: list[AgentSourceReference] | None = None,
+) -> AgentStructuredAnswer:
+    source_lookup = _build_source_lookup(sources or [])
+
     if isinstance(raw_result, str):
-        return raw_result.strip()
+        return AgentStructuredAnswer(text=raw_result.strip())
 
     if isinstance(raw_result, dict):
+        direct_final_answer = raw_result.get("final_answer")
+        if isinstance(direct_final_answer, dict):
+            return _validate_structured_answer(direct_final_answer, source_lookup)
+
         messages = raw_result.get("messages")
         if isinstance(messages, list):
             for message in reversed(messages):
+                direct_final_answer = _coerce_message_final_answer(message)
+                if isinstance(direct_final_answer, dict):
+                    return _validate_structured_answer(direct_final_answer, source_lookup)
+
                 content = _coerce_message_content(message)
                 if content:
-                    return content
+                    citations = _coerce_message_citations(message, source_lookup)
+                    return AgentStructuredAnswer(text=content, citations=citations)
 
         output = raw_result.get("output")
         if isinstance(output, str) and output.strip():
-            return output.strip()
+            direct_citations = raw_result.get("citations")
+            if isinstance(direct_citations, list):
+                return AgentStructuredAnswer(
+                    text=output.strip(),
+                    citations=_validate_citations(direct_citations, source_lookup),
+                )
+            return AgentStructuredAnswer(text=output.strip())
 
     raise ValueError("Agent runtime did not return a final answer")
 
@@ -397,6 +422,30 @@ def _coerce_message_sources(message: Any) -> list[AgentSourceReference]:
     return []
 
 
+def _coerce_message_final_answer(message: Any) -> dict[str, Any] | None:
+    if isinstance(message, dict):
+        direct_final_answer = message.get("final_answer")
+        if isinstance(direct_final_answer, dict):
+            return direct_final_answer
+
+        additional_kwargs = message.get("additional_kwargs")
+        if isinstance(additional_kwargs, dict) and isinstance(
+            additional_kwargs.get("final_answer"), dict
+        ):
+            return additional_kwargs["final_answer"]
+        return None
+
+    direct_final_answer = getattr(message, "final_answer", None)
+    if isinstance(direct_final_answer, dict):
+        return direct_final_answer
+
+    additional_kwargs = getattr(message, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("final_answer"), dict):
+        return additional_kwargs["final_answer"]
+
+    return None
+
+
 def _validate_sources(source_payload: list[Any]) -> list[AgentSourceReference]:
     sources: list[AgentSourceReference] = []
     for entry in source_payload:
@@ -416,6 +465,92 @@ def _extract_search_sources(response: WebSearchResponse) -> list[AgentSourceRefe
         )
         for result in response.results[:3]
     ]
+
+
+def _build_source_lookup(
+    sources: list[AgentSourceReference],
+) -> dict[str, AgentSourceReference]:
+    lookup: dict[str, AgentSourceReference] = {}
+    for source in sources:
+        lookup[source.source_id] = source
+        lookup[str(source.url)] = source
+    return lookup
+
+
+def _coerce_message_citations(
+    message: Any,
+    source_lookup: dict[str, AgentSourceReference],
+) -> list[AgentAnswerCitation]:
+    if isinstance(message, dict):
+        direct_citations = message.get("citations")
+        if isinstance(direct_citations, list):
+            return _validate_citations(direct_citations, source_lookup)
+
+        additional_kwargs = message.get("additional_kwargs")
+        if isinstance(additional_kwargs, dict) and isinstance(
+            additional_kwargs.get("citations"), list
+        ):
+            return _validate_citations(additional_kwargs["citations"], source_lookup)
+        return []
+
+    direct_citations = getattr(message, "citations", None)
+    if isinstance(direct_citations, list):
+        return _validate_citations(direct_citations, source_lookup)
+
+    additional_kwargs = getattr(message, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("citations"), list):
+        return _validate_citations(additional_kwargs["citations"], source_lookup)
+
+    return []
+
+
+def _validate_structured_answer(
+    payload: dict[str, Any],
+    source_lookup: dict[str, AgentSourceReference],
+) -> AgentStructuredAnswer:
+    answer_payload = dict(payload)
+    citations = answer_payload.get("citations")
+    if isinstance(citations, list):
+        answer_payload["citations"] = _validate_citations(citations, source_lookup)
+    return AgentStructuredAnswer.model_validate(answer_payload)
+
+
+def _validate_citations(
+    citation_payload: list[Any],
+    source_lookup: dict[str, AgentSourceReference],
+) -> list[AgentAnswerCitation]:
+    citations = [
+        AgentAnswerCitation.model_validate(_hydrate_citation(entry, source_lookup))
+        for entry in citation_payload
+    ]
+    citations.sort(key=lambda citation: (citation.start_index, citation.end_index, citation.source_id))
+    return citations
+
+
+def _hydrate_citation(
+    payload: Any,
+    source_lookup: dict[str, AgentSourceReference],
+) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+
+    citation = dict(payload)
+    source_id = citation.get("source_id")
+    source_url = citation.get("url")
+
+    lookup_key: str | None = None
+    if isinstance(source_id, str) and source_id.strip():
+        lookup_key = source_id.strip()
+    elif source_url is not None:
+        lookup_key = str(source_url).strip()
+
+    source = source_lookup.get(lookup_key) if lookup_key else None
+    if source is not None:
+        citation.setdefault("source_id", source.source_id)
+        citation.setdefault("title", source.title)
+        citation.setdefault("url", str(source.url))
+
+    return citation
 
 
 def _coerce_message_content(message: Any) -> str:
@@ -481,6 +616,9 @@ def _map_runtime_failure(*, exc: Exception, run_id: str, started_at: float) -> A
         category = "provider_failure"
         retryable = True
         message = "agent provider request failed"
+    elif isinstance(exc, ValidationError):
+        category = "invalid_prompt"
+        message = _first_validation_error(exc) or "prompt is invalid"
     elif isinstance(exc, ValueError):
         category = "invalid_prompt"
         message = str(exc) or "prompt is invalid"
@@ -518,6 +656,21 @@ def _failed_result(
 
 def _elapsed_ms(started_at: float) -> int:
     return int((perf_counter() - started_at) * 1000)
+
+
+def _first_validation_error(exc: ValidationError) -> str | None:
+    errors = exc.errors()
+    if not errors:
+        return None
+
+    message = errors[0].get("msg")
+    if not isinstance(message, str):
+        return None
+
+    prefix = "Value error, "
+    if message.startswith(prefix):
+        return message[len(prefix) :]
+    return message
 
 
 def _is_recursion_limit_error(exc: Exception) -> bool:

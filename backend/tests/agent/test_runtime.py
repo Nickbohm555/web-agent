@@ -132,6 +132,13 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
                 {
                     "role": "assistant",
                     "content": "Final answer with one source.",
+                    "citations": [
+                        {
+                            "source_id": "https-example-com-source",
+                            "start_index": 0,
+                            "end_index": 12,
+                        }
+                    ],
                     "sources": [
                         {
                             "title": "Example source",
@@ -155,6 +162,15 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
     assert result.status == "completed"
     assert result.final_answer is not None
     assert result.final_answer.text == "Final answer with one source."
+    assert result.final_answer.model_dump(mode="json")["citations"] == [
+        {
+            "source_id": "https-example-com-source",
+            "title": "Example source",
+            "url": "https://example.com/source",
+            "start_index": 0,
+            "end_index": 12,
+        }
+    ]
     assert result.model_dump(mode="json")["sources"] == [
         {
             "source_id": "https-example-com-source",
@@ -457,6 +473,131 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert factory.captured_tools != (web_search, web_crawl)
     assert factory.agent is not None
     assert factory.agent.captured_config == expected_runtime_config("deep_research")
+
+
+def test_run_agent_once_preserves_explicit_structured_final_answer_citations() -> None:
+    agent = StubAgent(
+        raw_result={
+            "final_answer": {
+                "text": "Structured answer with two cited spans.",
+                "citations": [
+                    {
+                        "url": "https://example.com/b",
+                        "title": "Source B",
+                        "start_index": 22,
+                        "end_index": 31,
+                    },
+                    {
+                        "source_id": "https-example-com-a",
+                        "start_index": 0,
+                        "end_index": 10,
+                    },
+                ],
+            },
+            "sources": [
+                {
+                    "source_id": "https-example-com-a",
+                    "title": "Source A",
+                    "url": "https://example.com/a",
+                    "snippet": "A snippet.",
+                },
+                {
+                    "title": "Source B",
+                    "url": "https://example.com/b",
+                    "snippet": "B snippet.",
+                },
+            ],
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.final_answer is not None
+    assert result.final_answer.model_dump(mode="json") == {
+        "text": "Structured answer with two cited spans.",
+        "citations": [
+            {
+                "source_id": "https-example-com-a",
+                "title": "Source A",
+                "url": "https://example.com/a",
+                "start_index": 0,
+                "end_index": 10,
+            },
+            {
+                "source_id": "https-example-com-b",
+                "title": "Source B",
+                "url": "https://example.com/b",
+                "start_index": 22,
+                "end_index": 31,
+            },
+        ],
+    }
+
+
+def test_run_agent_once_rejects_overlapping_citation_spans() -> None:
+    agent = StubAgent(
+        raw_result={
+            "final_answer": {
+                "text": "Overlapping citation spans",
+                "citations": [
+                    {
+                        "title": "Source A",
+                        "url": "https://example.com/a",
+                        "start_index": 0,
+                        "end_index": 11,
+                    },
+                    {
+                        "title": "Source B",
+                        "url": "https://example.com/b",
+                        "start_index": 5,
+                        "end_index": 14,
+                    },
+                ],
+            }
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "invalid_prompt"
+    assert result.error.message == "citation spans must not overlap"
+
+
+def test_run_agent_once_rejects_out_of_bounds_citation_spans() -> None:
+    agent = StubAgent(
+        raw_result={
+            "final_answer": {
+                "text": "Short answer",
+                "citations": [
+                    {
+                        "title": "Source A",
+                        "url": "https://example.com/a",
+                        "start_index": 0,
+                        "end_index": 50,
+                    }
+                ],
+            }
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "invalid_prompt"
+    assert result.error.message == "citation end_index must not exceed answer text length"
 
 
 @pytest.mark.parametrize("mode", ["quick", "agentic", "deep_research"])

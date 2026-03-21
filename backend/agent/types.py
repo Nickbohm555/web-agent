@@ -123,15 +123,37 @@ class AgentAnswerCitation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    url: HttpUrl
     start_index: int = Field(ge=0)
     end_index: int = Field(gt=0)
 
-    @field_validator("source_id")
+    @model_validator(mode="before")
+    @classmethod
+    def populate_source_id(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+
+        record = dict(value)
+        source_id = record.get("source_id")
+        if isinstance(source_id, str) and source_id.strip():
+            record["source_id"] = source_id.strip()
+            return record
+
+        url = record.get("url")
+        title = record.get("title")
+        record["source_id"] = _build_source_id(
+            str(url).strip() if url is not None else None,
+            str(title).strip() if title is not None else None,
+        )
+        return record
+
+    @field_validator("source_id", "title")
     @classmethod
     def normalize_source_id(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
-            raise ValueError("citation source_id must not be empty")
+            raise ValueError("citation text fields must not be empty")
         return normalized
 
     @model_validator(mode="after")
@@ -154,6 +176,24 @@ class AgentStructuredAnswer(BaseModel):
         if not normalized:
             raise ValueError("answer text must not be empty")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_citations(self) -> "AgentStructuredAnswer":
+        text_length = len(self.text)
+        ordered_citations = sorted(
+            self.citations,
+            key=lambda citation: (citation.start_index, citation.end_index, citation.source_id),
+        )
+        previous_end = 0
+
+        for citation in ordered_citations:
+            if citation.end_index > text_length:
+                raise ValueError("citation end_index must not exceed answer text length")
+            if citation.start_index < previous_end:
+                raise ValueError("citation spans must not overlap")
+            previous_end = citation.end_index
+
+        return self
 
 
 class AgentRunResult(BaseModel):

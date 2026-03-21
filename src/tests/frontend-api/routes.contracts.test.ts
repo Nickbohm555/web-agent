@@ -321,6 +321,8 @@ describe("frontend API route contracts", () => {
           citations: [
             {
               source_id: "source-example",
+              title: "Example source",
+              url: "https://example.com/source",
               start_index: 12,
               end_index: 19,
             },
@@ -344,16 +346,18 @@ describe("frontend API route contracts", () => {
     ).toEqual({
       run_id: "run-123",
       status: "completed",
-      final_answer: {
-        text: "Answer with sources.",
-        citations: [
-          {
-            source_id: "source-example",
-            start_index: 12,
-            end_index: 19,
-          },
-        ],
-      },
+        final_answer: {
+          text: "Answer with sources.",
+          citations: [
+            {
+              source_id: "source-example",
+              title: "Example source",
+              url: "https://example.com/source",
+              start_index: 12,
+              end_index: 19,
+            },
+          ],
+        },
       sources: [
         {
           source_id: "source-example",
@@ -383,6 +387,8 @@ describe("frontend API route contracts", () => {
           citations: [
             {
               source_id: "source-example",
+              title: "",
+              url: "not-a-url",
               start_index: 7,
               end_index: 3,
             },
