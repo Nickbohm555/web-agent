@@ -6,6 +6,10 @@ import {
   parseRunHistoryRunSnapshot,
   type RunStreamEvent,
 } from "../../frontend/contracts.js";
+import {
+  resolveRunAnswer,
+  segmentStructuredAnswer,
+} from "../../frontend/client/answer-rendering.js";
 import { createRunHistoryStore } from "../../frontend/run-history/store.js";
 import type { RunEventStreamFactory } from "../../frontend/routes/runs.js";
 
@@ -246,6 +250,121 @@ describe("run history API", () => {
         return entry.fields.includes("tool_input") || entry.fields.includes("tool_output");
       })).toBe(true);
       expect(detailPayload.finalAnswer).toContain("[Truncated run history answer]");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("preserves citation-aware completion payloads safely after history truncation", async () => {
+    const harness = await createHarness({
+      store: createRunHistoryStore({
+        maxRuns: 5,
+        maxEventsPerRun: 10,
+        maxPayloadBytes: 700,
+      }),
+      runEventStream: createStream([
+        {
+          event: "run_complete",
+          data: {
+            runId: "__RUN_ID__",
+            finalAnswer:
+              "Alpha remains ahead of Beta in the latest benchmark results while Gamma trails. ".repeat(
+                4,
+              ),
+            structuredAnswer: {
+              text:
+                "Alpha remains ahead of Beta in the latest benchmark results while Gamma trails. ".repeat(
+                  4,
+                ),
+              citations: [
+                {
+                  source_id: "alpha-report",
+                  title: "Alpha report",
+                  url: "https://example.com/alpha",
+                  start_index: 0,
+                  end_index: 13,
+                },
+                {
+                  source_id: "beta-report",
+                  title: "Beta report",
+                  url: "https://example.com/beta",
+                  start_index: 31,
+                  end_index: 35,
+                },
+                {
+                  source_id: "gamma-report",
+                  title: "Gamma report",
+                  url: "https://example.com/gamma",
+                  start_index: 72,
+                  end_index: 77,
+                },
+              ],
+            },
+            sources: [
+              {
+                source_id: "alpha-report",
+                title: "Alpha report",
+                url: "https://example.com/alpha",
+                snippet: "Alpha evidence ".repeat(20),
+              },
+              {
+                source_id: "beta-report",
+                title: "Beta report",
+                url: "https://example.com/beta",
+                snippet: "Beta evidence ".repeat(20),
+              },
+              {
+                source_id: "gamma-report",
+                title: "Gamma report",
+                url: "https://example.com/gamma",
+                snippet: "Gamma evidence ".repeat(20),
+              },
+            ],
+            completedAt: Date.parse("2026-03-17T00:00:03.000Z"),
+            durationMs: 3000,
+          },
+        },
+      ]),
+    });
+
+    try {
+      const startResponse = await harness.postJson("/api/runs", {
+        prompt: "Store large structured answer",
+        mode: "deep_research",
+      });
+      expect(startResponse.status).toBe(201);
+
+      const runId = parseRunId(startResponse.json);
+      await harness.getText(`/api/runs/${runId}/events`);
+
+      const detailResponse = await harness.getJson(`/api/runs/${runId}/history`);
+      expect(detailResponse.status).toBe(200);
+      const snapshot = parseRunHistoryRunSnapshot(detailResponse.json);
+      const resolved = resolveRunAnswer(snapshot.events, snapshot.finalAnswer);
+
+      expect(snapshot.retention.payloadTruncations.some((entry) => {
+        return entry.fields.includes("tool_output");
+      })).toBe(true);
+      expect(resolved.structuredAnswer).not.toBeNull();
+
+      const structuredAnswer = resolved.structuredAnswer;
+      if (structuredAnswer === null) {
+        throw new Error("Expected structured answer to be preserved.");
+      }
+
+      const sourceIds = new Set(resolved.sources.map((source) => source.source_id));
+      expect(structuredAnswer.text).toContain("[Truncated run history answer]");
+      expect(structuredAnswer.citations.every((citation) => {
+        return citation.end_index <= structuredAnswer.text.length;
+      })).toBe(true);
+      expect(structuredAnswer.citations.every((citation) => {
+        return sourceIds.has(citation.source_id);
+      })).toBe(true);
+
+      const segments = segmentStructuredAnswer(structuredAnswer, resolved.sources);
+      expect(segments.map((segment) => segment.text).join("")).toBe(
+        structuredAnswer.text,
+      );
     } finally {
       await harness.close();
     }

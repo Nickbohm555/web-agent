@@ -1,7 +1,11 @@
 import {
   parseOrderedRunEventList,
   parseRunEvent,
+  RunSourceSchema,
+  StructuredAnswerSchema,
   type CanonicalRunEvent,
+  type RunSource,
+  type StructuredAnswer,
 } from "../contracts.js";
 
 export interface RunHistoryStoreLimits {
@@ -77,6 +81,11 @@ const MAX_RETENTION_TRUNCATIONS = 100;
 const TRUNCATED_PAYLOAD_SENTINEL = "[Truncated run history payload]";
 const TRUNCATED_FINAL_ANSWER_SENTINEL = "[Truncated run history answer]";
 const TRUNCATED_PAYLOAD_PATH = "$";
+const TRUNCATED_STRUCTURED_ANSWER_PATH = "$.answer";
+const TRUNCATED_STRUCTURED_ANSWER_TEXT_PATH = "$.answer.text";
+const TRUNCATED_STRUCTURED_ANSWER_CITATIONS_PATH = "$.answer.citations";
+const TRUNCATED_STRUCTURED_SOURCES_PATH = "$.sources";
+const TRUNCATED_SOURCE_SNIPPET_SUFFIX = " [Truncated source snippet]";
 const RUN_HISTORY_PAYLOAD_FIELDS: readonly RunHistoryPayloadField[] = [
   "tool_input",
   "tool_output",
@@ -274,6 +283,7 @@ function truncateEventForStorage(
 } {
   let nextEvent: CanonicalRunEvent = structuredClone(event);
   let totalBytes = countEventPayloadBytes(nextEvent);
+  const fields: RunHistoryPayloadField[] = [];
 
   if (totalBytes <= maxPayloadBytes) {
     return {
@@ -282,9 +292,33 @@ function truncateEventForStorage(
     };
   }
 
-  const fields: RunHistoryPayloadField[] = [];
+  const citationAwareEvent = truncateCitationAwareCompletionEvent(
+    nextEvent,
+    maxPayloadBytes,
+  );
+  if (citationAwareEvent !== null) {
+    nextEvent = citationAwareEvent;
+    fields.push("tool_output", "final_answer");
+    totalBytes = countEventPayloadBytes(nextEvent);
+  }
 
   for (const field of RUN_HISTORY_PAYLOAD_FIELDS) {
+    if (field === "tool_output" && fields.includes("tool_output")) {
+      if (totalBytes <= maxPayloadBytes) {
+        break;
+      }
+
+      continue;
+    }
+
+    if (field === "final_answer" && fields.includes("final_answer")) {
+      if (totalBytes <= maxPayloadBytes) {
+        break;
+      }
+
+      continue;
+    }
+
     const fieldValue = nextEvent[field];
     if (fieldValue === undefined) {
       continue;
@@ -349,12 +383,25 @@ function truncateEventPayloadField(
   event: CanonicalRunEvent,
   field: Exclude<RunHistoryPayloadField, "final_answer">,
 ): CanonicalRunEvent {
+  return replaceEventPayloadField(event, field, TRUNCATED_PAYLOAD_SENTINEL, [
+    TRUNCATED_PAYLOAD_PATH,
+  ]);
+}
+
+function replaceEventPayloadField(
+  event: CanonicalRunEvent,
+  field: Exclude<RunHistoryPayloadField, "final_answer">,
+  value: NonNullable<CanonicalRunEvent["tool_input" | "tool_output" | "error_output"]>,
+  paths: string[],
+): CanonicalRunEvent {
   const nextPaths = new Set(event.safety[field].truncation.paths);
-  nextPaths.add(TRUNCATED_PAYLOAD_PATH);
+  for (const path of paths) {
+    nextPaths.add(path);
+  }
 
   return {
     ...event,
-    [field]: TRUNCATED_PAYLOAD_SENTINEL,
+    [field]: value,
     safety: {
       ...event.safety,
       [field]: {
@@ -363,9 +410,10 @@ function truncateEventPayloadField(
           active: true,
           paths: [...nextPaths],
           reason: event.safety[field].truncation.reason ?? "payload_limit",
-          omitted_bytes:
-            countSerializedBytes(event[field] ?? null) -
-            countSerializedBytes(TRUNCATED_PAYLOAD_SENTINEL),
+          omitted_bytes: Math.max(
+            0,
+            countSerializedBytes(event[field] ?? null) - countSerializedBytes(value),
+          ),
         },
       },
     },
@@ -428,4 +476,151 @@ function trimRetentionTruncations(retention: RunHistoryRetentionMetadata) {
   while (retention.payloadTruncations.length > MAX_RETENTION_TRUNCATIONS) {
     retention.payloadTruncations.shift();
   }
+}
+
+function truncateCitationAwareCompletionEvent(
+  event: CanonicalRunEvent,
+  maxPayloadBytes: number,
+): CanonicalRunEvent | null {
+  if (event.tool_output === undefined || event.final_answer === undefined) {
+    return null;
+  }
+
+  const parsedPayload = parseCompletionToolOutput(event.tool_output);
+  if (parsedPayload === null) {
+    return null;
+  }
+
+  const { answer, sources } = parsedPayload;
+  const truncatedText = truncateStructuredAnswerText(answer.text);
+  const nextAnswer = truncateStructuredAnswer(
+    answer,
+    truncatedText,
+    new Set(sources.map((source) => source.source_id)),
+  );
+  let nextSources = filterSourcesForAnswer(sources, nextAnswer);
+
+  nextSources = nextSources.map((source) => ({
+    ...source,
+    snippet: truncateSourceSnippet(source.snippet),
+  }));
+
+  let nextEvent = createCitationAwareCompletionEvent(event, nextAnswer, nextSources);
+
+  while (
+    countEventPayloadBytes(nextEvent) > maxPayloadBytes &&
+    nextSources.length > 0
+  ) {
+    nextSources = nextSources.slice(0, -1);
+    nextEvent = createCitationAwareCompletionEvent(event, nextAnswer, nextSources);
+  }
+
+  let nextCitations = [...nextAnswer.citations];
+  while (
+    countEventPayloadBytes(nextEvent) > maxPayloadBytes &&
+    nextCitations.length > 0
+  ) {
+    nextCitations = nextCitations.slice(0, -1);
+    const reducedAnswer = {
+      ...nextAnswer,
+      citations: nextCitations,
+    };
+    nextSources = filterSourcesForAnswer(sources, reducedAnswer);
+    nextEvent = createCitationAwareCompletionEvent(event, reducedAnswer, nextSources);
+  }
+
+  if (countEventPayloadBytes(nextEvent) > maxPayloadBytes) {
+    nextEvent = createCitationAwareCompletionEvent(event, {
+      text: truncatedText,
+      citations: [],
+    }, []);
+  }
+
+  return replaceEventPayloadField(nextEvent, "tool_output", nextEvent.tool_output ?? {}, [
+    TRUNCATED_STRUCTURED_ANSWER_PATH,
+    TRUNCATED_STRUCTURED_ANSWER_TEXT_PATH,
+    TRUNCATED_STRUCTURED_ANSWER_CITATIONS_PATH,
+    TRUNCATED_STRUCTURED_SOURCES_PATH,
+  ]);
+}
+
+function parseCompletionToolOutput(
+  value: unknown,
+): { answer: StructuredAnswer; sources: RunSource[] } | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const parsedAnswer = StructuredAnswerSchema.safeParse(record.answer);
+  if (!parsedAnswer.success) {
+    return null;
+  }
+
+  const parsedSources = RunSourceSchema.array().safeParse(record.sources ?? []);
+  if (!parsedSources.success) {
+    return null;
+  }
+
+  return {
+    answer: parsedAnswer.data,
+    sources: parsedSources.data,
+  };
+}
+
+function createCitationAwareCompletionEvent(
+  event: CanonicalRunEvent,
+  answer: StructuredAnswer,
+  sources: RunSource[],
+): CanonicalRunEvent {
+  return {
+    ...event,
+    final_answer: answer.text,
+    tool_output: {
+      answer,
+      sources,
+    },
+  };
+}
+
+function truncateStructuredAnswer(
+  answer: StructuredAnswer,
+  text: string,
+  availableSourceIds: Set<string>,
+): StructuredAnswer {
+  return {
+    text,
+    citations: answer.citations.filter((citation) => {
+      return (
+        citation.end_index <= text.length &&
+        availableSourceIds.has(citation.source_id)
+      );
+    }),
+  };
+}
+
+function filterSourcesForAnswer(
+  sources: RunSource[],
+  answer: StructuredAnswer,
+): RunSource[] {
+  const referencedSourceIds = new Set(
+    answer.citations.map((citation) => citation.source_id),
+  );
+
+  if (referencedSourceIds.size === 0) {
+    return sources;
+  }
+
+  return sources.filter((source) => referencedSourceIds.has(source.source_id));
+}
+
+function truncateStructuredAnswerText(answer: string): string {
+  return truncateFinalAnswer(answer);
+}
+
+function truncateSourceSnippet(snippet: string): string {
+  const head = snippet.slice(0, 160).trimEnd();
+  return head.length === 0
+    ? TRUNCATED_SOURCE_SNIPPET_SUFFIX.trimStart()
+    : `${head}${TRUNCATED_SOURCE_SNIPPET_SUFFIX}`;
 }
