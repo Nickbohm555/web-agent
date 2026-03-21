@@ -15,6 +15,7 @@ class WebCrawlInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     url: HttpUrl
+    objective: Optional[str] = Field(default=None, min_length=1)
 
     @field_validator("url")
     @classmethod
@@ -22,6 +23,28 @@ class WebCrawlInput(BaseModel):
         if value.scheme not in {"http", "https"}:
             raise ValueError("url must use http or https")
         return value
+
+    @field_validator("objective")
+    @classmethod
+    def normalize_objective(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("objective must not be empty")
+        return normalized
+
+
+class WebCrawlExcerpt(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    text: str = Field(min_length=1)
+    markdown: str = Field(min_length=1)
+
+    @field_validator("text", "markdown")
+    @classmethod
+    def normalize_output(cls, value: str) -> str:
+        return value.strip()
 
 
 class WebCrawlSuccess(BaseModel):
@@ -31,18 +54,23 @@ class WebCrawlSuccess(BaseModel):
     final_url: HttpUrl
     text: str
     markdown: str
+    objective: Optional[str] = None
+    excerpts: list[WebCrawlExcerpt] = Field(default_factory=list)
     status_code: int = Field(ge=100, le=599)
     content_type: str = Field(min_length=1)
     fallback_reason: Optional[CrawlFallbackReason] = None
     meta: ToolMeta
 
-    @field_validator("text", "markdown", "content_type")
+    @field_validator("text", "markdown", "content_type", "objective")
     @classmethod
-    def normalize_text(cls, value: str) -> str:
+    def normalize_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
         return value.strip()
 
     def to_source_record(self) -> dict[str, str]:
-        snippet = self.text[:280].strip()
+        snippet_source = self.excerpts[0].text if self.excerpts else self.text
+        snippet = snippet_source[:280].strip()
         return {
             "title": _derive_source_title(str(self.final_url)),
             "url": str(self.final_url),

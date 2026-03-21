@@ -33,7 +33,7 @@ def build_web_crawl_tool(
     runner = crawl_runner or run_web_crawl
 
     @tool("web_crawl", args_schema=WebCrawlInput)
-    def bounded_web_crawl(url: str) -> dict[str, Any]:
+    def bounded_web_crawl(url: str, objective: str | None = None) -> dict[str, Any]:
         """Fetch a URL, extract main content, and return a structured result or error envelope."""
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         if not is_url_allowed(url, **domain_scope_kwargs(effective_policy.search)):
@@ -44,16 +44,21 @@ def build_web_crawl_tool(
                 total_ms=0,
                 operation="web_crawl",
             )
-        payload = runner(url=url)
+        payload = runner(url=url, objective=objective)
         return _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
 
     return bounded_web_crawl
 
 
-def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> dict[str, Any]:
+def run_web_crawl(
+    *,
+    url: str,
+    objective: str | None = None,
+    fetch_worker: HttpFetchWorker | None = None,
+) -> dict[str, Any]:
     operation_start = perf_counter()
     try:
-        validated_input = WebCrawlInput(url=url)
+        validated_input = WebCrawlInput(url=url, objective=objective)
         fetch_result = (fetch_worker or create_http_fetch_worker()).fetch(
             url=str(validated_input.url)
         )
@@ -61,7 +66,7 @@ def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> d
         if isinstance(fetch_result, HttpFetchFailure):
             if fetch_result.error.kind == "unsupported_content_type":
                 return _build_fetch_failure_success(
-                    validated_url=validated_input.url,
+                    validated_input=validated_input,
                     fetch_result=fetch_result,
                 )
 
@@ -79,6 +84,8 @@ def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> d
             final_url=fetch_result.final_url,
             text=extraction_result.text,
             markdown=extraction_result.markdown,
+            objective=validated_input.objective,
+            excerpts=[],
             status_code=fetch_result.status_code,
             content_type=fetch_result.content_type,
             fallback_reason=extraction_result.fallback_reason,
@@ -126,15 +133,17 @@ def _build_crawl_error_payload(
 
 def _build_fetch_failure_success(
     *,
-    validated_url: Any,
+    validated_input: WebCrawlInput,
     fetch_result: HttpFetchFailure,
 ) -> dict[str, Any]:
     extraction_result = extraction_result_from_fetch_failure(fetch_result)
     return WebCrawlSuccess(
-        url=validated_url,
-        final_url=fetch_result.final_url or validated_url,
+        url=validated_input.url,
+        final_url=fetch_result.final_url or validated_input.url,
         text=extraction_result.text,
         markdown=extraction_result.markdown,
+        objective=validated_input.objective,
+        excerpts=[],
         status_code=fetch_result.status_code or 200,
         content_type=fetch_result.content_type or "application/octet-stream",
         fallback_reason=extraction_result.fallback_reason,
@@ -180,6 +189,7 @@ def build_web_crawl_action_record(
             "final_url": str(success.final_url),
             "status_code": success.status_code,
             "content_type": success.content_type,
+            "objective": success.objective,
             "fallback_reason": success.fallback_reason,
             "text_preview": text_preview,
         }

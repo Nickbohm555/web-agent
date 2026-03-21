@@ -31,6 +31,23 @@ def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
     assert result.markdown
 
 
+def test_web_crawl_tool_accepts_objective_and_preserves_contract(monkeypatch) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+
+    payload = web_crawl.invoke(
+        {
+            "url": "https://example.com/article",
+            "objective": "Find the sections about agent systems",
+        }
+    )
+    result = WebCrawlSuccess.model_validate(payload)
+
+    assert result.objective == "Find the sections about agent systems"
+    assert result.excerpts == []
+    assert "agent systems" in result.text.lower()
+
+
 def test_run_web_crawl_preserves_redirect_final_url() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_redirect_handler))
 
@@ -77,6 +94,13 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
             "final_url": "https://example.com/final",
             "text": "A concise extracted summary of the page body.",
             "markdown": "A concise extracted summary of the page body.",
+            "objective": "Find the summary",
+            "excerpts": [
+                {
+                    "text": "Focused excerpt for the summary.",
+                    "markdown": "Focused excerpt for the summary.",
+                }
+            ],
             "status_code": 200,
             "content_type": "text/html",
             "fallback_reason": None,
@@ -96,6 +120,7 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
         "final_url": "https://example.com/final",
         "status_code": 200,
         "content_type": "text/html",
+        "objective": "Find the summary",
         "fallback_reason": None,
         "text_preview": "A concise extracted summary of the page body.",
     }
@@ -135,11 +160,18 @@ def test_build_web_crawl_action_record_summarizes_error_payload() -> None:
 def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -> None:
     tool_instance = build_web_crawl_tool(
         max_content_chars=40,
-        crawl_runner=lambda *, url: {
+        crawl_runner=lambda *, url, objective=None: {
             "url": url,
             "final_url": url,
             "text": "A" * 60,
             "markdown": "B" * 60,
+            "objective": objective,
+            "excerpts": [
+                {
+                    "text": "Focused passage",
+                    "markdown": "Focused passage",
+                }
+            ],
             "status_code": 200,
             "content_type": "text/html",
             "fallback_reason": None,
@@ -153,12 +185,19 @@ def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -
         },
     )
 
-    payload = tool_instance.invoke({"url": "https://example.com/article"})
+    payload = tool_instance.invoke(
+        {
+            "url": "https://example.com/article",
+            "objective": "Find the focused passage",
+        }
+    )
     result = WebCrawlSuccess.model_validate(payload)
 
     assert tool_instance.name == "web_crawl"
     assert len(result.text) == 40
     assert len(result.markdown) == 40
+    assert result.objective == "Find the focused passage"
+    assert result.excerpts[0].text == "Focused passage"
 
 
 def test_run_web_crawl_returns_structured_retryable_error_metadata() -> None:
