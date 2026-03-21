@@ -72,10 +72,17 @@ const DEFAULT_LIMITS: RunHistoryStoreLimits = {
   maxEventsPerRun: 100,
   maxPayloadBytes: 32_768,
 };
+const MAX_RETENTION_TRUNCATIONS = 100;
 
 const TRUNCATED_PAYLOAD_SENTINEL = "[Truncated run history payload]";
 const TRUNCATED_FINAL_ANSWER_SENTINEL = "[Truncated run history answer]";
 const TRUNCATED_PAYLOAD_PATH = "$";
+const RUN_HISTORY_PAYLOAD_FIELDS: readonly RunHistoryPayloadField[] = [
+  "tool_input",
+  "tool_output",
+  "error_output",
+  "final_answer",
+];
 
 export function createRunHistoryStore(
   limits: Partial<RunHistoryStoreLimits> = {},
@@ -126,6 +133,7 @@ export function createRunHistoryStore(
 
       if (truncation !== null) {
         run.retention.payloadTruncations.push(truncation);
+        trimRetentionTruncations(run.retention);
       }
 
       while (run.events.length > resolvedLimits.maxEventsPerRun) {
@@ -276,12 +284,7 @@ function truncateEventForStorage(
 
   const fields: RunHistoryPayloadField[] = [];
 
-  for (const field of [
-    "tool_input",
-    "tool_output",
-    "error_output",
-    "final_answer",
-  ] satisfies RunHistoryPayloadField[]) {
+  for (const field of RUN_HISTORY_PAYLOAD_FIELDS) {
     const fieldValue = nextEvent[field];
     if (fieldValue === undefined) {
       continue;
@@ -379,12 +382,8 @@ function truncateFinalAnswer(answer: string): string {
 function countEventPayloadBytes(event: CanonicalRunEvent): number {
   let totalBytes = 0;
 
-  for (const value of [
-    event.tool_input,
-    event.tool_output,
-    event.error_output,
-    event.final_answer,
-  ] as const) {
+  for (const field of RUN_HISTORY_PAYLOAD_FIELDS) {
+    const value = event[field];
     totalBytes += value === undefined ? 0 : countSerializedBytes(value);
   }
 
@@ -423,4 +422,10 @@ function cloneRetention(
       fields: [...entry.fields],
     })),
   };
+}
+
+function trimRetentionTruncations(retention: RunHistoryRetentionMetadata) {
+  while (retention.payloadTruncations.length > MAX_RETENTION_TRUNCATIONS) {
+    retention.payloadTruncations.shift();
+  }
 }

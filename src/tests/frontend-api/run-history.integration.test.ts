@@ -321,6 +321,50 @@ describe("run history API", () => {
       await harness.close();
     }
   });
+
+  it("rejects deep-research starts once the active background-run cap is reached", async () => {
+    const harness = await createHarness({
+      runEventStream: async function* () {
+        await new Promise(() => {});
+      },
+    });
+
+    try {
+      const acceptedResponses = await Promise.all(
+        Array.from({ length: 3 }, () =>
+          harness.postJson("/api/runs", {
+            prompt: "Concurrency check",
+            mode: "deep_research",
+          }),
+        ),
+      );
+
+      expect(acceptedResponses.map((response) => response.status)).toEqual([
+        201, 201, 201,
+      ]);
+
+      const rejectedResponse = await harness.postJson("/api/runs", {
+        prompt: "Concurrency check",
+        mode: "deep_research",
+      });
+
+      expect(rejectedResponse.status).toBe(429);
+      expect(rejectedResponse.json).toMatchObject({
+        ok: false,
+        operation: "run_start",
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many deep research runs are already active.",
+          details: {
+            kind: "rate_limited",
+            retryable: true,
+          },
+        },
+      });
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 function parseRunId(input: unknown): string {

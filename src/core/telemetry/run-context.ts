@@ -15,6 +15,7 @@ export interface RunContextValue {
 
 export interface RunContextOptions {
   runId?: string;
+  initialEventSeq?: number;
 }
 
 export function withRunContext<T>(
@@ -22,11 +23,12 @@ export function withRunContext<T>(
   options: RunContextOptions = {},
 ): T {
   const runId = options.runId?.trim() || randomUUID();
+  const initialEventSeq = resolveInitialEventSeq(options.initialEventSeq);
 
   return runContextStorage.run(
     {
       runId,
-      nextEventSeq: 0,
+      nextEventSeq: initialEventSeq,
     },
     callback,
   );
@@ -62,4 +64,16 @@ export function nextRunEventSequence(): number {
   const eventSeq = store.nextEventSeq;
   store.nextEventSeq += 1;
   return eventSeq;
+}
+
+function resolveInitialEventSeq(value: number | undefined): number {
+  if (value === undefined) {
+    return 0;
+  }
+
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error("initialEventSeq must be a non-negative integer.");
+  }
+
+  return value;
 }

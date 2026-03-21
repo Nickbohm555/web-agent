@@ -12,9 +12,11 @@ import { nextRunEventSequence, requireRunContext } from "./run-context.js";
 
 const REDACTION_SENTINEL = "[Redacted]";
 const TRUNCATION_SENTINEL = "[Truncated]";
+const TRUNCATED_PAYLOAD_SENTINEL = "[Truncated observability payload]";
 const MAX_STRING_LENGTH = 256;
 const MAX_ARRAY_ITEMS = 20;
 const MAX_OBJECT_ENTRIES = 20;
+const MAX_PAYLOAD_BYTES = 4_096;
 const SENSITIVE_FIELD_NAMES = new Set([
   "apiKey",
   "authorization",
@@ -147,8 +149,16 @@ function sanitizePayload(input: unknown): {
     },
   });
 
+  const boundedPayload = boundSerializedPayloadSize(
+    payload,
+    truncationPaths,
+    (bytes) => {
+      omittedBytes += bytes;
+    },
+  );
+
   return {
-    ...(payload !== undefined ? { payload } : {}),
+    ...(boundedPayload !== undefined ? { payload: boundedPayload } : {}),
     safety: {
       redaction: {
         active: redactionPaths.length > 0,
@@ -276,4 +286,24 @@ function truncateString(
 
 function appendPath(prefix: string, segment: string): string {
   return prefix.length === 0 ? segment : `${prefix}.${segment}`;
+}
+
+function boundSerializedPayloadSize(
+  payload: CanonicalRunEventJson | undefined,
+  truncationPaths: string[],
+  onTruncate: (bytes: number) => void,
+): CanonicalRunEventJson | undefined {
+  if (payload === undefined) {
+    return undefined;
+  }
+
+  const serialized = JSON.stringify(payload);
+  const payloadBytes = Buffer.byteLength(serialized, "utf8");
+  if (payloadBytes <= MAX_PAYLOAD_BYTES) {
+    return payload;
+  }
+
+  truncationPaths.push("$");
+  onTruncate(payloadBytes - MAX_PAYLOAD_BYTES);
+  return TRUNCATED_PAYLOAD_SENTINEL;
 }

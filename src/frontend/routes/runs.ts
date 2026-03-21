@@ -17,6 +17,7 @@ import {
   type RunStreamEvent,
   type ToolCallEvent,
 } from "../contracts.js";
+import { withRunContext } from "../../core/telemetry/run-context.js";
 
 export interface RunEventStreamContext {
   runId: string;
@@ -48,6 +49,8 @@ interface BackgroundRunRecord {
 
 const DEFAULT_RUN_FAILED_CODE = "RUN_FAILED";
 const MAX_BACKGROUND_RUNS = 25;
+const MAX_ACTIVE_BACKGROUND_RUNS = 3;
+const MAX_BACKGROUND_EVENTS_PER_RUN = 100;
 
 export type RunExecutorResult =
   | {
@@ -87,6 +90,19 @@ export function createRunsRouter(): Router {
 
     try {
       const request = parseRunStartRequest(req.body);
+      if (
+        request.mode === "deep_research" &&
+        countActiveBackgroundRuns(backgroundRuns) >= MAX_ACTIVE_BACKGROUND_RUNS
+      ) {
+        res.status(429).json(
+          createRunStartRateLimitEnvelope({
+            request,
+            startedAt,
+            message: "Too many deep research runs are already active.",
+          }),
+        );
+        return;
+      }
       const runId = randomUUID();
       pendingRuns.set(runId, request);
 
@@ -347,49 +363,60 @@ async function executeBackgroundRun(options: {
 }) {
   let nextEventSeq = resolveNextEventSeq(options.historyStore, options.run.runId);
 
-  emitBackgroundRunEvent(options.run, {
-    event: "run_state",
-    data: createRunningState(options.run.runId),
-  });
+  await withRunContext(
+    async () => {
+      emitBackgroundRunEvent(options.run, {
+        event: "run_state",
+        data: createRunningState(options.run.runId),
+      });
 
-  try {
-    for await (const rawEvent of options.eventProducer) {
-      const event = parseRunStreamEvent(rawEvent);
-      nextEventSeq = ingestRunStreamEventHistory(
-        options.historyStore,
-        event,
-        nextEventSeq,
-      );
-      emitBackgroundRunEvent(options.run, event);
+      try {
+        for await (const rawEvent of options.eventProducer) {
+          const event = parseRunStreamEvent(rawEvent);
+          nextEventSeq = ingestRunStreamEventHistory(
+            options.historyStore,
+            event,
+            nextEventSeq,
+          );
+          emitBackgroundRunEvent(options.run, event);
 
-      if (isTerminalRunStreamEvent(event)) {
-        break;
+          if (isTerminalRunStreamEvent(event)) {
+            break;
+          }
+        }
+      } catch (error: unknown) {
+        const event = createRunErrorEvent(
+          options.run.runId,
+          error instanceof Error ? error.message : "Run event stream failed.",
+          "STREAM_FAILURE",
+        );
+        nextEventSeq = ingestRunStreamEventHistory(
+          options.historyStore,
+          event,
+          nextEventSeq,
+        );
+        emitBackgroundRunEvent(options.run, event);
+        options.run.completionError =
+          error instanceof Error ? error : new Error(String(error));
+      } finally {
+        options.pendingRuns.delete(options.run.runId);
+        options.run.isComplete = true;
+        options.run.notifyCompleted();
+        trimBackgroundRuns(options.backgroundRuns);
       }
-    }
-  } catch (error: unknown) {
-    const event = createRunErrorEvent(
-      options.run.runId,
-      error instanceof Error ? error.message : "Run event stream failed.",
-      "STREAM_FAILURE",
-    );
-    nextEventSeq = ingestRunStreamEventHistory(
-      options.historyStore,
-      event,
-      nextEventSeq,
-    );
-    emitBackgroundRunEvent(options.run, event);
-    options.run.completionError =
-      error instanceof Error ? error : new Error(String(error));
-  } finally {
-    options.pendingRuns.delete(options.run.runId);
-    options.run.isComplete = true;
-    options.run.notifyCompleted();
-    trimBackgroundRuns(options.backgroundRuns);
-  }
+    },
+    {
+      runId: options.run.runId,
+      initialEventSeq: nextEventSeq,
+    },
+  );
 }
 
 function emitBackgroundRunEvent(run: BackgroundRunRecord, event: RunStreamEvent) {
   run.events.push(event);
+  while (run.events.length > MAX_BACKGROUND_EVENTS_PER_RUN) {
+    run.events.shift();
+  }
 
   for (const subscriber of run.subscribers) {
     subscriber(event);
@@ -522,6 +549,20 @@ function trimBackgroundRuns(backgroundRuns: Map<string, BackgroundRunRecord>) {
 
     backgroundRuns.delete(oldestCompletedRun.runId);
   }
+}
+
+function countActiveBackgroundRuns(
+  backgroundRuns: Map<string, BackgroundRunRecord>,
+): number {
+  let activeRuns = 0;
+
+  for (const run of backgroundRuns.values()) {
+    if (!run.isComplete) {
+      activeRuns += 1;
+    }
+  }
+
+  return activeRuns;
 }
 
 function isTerminalRunStreamEvent(event: RunStreamEvent): boolean {
@@ -883,4 +924,29 @@ function toPreviewPayload(preview: string | undefined): { preview: string } | un
 function serializeRunStreamEvent(event: unknown): string {
   const parsed = parseRunStreamEvent(event);
   return `event: ${parsed.event}\ndata: ${JSON.stringify(parsed.data)}\n\n`;
+}
+
+function createRunStartRateLimitEnvelope(input: {
+  request: PendingRun;
+  startedAt: number;
+  message: string;
+}) {
+  return {
+    ok: false as const,
+    operation: "run_start" as const,
+    durationMs: Math.max(0, Date.now() - input.startedAt),
+    request: {
+      prompt: input.request.prompt,
+      mode: input.request.mode,
+      retrievalPolicy: input.request.retrievalPolicy,
+    },
+    error: {
+      code: "RATE_LIMITED" as const,
+      message: input.message,
+      details: {
+        kind: "rate_limited",
+        retryable: true,
+      },
+    },
+  };
 }

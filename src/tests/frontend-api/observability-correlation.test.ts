@@ -206,6 +206,37 @@ describe("observability correlation context", () => {
 
     expect(timelineKeys).toEqual(parityKeys);
   });
+
+  it("supports resumed run contexts and hard-caps oversized observability payloads", async () => {
+    const { emitToolCallSucceeded } = await import(
+      "../../core/telemetry/observability-logger.js"
+    );
+    const { withRunContext } = await import("../../core/telemetry/run-context.js");
+
+    const event = await withRunContext(
+      async () =>
+        emitToolCallSucceeded({
+          toolName: "web_search",
+          toolCallId: "tool-oversized",
+          toolOutput: Object.fromEntries(
+            Array.from({ length: 20 }, (_, index) => [
+              `field_${index}`,
+              "x".repeat(256),
+            ]),
+          ),
+        }),
+      {
+        runId: "run-resumed",
+        initialEventSeq: 7,
+      },
+    );
+
+    expect(event.run_id).toBe("run-resumed");
+    expect(event.event_seq).toBe(7);
+    expect(event.tool_output).toBe("[Truncated observability payload]");
+    expect(event.safety.tool_output.truncation.active).toBe(true);
+    expect(event.safety.tool_output.truncation.paths).toContain("$");
+  });
 });
 
 async function callSearchRoute(): Promise<{
