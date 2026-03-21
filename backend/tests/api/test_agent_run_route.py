@@ -195,17 +195,21 @@ def test_run_route_rejects_unknown_modes(client: TestClient) -> None:
     assert "Input should be 'quick', 'agentic' or 'deep_research'" in response.json()["detail"][0]["msg"]
 
 
-def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
+@pytest.mark.parametrize("mode", ["quick", "agentic", "deep_research"])
+def test_run_route_returns_stable_success_envelope_for_each_mode(
+    client: TestClient,
+    mode: AgentRunMode,
+) -> None:
     runner = StubRuntimeRunner(
         AgentRunResult(
-            run_id="run-success",
+            run_id=f"run-{mode}-success",
             status="completed",
-            final_answer="One source summary.",
+            final_answer=f"{mode} source summary.",
             sources=[
                 {
-                    "title": "Primary source",
-                    "url": "https://example.com/source",
-                    "snippet": "Key evidence.",
+                    "title": f"{mode} source",
+                    "url": f"https://example.com/{mode}",
+                    "snippet": f"Evidence for {mode}.",
                 }
             ],
             tool_call_count=2,
@@ -214,18 +218,18 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
     )
     client.app.state.run_agent_once = runner
 
-    response = post_run(client, prompt="  find one source  ", mode="quick")
+    response = post_run(client, prompt="  find one source  ", mode=mode)
 
     assert response.status_code == 200
     assert response.json() == {
-        "run_id": "run-success",
+        "run_id": f"run-{mode}-success",
         "status": "completed",
-        "final_answer": "One source summary.",
+        "final_answer": f"{mode} source summary.",
         "sources": [
             {
-                "title": "Primary source",
-                "url": "https://example.com/source",
-                "snippet": "Key evidence.",
+                "title": f"{mode} source",
+                "url": f"https://example.com/{mode}",
+                "snippet": f"Evidence for {mode}.",
             }
         ],
         "tool_call_count": 2,
@@ -237,13 +241,14 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
     }
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", "quick", AgentRunRetrievalPolicy())]
+    assert runner.calls == [("find one source", mode, AgentRunRetrievalPolicy())]
 
 
 @pytest.mark.parametrize(
-    ("category", "retryable", "expected_status", "expected_payload"),
+    ("mode", "category", "retryable", "expected_status", "expected_payload"),
     [
         (
+            "quick",
             "loop_limit",
             False,
             422,
@@ -256,6 +261,7 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
             },
         ),
         (
+            "agentic",
             "tool_failure",
             False,
             502,
@@ -268,6 +274,7 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
             },
         ),
         (
+            "deep_research",
             "provider_failure",
             True,
             503,
@@ -283,6 +290,7 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
 )
 def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     client: TestClient,
+    mode: AgentRunMode,
     category: str,
     retryable: bool,
     expected_status: int,
@@ -303,13 +311,13 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     )
     client.app.state.run_agent_once = runner
 
-    response = post_run(client, prompt="find one source", mode="deep_research")
+    response = post_run(client, prompt="find one source", mode=mode)
 
     assert response.status_code == expected_status
     assert response.json() == expected_payload
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", "deep_research", AgentRunRetrievalPolicy())]
+    assert runner.calls == [("find one source", mode, AgentRunRetrievalPolicy())]
 
 
 def test_run_route_forwards_retrieval_policy_to_runtime(client: TestClient) -> None:

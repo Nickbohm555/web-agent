@@ -454,6 +454,106 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert factory.agent.captured_config == expected_runtime_config("deep_research")
 
 
+@pytest.mark.parametrize("mode", ["quick", "agentic", "deep_research"])
+def test_run_agent_once_has_a_happy_path_for_each_mode(mode: AgentRunMode) -> None:
+    if mode == "quick":
+        result = run_agent_once(
+            "latest agent news",
+            mode,
+            runtime_dependencies=RuntimeDependencies(
+                quick_search_runner=StubQuickSearchRunner(
+                    payload={
+                        "query": "latest agent news",
+                        "results": [
+                            {
+                                "title": "Example One",
+                                "url": "https://example.com/one",
+                                "snippet": "First summary",
+                                "rank": {"position": 1, "provider_position": 1},
+                            }
+                        ],
+                        "metadata": {"result_count": 1, "provider": "serper"},
+                        "meta": {
+                            "operation": "web_search",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 12,
+                            "timings": {"total_ms": 12, "provider_ms": 8},
+                        },
+                    }
+                )
+            ),
+        )
+        assert result.status == "completed"
+        assert result.tool_call_count == 1
+        assert str(result.sources[0].url) == "https://example.com/one"
+        return
+
+    agent = StubAgent(
+        raw_result={
+            "messages": [
+                {"role": "assistant", "content": f"{mode} answer."},
+            ]
+        }
+    )
+    result = run_agent_once(
+        f"investigate {mode}",
+        mode,
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.final_answer == f"{mode} answer."
+    assert agent.captured_config == expected_runtime_config(mode)
+
+
+@pytest.mark.parametrize("mode", ["quick", "agentic", "deep_research"])
+def test_run_agent_once_has_a_failure_path_for_each_mode(mode: AgentRunMode) -> None:
+    if mode == "quick":
+        result = run_agent_once(
+            "latest agent news",
+            mode,
+            runtime_dependencies=RuntimeDependencies(
+                quick_search_runner=StubQuickSearchRunner(
+                    payload={
+                        "error": {
+                            "kind": "provider_unavailable",
+                            "message": "Temporary upstream failure",
+                            "retryable": True,
+                            "status_code": 503,
+                            "attempt_number": 1,
+                            "operation": "web_search",
+                            "timings": {"total_ms": 120, "provider_ms": 100},
+                        },
+                        "meta": {
+                            "operation": "web_search",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 120,
+                            "timings": {"total_ms": 120, "provider_ms": 100},
+                        },
+                    }
+                )
+            ),
+        )
+        assert result.status == "failed"
+        assert result.error is not None
+        assert result.error.category == "provider_failure"
+        return
+
+    agent = RaisingStubAgent(GraphRecursionError("GRAPH_RECURSION_LIMIT reached"))
+    result = run_agent_once(
+        f"break {mode}",
+        mode,
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "loop_limit"
+    assert agent.captured_config == expected_runtime_config(mode)
+
+
 def test_run_agent_once_maps_tool_failures() -> None:
     agent = RaisingStubAgent(ToolExecutionError("tool web_search failed"))
 

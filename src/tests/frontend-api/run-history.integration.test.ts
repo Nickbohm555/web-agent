@@ -9,6 +9,22 @@ import {
 import { createRunHistoryStore } from "../../frontend/run-history/store.js";
 import type { RunEventStreamFactory } from "../../frontend/routes/runs.js";
 
+const DEFAULT_RETRIEVAL_POLICY = {
+  search: {
+    country: "US",
+    language: "en",
+    freshness: "any",
+    domainScope: {
+      includeDomains: [],
+      excludeDomains: [],
+    },
+  },
+  fetch: {
+    maxAgeMs: 300_000,
+    fresh: false,
+  },
+} as const;
+
 describe("run history API", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -371,6 +387,129 @@ describe("run history API", () => {
       await harness.close();
     }
   });
+
+  it.each([
+    ["quick", false],
+    ["agentic", false],
+    ["deep_research", true],
+  ] as const)(
+    "preserves a coherent happy-path run lifecycle for %s mode",
+    async (mode, startsInBackground) => {
+      const runExecutor = vi.fn(async ({ prompt, mode: selectedMode }) => ({
+        status: "completed" as const,
+        finalAnswer: `Completed ${selectedMode} run for ${prompt}.`,
+        sources: [
+          {
+            title: `${selectedMode} source`,
+            url: `https://example.com/${selectedMode}`,
+            snippet: `Evidence for ${selectedMode}.`,
+          },
+        ],
+        durationMs: 42,
+        completedAt: Date.parse("2026-03-17T00:00:03.000Z"),
+      }));
+      const harness = await createHarness({ runExecutor });
+
+      try {
+        const startResponse = await harness.postJson("/api/runs", {
+          prompt: `Verify ${mode} lifecycle`,
+          mode,
+        });
+        expect(startResponse.status).toBe(201);
+
+        const runId = parseRunId(startResponse.json);
+        expect(runExecutor).toHaveBeenCalledTimes(startsInBackground ? 1 : 0);
+
+        const streamText = await harness.getText(`/api/runs/${runId}/events`);
+        expect(streamText.status).toBe(200);
+        expect(parseSseFrames(streamText.body).map((frame) => frame.event)).toEqual([
+          "run_state",
+          "run_complete",
+        ]);
+
+        expect(runExecutor).toHaveBeenCalledTimes(1);
+        expect(runExecutor).toHaveBeenCalledWith({
+          runId,
+          prompt: `Verify ${mode} lifecycle`,
+          mode,
+          retrievalPolicy: DEFAULT_RETRIEVAL_POLICY,
+          signal: expect.any(AbortSignal),
+        });
+
+        const detailResponse = await harness.getJson(`/api/runs/${runId}/history`);
+        expect(detailResponse.status).toBe(200);
+        const snapshot = parseRunHistoryRunSnapshot(detailResponse.json);
+        expect(snapshot.finalAnswer).toBe(`Completed ${mode} run for Verify ${mode} lifecycle.`);
+        expect(snapshot.events.map((event) => event.event_type)).toEqual([
+          "run_started",
+          "final_answer_generated",
+          "run_completed",
+        ]);
+        expect(snapshot.events[0]?.tool_input).toEqual({
+          prompt: `Verify ${mode} lifecycle`,
+          mode,
+          retrievalPolicy: DEFAULT_RETRIEVAL_POLICY,
+        });
+      } finally {
+        await harness.close();
+      }
+    },
+  );
+
+  it.each([
+    ["quick", false],
+    ["agentic", false],
+    ["deep_research", true],
+  ] as const)(
+    "preserves a coherent failure-path run lifecycle for %s mode",
+    async (mode, startsInBackground) => {
+      const runExecutor = vi.fn(async () => ({
+        status: "failed" as const,
+        message: `${mode} execution failed`,
+        code: `${mode.toUpperCase()}_FAILED`,
+        failedAt: Date.parse("2026-03-17T00:00:03.000Z"),
+      }));
+      const harness = await createHarness({ runExecutor });
+
+      try {
+        const startResponse = await harness.postJson("/api/runs", {
+          prompt: `Break ${mode} lifecycle`,
+          mode,
+        });
+        expect(startResponse.status).toBe(201);
+
+        const runId = parseRunId(startResponse.json);
+        expect(runExecutor).toHaveBeenCalledTimes(startsInBackground ? 1 : 0);
+
+        const streamText = await harness.getText(`/api/runs/${runId}/events`);
+        expect(streamText.status).toBe(200);
+        expect(parseSseFrames(streamText.body).map((frame) => frame.event)).toEqual([
+          "run_state",
+          "run_error",
+        ]);
+
+        expect(runExecutor).toHaveBeenCalledTimes(1);
+
+        const detailResponse = await harness.getJson(`/api/runs/${runId}/history`);
+        expect(detailResponse.status).toBe(200);
+        const snapshot = parseRunHistoryRunSnapshot(detailResponse.json);
+        expect(snapshot.finalAnswer).toBeNull();
+        expect(snapshot.events.map((event) => event.event_type)).toEqual([
+          "run_started",
+          "run_failed",
+        ]);
+        expect(snapshot.events[1]).toMatchObject({
+          event_type: "run_failed",
+          error_output: {
+            message: `${mode} execution failed`,
+            code: `${mode.toUpperCase()}_FAILED`,
+          },
+        });
+      } finally {
+        await harness.close();
+      }
+    },
+  );
 });
 
 function parseRunId(input: unknown): string {
@@ -406,12 +545,38 @@ function replaceRunId(event: RunStreamEvent, runId: string): RunStreamEvent {
 async function createHarness(options: {
   store?: ReturnType<typeof createRunHistoryStore>;
   runEventStream?: RunEventStreamFactory;
+  runExecutor?: (
+    context: {
+      runId: string;
+      prompt: string;
+      mode: "quick" | "agentic" | "deep_research";
+      retrievalPolicy: typeof DEFAULT_RETRIEVAL_POLICY;
+      signal: AbortSignal;
+    },
+  ) => Promise<
+    | {
+      status: "completed";
+      finalAnswer: string;
+      sources: Array<{ title: string; url: string; snippet: string }>;
+      durationMs: number;
+      completedAt: number;
+    }
+    | {
+      status: "failed";
+      message: string;
+      code: string;
+      failedAt: number;
+    }
+  >;
 } = {}) {
   const { createFrontendServerApp } = await import("../../frontend/server.js");
   const app = createFrontendServerApp();
   app.locals.runHistoryStore = options.store ?? createRunHistoryStore();
   if (options.runEventStream !== undefined) {
     app.locals.runEventStream = options.runEventStream;
+  }
+  if (options.runExecutor !== undefined) {
+    app.locals.runExecutor = options.runExecutor;
   }
 
   const server = await new Promise<import("node:http").Server>((resolve) => {
