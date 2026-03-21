@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 3
+Current Section: 4
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -53,7 +53,7 @@ Completed: Added passage segmentation with duplicate suppression, objective-awar
 Commit Note:
 Commit and push this section atomically once its tests pass.
 
-## Section 3: Add Search Reranking And LLM-Optimized Excerpts
+## Section 3: Add Search Reranking And LLM-Optimized Excerpts ✓
 
 Task:
 Upgrade `web_search` so it returns better agent-facing excerpts and more useful result ordering than the raw provider ranking alone.
@@ -74,6 +74,7 @@ Success looks like search responses containing tighter, more relevant excerpts a
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: Added query-aware rerank scoring to normalized search results, enriched Serper snippets with provider metadata, rewrote excerpts toward query-matching passages, and verified with `pytest backend/tests/tools/test_web_search_tool.py -q`, `npm run test -- src/tests/search/search.integration.test.ts`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
