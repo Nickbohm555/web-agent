@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 14
+Current Section: 15
 
 ## Section 1: Define Search Mode Contract
 
@@ -313,6 +313,8 @@ Completed with `./.venv/bin/pytest backend/tests/api/test_agent_run_route.py -q`
 
 ## Section 14: Normalize Citation Spans
 
+✓ Completed: Added explicit citation annotations with stable `source_id`, `title`, `url`, and text spans; validated citation ranges against final answer text with deterministic overlap/bounds rejection; and wired runtime extraction to preserve structured citation metadata from assembled answers.
+
 Task:
 Introduce a citation annotation model with explicit text spans, target URLs, titles, and stable source IDs.
 
@@ -329,7 +331,7 @@ How to Test:
 Success looks like citation metadata surviving runtime assembly with valid spans, stable source IDs, and no malformed overlap cases. We know this section is working when test fixtures can assert exact span locations and reject broken annotations deterministically.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `pytest backend/tests/agent/test_runtime.py -q`, `pytest backend/tests -q`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 ## Section 15: Expand Streamed Retrieval Action Events
 
