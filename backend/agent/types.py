@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 
 AgentRunMode = Literal["quick", "agentic", "deep_research"]
@@ -78,12 +78,32 @@ class AgentRunRetrievalPolicy(BaseModel):
     )
 
 
+class AgentSourceReference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1)
+    url: HttpUrl
+    snippet: str = ""
+
+    @field_validator("title", "snippet")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_title(self) -> "AgentSourceReference":
+        if not self.title:
+            raise ValueError("source title must not be empty")
+        return self
+
+
 class AgentRunResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     run_id: str = Field(min_length=1)
     status: AgentRunStatus
     final_answer: str = ""
+    sources: list[AgentSourceReference] = Field(default_factory=list)
     tool_call_count: int = Field(ge=0)
     elapsed_ms: int = Field(ge=0)
     error: Optional[AgentRunError] = None

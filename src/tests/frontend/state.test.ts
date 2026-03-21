@@ -136,6 +136,7 @@ describe("run state reducer", () => {
         event: {
           runId: "run-123",
           finalAnswer: "Answer",
+          sources: [],
           completedAt: 400,
           durationMs: 300,
         },
@@ -240,6 +241,7 @@ describe("run state reducer", () => {
         event: {
           runId: "run-123",
           finalAnswer: "Provider A had fewer outages.",
+          sources: [],
           completedAt: 300,
           durationMs: 200,
         },

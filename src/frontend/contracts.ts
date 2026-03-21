@@ -203,6 +203,29 @@ export const RunStartResponseSchema = z
   })
   .strict();
 
+export const RunSourceSchema = z
+  .object({
+    title: z.string().trim().min(1),
+    url: z.string().url(),
+    snippet: z.string(),
+  })
+  .strict();
+
+export const BackendAgentRunSuccessResponseSchema = z
+  .object({
+    run_id: z.string().trim().min(1),
+    status: z.literal("completed"),
+    final_answer: z.string().trim().min(1),
+    sources: z.array(RunSourceSchema),
+    tool_call_count: z.number().int().nonnegative(),
+    elapsed_ms: z.number().int().nonnegative(),
+    metadata: z.object({
+      tool_call_count: z.number().int().nonnegative(),
+      elapsed_ms: z.number().int().nonnegative(),
+    }).strict(),
+  })
+  .strict();
+
 const RunHistoryTimestampSchema = z.string().datetime({ offset: true });
 const RunHistoryRunIdSchema = z.string().trim().min(1);
 const RunHistoryPayloadFieldSchema = z.enum([
@@ -312,6 +335,7 @@ export const RunCompleteEventSchema = z
   .object({
     runId: RunIdSchema,
     finalAnswer: z.string(),
+    sources: z.array(RunSourceSchema).default([]),
     completedAt: RunEventTimestampSchema,
     durationMs: z.number().nonnegative(),
   })
@@ -373,6 +397,8 @@ export type RunMode = z.output<typeof RunModeSchema>;
 export type RunStartRequest = z.output<typeof RunStartRequestSchema>;
 export type RunRetrievalPolicy = z.output<typeof NormalizedRunRetrievalPolicySchema>;
 export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
+export type RunSource = z.output<typeof RunSourceSchema>;
+export type BackendAgentRunSuccessResponse = z.output<typeof BackendAgentRunSuccessResponseSchema>;
 export type CanonicalRunEvent = RunEvent;
 export type CanonicalRunEventType = RunEventType;
 export type CanonicalRunEventToolName = CanonicalRunEventToolNameType;
@@ -430,6 +456,10 @@ export function parseRunHistoryRunSnapshot(input: unknown): RunHistoryRunSnapsho
 
 export function parseRunHistoryNotFoundError(input: unknown): RunHistoryNotFoundError {
   return RunHistoryNotFoundErrorSchema.parse(input);
+}
+
+export function parseBackendAgentRunSuccessResponse(input: unknown): BackendAgentRunSuccessResponse {
+  return BackendAgentRunSuccessResponseSchema.parse(input);
 }
 
 export function parseSearchSdkOptions(input: unknown): SearchOptions | undefined {

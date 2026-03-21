@@ -3,15 +3,17 @@ import { Router } from "express";
 import { ZodError } from "zod";
 import {
   createEmptyRunEventSafety,
-  parseRunStreamEvent,
   createErrorEnvelope,
   createRequestTimer,
   createRunStartResponse,
+  parseBackendAgentRunSuccessResponse,
   parseRunStartRequest,
+  parseRunStreamEvent,
   type CanonicalRunEvent,
-  type RunRetrievalPolicy,
-  type RunMode,
   type RunHistoryRunSnapshot,
+  type RunMode,
+  type RunRetrievalPolicy,
+  type RunSource,
   type RunStreamEvent,
   type ToolCallEvent,
 } from "../contracts.js";
@@ -51,6 +53,7 @@ export type RunExecutorResult =
   | {
     status: "completed";
     finalAnswer: string;
+    sources: RunSource[];
     durationMs?: number;
     completedAt?: number;
   }
@@ -550,18 +553,13 @@ export function createHttpAgentRunExecutor(
 
     const payload = await safelyReadJson(response);
     if (response.ok) {
-      const responseRecord = asRecord(payload);
-      const finalAnswer = responseRecord.final_answer;
-      const elapsedMs = responseRecord.elapsed_ms;
-
-      if (typeof finalAnswer !== "string" || typeof elapsedMs !== "number") {
-        throw new Error("Backend agent response failed validation.");
-      }
+      const responseRecord = parseBackendAgentRunSuccessResponse(payload);
 
       return {
         status: "completed",
-        finalAnswer,
-        durationMs: elapsedMs,
+        finalAnswer: responseRecord.final_answer,
+        sources: responseRecord.sources,
+        durationMs: responseRecord.elapsed_ms,
         completedAt: Date.now(),
       };
     }
@@ -680,6 +678,7 @@ function ingestRunStreamEventHistory(
           "final_answer_generated",
           completedAt,
           event.data.finalAnswer,
+          event.data.sources,
         ),
       );
       ingestRunHistoryEvent(
@@ -690,6 +689,7 @@ function ingestRunStreamEventHistory(
           "run_completed",
           completedAt,
           event.data.finalAnswer,
+          event.data.sources,
         ),
       );
       return nextEventSeq + 2;
@@ -762,6 +762,7 @@ function createRunCompletionEvent(
   eventType: "final_answer_generated" | "run_completed",
   timestamp: string,
   finalAnswer: string,
+  sources: RunSource[],
 ): CanonicalRunEvent {
   return {
     run_id: runId,
@@ -769,6 +770,7 @@ function createRunCompletionEvent(
     event_type: eventType,
     ts: timestamp,
     final_answer: finalAnswer,
+    ...(sources.length > 0 ? { tool_output: { sources } } : {}),
     safety: createEmptyRunEventSafety(),
   };
 }
@@ -817,6 +819,7 @@ function createRunCompleteData(
   return {
     runId,
     finalAnswer: result.finalAnswer,
+    sources: result.sources,
     completedAt: result.completedAt ?? Date.now(),
     durationMs: result.durationMs ?? 0,
   };

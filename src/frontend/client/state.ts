@@ -253,12 +253,18 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
             event_type: "final_answer_generated",
             ts: new Date(action.event.completedAt).toISOString(),
             final_answer: action.event.finalAnswer,
+            ...(action.event.sources.length > 0
+              ? { tool_output: { sources: action.event.sources } }
+              : {}),
           },
           {
             run_id: action.event.runId,
             event_type: "run_completed",
             ts: new Date(action.event.completedAt).toISOString(),
             final_answer: action.event.finalAnswer,
+            ...(action.event.sources.length > 0
+              ? { tool_output: { sources: action.event.sources } }
+              : {}),
           },
         ]),
       };

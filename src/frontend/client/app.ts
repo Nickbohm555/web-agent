@@ -871,6 +871,20 @@ function createPreviewEvents(): CanonicalRunEvent[] {
       ts: "2026-03-17T12:00:04.000Z",
       final_answer:
         "Search succeeded, crawl failed safely, and the agent kept the error visible.",
+      tool_output: {
+        sources: [
+          {
+            title: "Retrieval SDK release notes",
+            url: "https://example.com/release-notes",
+            snippet: "Primary evidence for the reliability notes.",
+          },
+          {
+            title: "Provider incident summary",
+            url: "https://status.example.com/incidents/123",
+            snippet: "Operational context for the failure mode.",
+          },
+        ],
+      },
       safety: createEmptyRunEventSafety(),
     },
   ]);

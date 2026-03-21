@@ -132,6 +132,13 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
                 {
                     "role": "assistant",
                     "content": "Final answer with one source.",
+                    "sources": [
+                        {
+                            "title": "Example source",
+                            "url": "https://example.com/source",
+                            "snippet": "Evidence snippet.",
+                        }
+                    ],
                     "provider_payload": {"token_usage": {"total_tokens": 42}},
                 },
             ],
@@ -147,6 +154,13 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
     assert isinstance(result, AgentRunResult)
     assert result.status == "completed"
     assert result.final_answer == "Final answer with one source."
+    assert result.model_dump(mode="json")["sources"] == [
+        {
+            "title": "Example source",
+            "url": "https://example.com/source",
+            "snippet": "Evidence snippet.",
+        }
+    ]
     assert result.tool_call_count == 2
     assert result.elapsed_ms >= 0
     assert result.run_id
@@ -274,6 +288,18 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     assert "Example One: First summary." in result.final_answer
     assert "Sources:" in result.final_answer
     assert "https://example.com/one" in result.final_answer
+    assert result.model_dump(mode="json")["sources"] == [
+        {
+            "title": "Example One",
+            "url": "https://example.com/one",
+            "snippet": "First summary",
+        },
+        {
+            "title": "Example Two",
+            "url": "https://example.com/two",
+            "snippet": "Second summary",
+        },
+    ]
     assert search_runner.captured_query == "latest agent news"
     assert search_runner.captured_max_results == 5
     assert search_runner.captured_freshness == "any"

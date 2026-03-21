@@ -41,6 +41,7 @@ describe("run stream API contracts", () => {
         data: {
           runId,
           finalAnswer: "Completed answer.",
+          sources: [],
           completedAt: 1_710_000_000_500,
           durationMs: 500,
         },
@@ -86,6 +87,7 @@ describe("run stream API contracts", () => {
     const runExecutor = vi.fn(async ({ runId, prompt, mode }) => ({
       status: "completed" as const,
       finalAnswer: `Completed ${mode} run for ${prompt}.`,
+      sources: [],
       durationMs: 42,
       completedAt: 1_710_000_000_420,
     }));
@@ -170,6 +172,7 @@ describe("run stream API contracts", () => {
       | ((value: {
         status: "completed";
         finalAnswer: string;
+        sources: [];
         durationMs: number;
         completedAt: number;
       }) => void)
@@ -226,6 +229,7 @@ describe("run stream API contracts", () => {
       resolveRun?.({
         status: "completed",
         finalAnswer: "Background run completed.",
+        sources: [],
         durationMs: 120,
         completedAt: 1_710_000_000_120,
       });
@@ -306,6 +310,7 @@ describe("run stream client", () => {
       JSON.stringify({
         runId: "run-123",
         finalAnswer: "Done",
+        sources: [],
         completedAt: 20,
         durationMs: 10,
       }),
@@ -327,6 +332,7 @@ describe("run stream client", () => {
     expect(handlers.onRunComplete).toHaveBeenCalledWith({
       runId: "run-123",
       finalAnswer: "Done",
+      sources: [],
       completedAt: 20,
       durationMs: 10,
     });

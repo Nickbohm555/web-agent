@@ -97,16 +97,30 @@ def test_run_success_contract_normalizes_required_response_fields() -> None:
         run_id="run-123",
         status="completed",
         final_answer="One source summary.",
+        sources=[
+            {
+                "title": "Primary source",
+                "url": "https://example.com/source",
+                "snippet": "Key evidence.",
+            }
+        ],
         tool_call_count=2,
         elapsed_ms=81,
     )
 
     payload = AgentRunSuccessResponse.from_run_result(result)
 
-    assert payload.model_dump() == {
+    assert payload.model_dump(mode="json") == {
         "run_id": "run-123",
         "status": "completed",
         "final_answer": "One source summary.",
+        "sources": [
+            {
+                "title": "Primary source",
+                "url": "https://example.com/source",
+                "snippet": "Key evidence.",
+            }
+        ],
         "tool_call_count": 2,
         "elapsed_ms": 81,
         "metadata": {
@@ -187,6 +201,13 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
             run_id="run-success",
             status="completed",
             final_answer="One source summary.",
+            sources=[
+                {
+                    "title": "Primary source",
+                    "url": "https://example.com/source",
+                    "snippet": "Key evidence.",
+                }
+            ],
             tool_call_count=2,
             elapsed_ms=81,
         )
@@ -200,6 +221,13 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
         "run_id": "run-success",
         "status": "completed",
         "final_answer": "One source summary.",
+        "sources": [
+            {
+                "title": "Primary source",
+                "url": "https://example.com/source",
+                "snippet": "Key evidence.",
+            }
+        ],
         "tool_call_count": 2,
         "elapsed_ms": 81,
         "metadata": {

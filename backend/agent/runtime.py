@@ -17,6 +17,7 @@ from backend.agent.types import (
     AgentRunMode,
     AgentRunResult,
     AgentRunRetrievalPolicy,
+    AgentSourceReference,
     AgentRuntimeProfile,
 )
 from backend.app.contracts.tool_errors import ToolErrorEnvelope
@@ -130,6 +131,7 @@ def run_agent_once(
             run_id=run_id,
             status="completed",
             final_answer=_extract_final_answer(raw_result),
+            sources=_extract_sources(raw_result),
             tool_call_count=_count_tool_calls(raw_result),
             elapsed_ms=_elapsed_ms(started_at),
         )
@@ -239,6 +241,7 @@ def _run_quick_mode(
         run_id=run_id,
         status="completed",
         final_answer=synthesize_quick_answer(response),
+        sources=_extract_search_sources(response),
         tool_call_count=1,
         elapsed_ms=_elapsed_ms(started_at),
     )
@@ -352,6 +355,67 @@ def _count_tool_calls(raw_result: Any) -> int:
             total += 1
 
     return total
+
+
+def _extract_sources(raw_result: Any) -> list[AgentSourceReference]:
+    if not isinstance(raw_result, dict):
+        return []
+
+    direct_sources = raw_result.get("sources")
+    if isinstance(direct_sources, list):
+        return _validate_sources(direct_sources)
+
+    messages = raw_result.get("messages")
+    if isinstance(messages, list):
+        for message in reversed(messages):
+            source_payload = _coerce_message_sources(message)
+            if source_payload:
+                return source_payload
+
+    return []
+
+
+def _coerce_message_sources(message: Any) -> list[AgentSourceReference]:
+    if isinstance(message, dict):
+        direct_sources = message.get("sources")
+        if isinstance(direct_sources, list):
+            return _validate_sources(direct_sources)
+
+        additional_kwargs = message.get("additional_kwargs")
+        if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("sources"), list):
+            return _validate_sources(additional_kwargs["sources"])
+        return []
+
+    direct_sources = getattr(message, "sources", None)
+    if isinstance(direct_sources, list):
+        return _validate_sources(direct_sources)
+
+    additional_kwargs = getattr(message, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict) and isinstance(additional_kwargs.get("sources"), list):
+        return _validate_sources(additional_kwargs["sources"])
+
+    return []
+
+
+def _validate_sources(source_payload: list[Any]) -> list[AgentSourceReference]:
+    sources: list[AgentSourceReference] = []
+    for entry in source_payload:
+        try:
+            sources.append(AgentSourceReference.model_validate(entry))
+        except Exception:
+            continue
+    return sources
+
+
+def _extract_search_sources(response: WebSearchResponse) -> list[AgentSourceReference]:
+    return [
+        AgentSourceReference(
+            title=result.title,
+            url=result.url,
+            snippet=result.snippet,
+        )
+        for result in response.results[:3]
+    ]
 
 
 def _coerce_message_content(message: Any) -> str:

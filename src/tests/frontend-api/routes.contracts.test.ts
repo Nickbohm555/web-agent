@@ -308,6 +308,73 @@ describe("frontend API route contracts", () => {
       throw new Error("Expected SDK error details.");
     }
   });
+
+  it("validates backend agent success payloads with structured sources", async () => {
+    const { parseBackendAgentRunSuccessResponse } = await import("../../frontend/contracts.js");
+
+    expect(
+      parseBackendAgentRunSuccessResponse({
+        run_id: "run-123",
+        status: "completed",
+        final_answer: "Answer with sources.",
+        sources: [
+          {
+            title: "Example source",
+            url: "https://example.com/source",
+            snippet: "Evidence snippet.",
+          },
+        ],
+        tool_call_count: 2,
+        elapsed_ms: 80,
+        metadata: {
+          tool_call_count: 2,
+          elapsed_ms: 80,
+        },
+      }),
+    ).toEqual({
+      run_id: "run-123",
+      status: "completed",
+      final_answer: "Answer with sources.",
+      sources: [
+        {
+          title: "Example source",
+          url: "https://example.com/source",
+          snippet: "Evidence snippet.",
+        },
+      ],
+      tool_call_count: 2,
+      elapsed_ms: 80,
+      metadata: {
+        tool_call_count: 2,
+        elapsed_ms: 80,
+      },
+    });
+  });
+
+  it("rejects backend agent success payloads with malformed sources", async () => {
+    const { parseBackendAgentRunSuccessResponse } = await import("../../frontend/contracts.js");
+
+    expect(() =>
+      parseBackendAgentRunSuccessResponse({
+        run_id: "run-123",
+        status: "completed",
+        final_answer: "Answer with sources.",
+        sources: [
+          {
+            title: "",
+            url: "not-a-url",
+            snippet: "Evidence snippet.",
+          },
+        ],
+        tool_call_count: 2,
+        elapsed_ms: 80,
+        metadata: {
+          tool_call_count: 2,
+          elapsed_ms: 80,
+        },
+      }),
+    ).toThrowError();
+  });
 });
 
 async function callRoute(

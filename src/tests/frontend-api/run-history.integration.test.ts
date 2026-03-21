@@ -75,6 +75,7 @@ describe("run history API", () => {
           data: {
             runId: "__RUN_ID__",
             finalAnswer: "Answer with citations.",
+            sources: [],
             completedAt: Date.parse("2026-03-17T00:00:03.000Z"),
             durationMs: 3000,
           },
@@ -200,6 +201,7 @@ describe("run history API", () => {
           data: {
             runId: "__RUN_ID__",
             finalAnswer: "A very long final answer ".repeat(20),
+            sources: [],
             completedAt: Date.parse("2026-03-17T00:00:05.000Z"),
             durationMs: 5000,
           },
@@ -267,6 +269,7 @@ describe("run history API", () => {
           data: {
             runId: context.runId,
             finalAnswer: "Long-running answer.",
+            sources: [],
             completedAt: Date.parse("2026-03-17T00:00:03.000Z"),
             durationMs: 3000,
           },
