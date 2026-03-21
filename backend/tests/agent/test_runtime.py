@@ -18,6 +18,7 @@ from backend.agent.runtime import (
     run_agent_once,
 )
 from backend.agent.types import AgentRunMode, AgentRunResult, AgentRuntimeProfile
+from backend.agent.types import AgentRunRetrievalPolicy
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
 
@@ -35,6 +36,7 @@ def expected_runtime_config(mode: AgentRunMode = "agentic") -> dict[str, Any]:
             "max_search_results": profile.max_search_results,
             "max_crawl_chars": profile.max_crawl_chars,
         },
+        "retrieval_policy": AgentRunRetrievalPolicy().model_dump(),
     }
 
 
@@ -93,10 +95,24 @@ class StubQuickSearchRunner:
     payload: dict[str, Any]
     captured_query: str | None = None
     captured_max_results: int | None = None
+    captured_freshness: str | None = None
+    captured_include_domains: list[str] | None = None
+    captured_exclude_domains: list[str] | None = None
 
-    def __call__(self, *, query: str, max_results: int = 5) -> dict[str, Any]:
+    def __call__(
+        self,
+        *,
+        query: str,
+        max_results: int = 5,
+        freshness: str = "any",
+        include_domains: list[str] | None = None,
+        exclude_domains: list[str] | None = None,
+    ) -> dict[str, Any]:
         self.captured_query = query
         self.captured_max_results = max_results
+        self.captured_freshness = freshness
+        self.captured_include_domains = include_domains
+        self.captured_exclude_domains = exclude_domains
         return self.payload
 
 
@@ -260,7 +276,48 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     assert "https://example.com/one" in result.final_answer
     assert search_runner.captured_query == "latest agent news"
     assert search_runner.captured_max_results == 5
+    assert search_runner.captured_freshness == "any"
+    assert search_runner.captured_include_domains == []
+    assert search_runner.captured_exclude_domains == []
     assert agent.captured_inputs is None
+
+
+def test_run_agent_once_threads_retrieval_policy_into_runtime_and_quick_search() -> None:
+    search_runner = StubQuickSearchRunner(
+        payload={
+            "query": "latest agent news",
+            "results": [],
+            "metadata": {"result_count": 0, "provider": "serper"},
+            "meta": {
+                "operation": "web_search",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12, "provider_ms": 8},
+            },
+        }
+    )
+    retrieval_policy = AgentRunRetrievalPolicy.model_validate(
+        {
+            "search": {
+                "freshness": "week",
+                "include_domains": ["example.com"],
+                "exclude_domains": ["blocked.com"],
+            },
+        }
+    )
+
+    result = run_agent_once(
+        "latest agent news",
+        "quick",
+        retrieval_policy,
+        runtime_dependencies=RuntimeDependencies(quick_search_runner=search_runner),
+    )
+
+    assert result.status == "completed"
+    assert search_runner.captured_freshness == "week"
+    assert search_runner.captured_include_domains == ["example.com"]
+    assert search_runner.captured_exclude_domains == ["blocked.com"]
 
 
 def test_run_agent_once_maps_quick_search_provider_failures() -> None:

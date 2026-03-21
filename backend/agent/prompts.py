@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.agent.types import AgentRuntimeProfile
+from backend.agent.types import AgentRunRetrievalPolicy, AgentRuntimeProfile
 
 BASE_SYSTEM_PROMPT = """
 You are a web research agent.
@@ -22,11 +22,23 @@ PROFILE_PROMPT_APPENDICES: dict[str, str] = {
 }
 
 
-def build_system_prompt(profile: AgentRuntimeProfile) -> str:
+def build_system_prompt(
+    profile: AgentRuntimeProfile,
+    retrieval_policy: AgentRunRetrievalPolicy | None = None,
+) -> str:
     appendix = PROFILE_PROMPT_APPENDICES[profile.name]
     bounded_guidance = (
         f"Tool budget: at most {profile.max_tool_steps} tool calls total. "
         f"Use web_search for no more than {profile.max_search_results} results per call. "
         f"Use web_crawl selectively and keep extracted evidence under about {profile.max_crawl_chars} characters per page."
     )
-    return f"{BASE_SYSTEM_PROMPT}\n\nMode guidance: {appendix}\n{bounded_guidance}"
+    policy = retrieval_policy or AgentRunRetrievalPolicy()
+    policy_guidance = (
+        f"Retrieval policy: freshness={policy.search.freshness}; "
+        f"include domains={policy.search.include_domains or ['*']}; "
+        f"exclude domains={policy.search.exclude_domains or []}."
+    )
+    return (
+        f"{BASE_SYSTEM_PROMPT}\n\nMode guidance: {appendix}\n"
+        f"{bounded_guidance}\n{policy_guidance}"
+    )

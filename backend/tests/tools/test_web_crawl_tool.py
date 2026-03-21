@@ -2,6 +2,7 @@ import importlib
 
 import httpx
 
+from backend.agent.types import AgentRunRetrievalPolicy
 from backend.app.contracts.web_crawl import WebCrawlError, WebCrawlSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.tools.web_crawl import build_web_crawl_tool, run_web_crawl, web_crawl
@@ -105,6 +106,25 @@ def test_run_web_crawl_returns_structured_retryable_error_metadata() -> None:
     assert result.error.operation == "web_crawl"
     assert result.meta.attempts == 3
     assert result.meta.retries == 2
+
+
+def test_bounded_web_crawl_rejects_urls_outside_retrieval_policy_scope() -> None:
+    tool_instance = build_web_crawl_tool(
+        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
+            {
+                "search": {
+                    "include_domains": ["example.com"],
+                    "exclude_domains": ["blocked.com"],
+                }
+            }
+        )
+    )
+
+    payload = tool_instance.invoke({"url": "https://blocked.com/article"})
+    result = WebCrawlError.model_validate(payload)
+
+    assert result.error.kind == "invalid_request"
+    assert result.error.message == "url is outside the configured retrieval policy domain scope"
 
 
 def _mock_http_client(handler):

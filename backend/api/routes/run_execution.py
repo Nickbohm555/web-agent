@@ -4,18 +4,18 @@ from collections.abc import Callable
 
 from fastapi.responses import JSONResponse
 
-from backend.agent.types import AgentRunMode, AgentRunResult
+from backend.agent.types import AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import map_runtime_failure
 
-AgentRuntimeRunner = Callable[[str, AgentRunMode], AgentRunResult]
+AgentRuntimeRunner = Callable[[str, AgentRunMode, AgentRunRetrievalPolicy], AgentRunResult]
 
 
 def execute_agent_run_request(
     runner: AgentRuntimeRunner,
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    result = runner(payload.prompt, payload.mode)
+    result = runner(payload.prompt, payload.mode, payload.retrieval_policy)
 
     if result.status == "failed":
         mapped_error = map_runtime_failure(result)

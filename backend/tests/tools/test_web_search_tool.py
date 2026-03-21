@@ -3,6 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from backend.app.contracts.tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
+from backend.agent.types import AgentRunRetrievalPolicy
 from backend.app.contracts.web_search import (
     SearchMetadata,
     SearchRank,
@@ -400,7 +401,12 @@ def test_web_search_tool_returns_contract_valid_success_payload() -> None:
 def test_build_web_search_tool_caps_agent_requested_result_count() -> None:
     captured_max_results: int | None = None
 
-    def search_runner(*, query: str, max_results: int = 5) -> dict[str, object]:
+    def search_runner(
+        *,
+        query: str,
+        max_results: int = 5,
+        freshness: str = "any",
+    ) -> dict[str, object]:
         nonlocal captured_max_results
         captured_max_results = max_results
         return {
@@ -470,7 +476,7 @@ def test_web_search_tool_returns_structured_error_for_invalid_args() -> None:
 
 def test_web_search_langchain_tool_is_callable() -> None:
     class StubClient:
-        def search(self, *, query: str, max_results: int) -> WebSearchResponse:
+        def search(self, *, query: str, max_results: int, freshness: str = "any") -> WebSearchResponse:
             return WebSearchResponse(
                 query=query,
                 results=[
@@ -505,6 +511,65 @@ def test_web_search_langchain_tool_is_callable() -> None:
     response = WebSearchResponse.model_validate(payload)
     assert response.results[0].title == "Result"
     assert web_search.name == "web_search"
+
+
+def test_bounded_web_search_applies_retrieval_policy_to_query_and_results() -> None:
+    captured: dict[str, object] = {}
+
+    def runner(*, query: str, max_results: int, freshness: str = "any") -> dict[str, object]:
+        captured["query"] = query
+        captured["freshness"] = freshness
+        captured["max_results"] = max_results
+        return WebSearchResponse(
+            query=query,
+            results=[
+                WebSearchResult(
+                    title="Allowed",
+                    url="https://docs.example.com/article",
+                    snippet="Snippet",
+                    rank=SearchRank(position=1, provider_position=1),
+                ),
+                WebSearchResult(
+                    title="Blocked",
+                    url="https://blocked.com/article",
+                    snippet="Snippet",
+                    rank=SearchRank(position=2, provider_position=2),
+                ),
+            ],
+            metadata=SearchMetadata(result_count=2, provider="serper"),
+            meta=ToolMeta(
+                operation="web_search",
+                attempts=1,
+                retries=0,
+                duration_ms=10,
+                timings=ToolTimings(total_ms=10, provider_ms=8),
+            ),
+        ).model_dump(mode="json")
+
+    tool = build_web_search_tool(
+        max_results_cap=3,
+        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
+            {
+                "search": {
+                    "freshness": "week",
+                    "include_domains": ["example.com"],
+                    "exclude_domains": ["blocked.com"],
+                }
+            }
+        ),
+        search_runner=runner,
+    )
+
+    payload = tool.invoke({"query": "agents", "max_results": 3})
+    response = WebSearchResponse.model_validate(payload)
+
+    assert captured == {
+        "query": "agents site:example.com -site:blocked.com",
+        "freshness": "week",
+        "max_results": 3,
+    }
+    assert [result.title for result in response.results] == ["Allowed"]
+    assert response.metadata.result_count == 1
 
 
 def _mock_http_client(handler) -> object:

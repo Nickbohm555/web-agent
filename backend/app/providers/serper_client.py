@@ -83,7 +83,13 @@ class SerperClient:
         self._timeout = timeout
         self._http_client = http_client
 
-    def search(self, *, query: str, max_results: int) -> WebSearchResponse:
+    def search(
+        self,
+        *,
+        query: str,
+        max_results: int,
+        freshness: str = "any",
+    ) -> WebSearchResponse:
         normalized_query = query.strip()
         if not normalized_query:
             raise NonRetryableSerperError(
@@ -100,6 +106,9 @@ class SerperClient:
             request_start = perf_counter()
             try:
                 payload = {"q": normalized_query, "num": max_results}
+                freshness_tbs = _map_freshness_to_tbs(freshness)
+                if freshness_tbs is not None:
+                    payload["tbs"] = freshness_tbs
                 response = self._post(payload)
             except httpx.RequestError as exc:
                 provider_ms = _elapsed_ms(request_start)
@@ -257,3 +266,12 @@ def _clean_text(value: Any, *, allow_empty: bool = False) -> str:
 
 def _elapsed_ms(start: float) -> int:
     return int((perf_counter() - start) * 1000)
+
+
+def _map_freshness_to_tbs(freshness: str) -> str | None:
+    return {
+        "day": "qdr:d",
+        "week": "qdr:w",
+        "month": "qdr:m",
+        "year": "qdr:y",
+    }.get(freshness)

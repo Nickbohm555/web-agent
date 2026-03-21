@@ -16,6 +16,7 @@ from backend.agent.types import (
     AgentRunError,
     AgentRunMode,
     AgentRunResult,
+    AgentRunRetrievalPolicy,
     AgentRuntimeProfile,
 )
 from backend.app.contracts.tool_errors import ToolErrorEnvelope
@@ -93,6 +94,7 @@ class RuntimeDependencies:
 def run_agent_once(
     prompt: str,
     mode: AgentRunMode = "agentic",
+    retrieval_policy: AgentRunRetrievalPolicy | None = None,
     *,
     runtime_dependencies: RuntimeDependencies | None = None,
 ) -> AgentRunResult:
@@ -109,18 +111,20 @@ def run_agent_once(
 
     try:
         profile = get_runtime_profile(mode)
+        effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         dependencies = runtime_dependencies or build_runtime_dependencies()
         if profile.name == "quick":
             return _run_quick_mode(
                 prompt=prompt,
                 run_id=run_id,
                 started_at=started_at,
+                retrieval_policy=effective_policy,
                 runtime_dependencies=dependencies,
             )
-        agent = _resolve_agent(dependencies, profile)
+        agent = _resolve_agent(dependencies, profile, effective_policy)
         raw_result = agent.invoke(
             _build_inputs(prompt),
-            _build_runtime_config(profile),
+            _build_runtime_config(profile, effective_policy),
         )
         return AgentRunResult(
             run_id=run_id,
@@ -149,13 +153,23 @@ def _get_canonical_tools() -> tuple[Any, Any]:
     return (web_search, web_crawl)
 
 
-def _get_tools_for_profile(profile: AgentRuntimeProfile) -> tuple[Any, Any]:
+def _get_tools_for_profile(
+    profile: AgentRuntimeProfile,
+    retrieval_policy: AgentRunRetrievalPolicy | None = None,
+) -> tuple[Any, Any]:
     if profile.name == "quick":
         return _get_canonical_tools()
 
+    effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
     return (
-        build_web_search_tool(max_results_cap=profile.max_search_results),
-        build_web_crawl_tool(max_content_chars=profile.max_crawl_chars),
+        build_web_search_tool(
+            max_results_cap=profile.max_search_results,
+            retrieval_policy=effective_policy,
+        ),
+        build_web_crawl_tool(
+            max_content_chars=profile.max_crawl_chars,
+            retrieval_policy=effective_policy,
+        ),
     )
 
 
@@ -171,6 +185,7 @@ def _assert_canonical_tool_names(tools: tuple[Any, ...]) -> None:
 def _resolve_agent(
     runtime_dependencies: RuntimeDependencies,
     profile: AgentRuntimeProfile,
+    retrieval_policy: AgentRunRetrievalPolicy,
 ) -> AgentExecutor:
     if runtime_dependencies.agent is not None:
         return runtime_dependencies.agent
@@ -178,7 +193,7 @@ def _resolve_agent(
     if runtime_dependencies.agent_factory is None:
         raise RuntimeError("Runtime dependencies must include an agent or agent_factory")
 
-    tools = _get_tools_for_profile(profile)
+    tools = _get_tools_for_profile(profile, retrieval_policy)
     _assert_canonical_tool_names(tools)
     return runtime_dependencies.agent_factory(profile, tools)
 
@@ -188,11 +203,15 @@ def _run_quick_mode(
     prompt: str,
     run_id: str,
     started_at: float,
+    retrieval_policy: AgentRunRetrievalPolicy,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
     payload = _get_quick_search_runner(runtime_dependencies)(
         query=prompt,
         max_results=DEFAULT_QUICK_SEARCH_MAX_RESULTS,
+        freshness=retrieval_policy.search.freshness,
+        include_domains=retrieval_policy.search.include_domains,
+        exclude_domains=retrieval_policy.search.exclude_domains,
     )
 
     error = _coerce_tool_error(payload)
@@ -270,7 +289,10 @@ def _build_inputs(prompt: str) -> dict[str, Any]:
     return {"messages": [{"role": "user", "content": prompt}]}
 
 
-def _build_runtime_config(profile: AgentRuntimeProfile) -> dict[str, Any]:
+def _build_runtime_config(
+    profile: AgentRuntimeProfile,
+    retrieval_policy: AgentRunRetrievalPolicy,
+) -> dict[str, Any]:
     return {
         "recursion_limit": profile.recursion_limit,
         "run_mode": profile.name,
@@ -282,6 +304,7 @@ def _build_runtime_config(profile: AgentRuntimeProfile) -> dict[str, Any]:
             "max_search_results": profile.max_search_results,
             "max_crawl_chars": profile.max_crawl_chars,
         },
+        "retrieval_policy": retrieval_policy.model_dump(),
     }
 
 

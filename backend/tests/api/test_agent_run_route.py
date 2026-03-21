@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from backend.agent.types import AgentRunError, AgentRunMode, AgentRunResult
+from backend.agent.types import AgentRunError, AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import map_runtime_failure
 from backend.app.config import get_settings
@@ -18,10 +18,15 @@ RUN_ROUTE_PATH = "/api/agent/run"
 class StubRuntimeRunner:
     def __init__(self, result: AgentRunResult) -> None:
         self.result = result
-        self.calls: list[tuple[str, AgentRunMode]] = []
+        self.calls: list[tuple[str, AgentRunMode, AgentRunRetrievalPolicy]] = []
 
-    def __call__(self, prompt: str, mode: AgentRunMode) -> AgentRunResult:
-        self.calls.append((prompt, mode))
+    def __call__(
+        self,
+        prompt: str,
+        mode: AgentRunMode,
+        retrieval_policy: AgentRunRetrievalPolicy,
+    ) -> AgentRunResult:
+        self.calls.append((prompt, mode, retrieval_policy))
         return self.result
 
 
@@ -54,6 +59,37 @@ def test_run_request_contract_forbids_unknown_fields() -> None:
 def test_run_request_contract_rejects_unknown_mode() -> None:
     with pytest.raises(ValidationError, match="Input should be 'quick', 'agentic' or 'deep_research'"):
         AgentRunRequest(prompt="find one source", mode="turbo")
+
+
+def test_run_request_contract_accepts_normalized_retrieval_policy() -> None:
+    payload = AgentRunRequest(
+        prompt="find one source",
+        mode="quick",
+        retrievalPolicy={
+            "search": {
+                "freshness": "week",
+                "include_domains": ["example.com"],
+            },
+            "fetch": {
+                "max_age_ms": 60_000,
+                "fresh": True,
+            },
+        },
+    )
+
+    assert payload.retrieval_policy.model_dump() == {
+        "search": {
+            "country": "US",
+            "language": "en",
+            "freshness": "week",
+            "include_domains": ["example.com"],
+            "exclude_domains": [],
+        },
+        "fetch": {
+            "max_age_ms": 60_000,
+            "fresh": True,
+        },
+    }
 
 
 def test_run_success_contract_normalizes_required_response_fields() -> None:
@@ -173,7 +209,7 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
     }
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", "quick")]
+    assert runner.calls == [("find one source", "quick", AgentRunRetrievalPolicy())]
 
 
 @pytest.mark.parametrize(
@@ -245,7 +281,60 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     assert response.json() == expected_payload
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", "deep_research")]
+    assert runner.calls == [("find one source", "deep_research", AgentRunRetrievalPolicy())]
+
+
+def test_run_route_forwards_retrieval_policy_to_runtime(client: TestClient) -> None:
+    runner = StubRuntimeRunner(
+        AgentRunResult(
+            run_id="run-success",
+            status="completed",
+            final_answer="Scoped answer.",
+            tool_call_count=1,
+            elapsed_ms=12,
+        )
+    )
+    client.app.state.run_agent_once = runner
+
+    response = client.post(
+        RUN_ROUTE_PATH,
+        json={
+            "prompt": "find one source",
+            "mode": "quick",
+            "retrievalPolicy": {
+                "search": {
+                    "freshness": "week",
+                    "include_domains": ["example.com"],
+                    "exclude_domains": ["blocked.com"],
+                },
+                "fetch": {
+                    "max_age_ms": 60_000,
+                    "fresh": True,
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert runner.calls == [
+        (
+            "find one source",
+            "quick",
+            AgentRunRetrievalPolicy.model_validate(
+                {
+                    "search": {
+                        "freshness": "week",
+                        "include_domains": ["example.com"],
+                        "exclude_domains": ["blocked.com"],
+                    },
+                    "fetch": {
+                        "max_age_ms": 60_000,
+                        "fresh": True,
+                    },
+                }
+            ),
+        )
+    ]
 
 
 def post_run(client: TestClient, *, prompt: str, mode: str):
