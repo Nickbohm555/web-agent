@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# On macOS, run under caffeinate so the system does not idle-sleep during long loops.
+if [[ "$(uname -s)" == "Darwin" ]] && [[ -z "${RALPH_BUILD_CAFFEINATED:-}" ]] && command -v caffeinate >/dev/null 2>&1; then
+  export RALPH_BUILD_CAFFEINATED=1
+  exec caffeinate -i "$0" "$@"
+fi
+
 usage() {
   cat <<'USAGE'
 Usage:
@@ -56,10 +62,16 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_FILE="$ROOT_DIR/build_prompt.md"
+AGENTS_FILE="$ROOT_DIR/AGENTS.md"
 IMPLEMENTATION_PLAN_FILE="$ROOT_DIR/implementation_plan.md"
 
 if [[ ! -f "$PROMPT_FILE" ]]; then
   echo "Missing build_prompt.md at $PROMPT_FILE" >&2
+  exit 1
+fi
+
+if [[ ! -f "$AGENTS_FILE" ]]; then
+  echo "Missing AGENTS.md at $AGENTS_FILE" >&2
   exit 1
 fi
 
@@ -77,16 +89,18 @@ while [[ "$max_iterations" -eq 0 || "$iter" -le "$max_iterations" ]]; do
     exit 1
   fi
 
+  echo "ralph-build codex inputs (2):"
+  echo "  PROMPT_FILE=$PROMPT_FILE"
+  echo "  AGENTS_FILE=$AGENTS_FILE"
+
   codex exec \
     --dangerously-bypass-approvals-and-sandbox \
     - <<EOF
-@${ROOT_DIR}/AGENTS.md
 @${PROMPT_FILE}
-@${IMPLEMENTATION_PLAN_FILE}
+@${AGENTS_FILE}
 
 You are executing iteration ${iter}.
-Start immediately on Current Section ${current_section} from implementation_plan.md.
-Do not stop after merely summarizing or acknowledging files. Read the current section, implement it, run the listed tests, confirm the success conditions in the section's How to Test text, then update Current Section only if the section is fully complete.
+Strictly follow every numbered step in the prompt file (${PROMPT_FILE}) in order. Those steps are the only workflow for this iteration; do not substitute a shorter path or stop after summarizing attached files.
 EOF
 
   codex exec \
