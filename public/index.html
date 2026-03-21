@@ -303,6 +303,50 @@
         color: rgba(31, 26, 20, 0.82);
       }
 
+      .answer-citation {
+        color: #9d3b1f;
+        text-decoration-thickness: 0.08em;
+        text-underline-offset: 0.18em;
+      }
+
+      .answer-citation-index {
+        margin-left: 2px;
+        color: rgba(31, 26, 20, 0.54);
+        font-size: 0.72em;
+      }
+
+      .sources-panel {
+        display: grid;
+        gap: 10px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(62, 45, 30, 0.1);
+      }
+
+      .source-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+      }
+
+      .source-item {
+        display: grid;
+        gap: 4px;
+      }
+
+      .source-link {
+        color: #1f1a14;
+        text-decoration-color: rgba(157, 59, 31, 0.32);
+        text-underline-offset: 0.18em;
+      }
+
+      .source-snippet,
+      .source-empty {
+        margin: 0;
+        color: rgba(31, 26, 20, 0.66);
+      }
+
       .answer-meta,
       .retention-note {
         margin: 0;
@@ -587,9 +631,15 @@
             <p id="run-view-meta" class="answer-meta">
               Start a run, refresh history, or load the preview to inspect a cohesive answer and trace view.
             </p>
-            <p id="final-answer" class="answer-value">
-              Final answers for the selected run appear here.
-            </p>
+            <div id="final-answer">
+              <p class="answer-value">Final answers for the selected run appear here.</p>
+            </div>
+            <section class="sources-panel" aria-live="polite">
+              <p class="status-label">Sources</p>
+              <div id="source-list">
+                <p class="source-empty">No sources were stored for this run.</p>
+              </div>
+            </section>
             <p id="retention-note" class="retention-note">
               Retention bounds and truncation markers will be shown when present.
             </p>

@@ -15,6 +15,7 @@ import {
   type RunMode,
   type RunRetrievalPolicy,
   type RunSource,
+  type StructuredAnswer,
   type RunStreamEvent,
   type ToolCallEvent,
 } from "../contracts.js";
@@ -57,6 +58,7 @@ export type RunExecutorResult =
   | {
     status: "completed";
     finalAnswer: string;
+    structuredAnswer?: StructuredAnswer;
     sources: RunSource[];
     durationMs?: number;
     completedAt?: number;
@@ -568,6 +570,7 @@ export function createHttpAgentRunExecutor(
       return {
         status: "completed",
         finalAnswer: responseRecord.final_answer.text,
+        structuredAnswer: responseRecord.final_answer,
         sources: responseRecord.sources,
         durationMs: responseRecord.elapsed_ms,
         completedAt: Date.now(),
@@ -694,6 +697,7 @@ function ingestRunStreamEventHistory(
           "final_answer_generated",
           completedAt,
           event.data.finalAnswer,
+          event.data.structuredAnswer,
           event.data.sources,
         ),
       );
@@ -705,6 +709,7 @@ function ingestRunStreamEventHistory(
           "run_completed",
           completedAt,
           event.data.finalAnswer,
+          event.data.structuredAnswer,
           event.data.sources,
         ),
       );
@@ -890,15 +895,38 @@ function createRunCompletionEvent(
   eventType: "final_answer_generated" | "run_completed",
   timestamp: string,
   finalAnswer: string,
+  structuredAnswer: StructuredAnswer | undefined,
   sources: RunSource[],
 ): CanonicalRunEvent {
+  const toolOutput: NonNullable<CanonicalRunEvent["tool_output"]> = {};
+
+  if (structuredAnswer !== undefined) {
+    toolOutput.answer = structuredAnswer;
+  }
+
+  if (sources.length > 0) {
+    toolOutput.sources = sources;
+  }
+
+  if (eventType === "final_answer_generated") {
+    return {
+      run_id: runId,
+      event_seq: eventSeq,
+      event_type: eventType,
+      ts: timestamp,
+      final_answer: finalAnswer,
+      ...(Object.keys(toolOutput).length > 0 ? { tool_output: toolOutput } : {}),
+      safety: createEmptyRunEventSafety(),
+    };
+  }
+
   return {
     run_id: runId,
     event_seq: eventSeq,
     event_type: eventType,
     ts: timestamp,
     final_answer: finalAnswer,
-    ...(sources.length > 0 ? { tool_output: { sources } } : {}),
+    ...(Object.keys(toolOutput).length > 0 ? { tool_output: toolOutput } : {}),
     safety: createEmptyRunEventSafety(),
   };
 }
@@ -997,6 +1025,9 @@ function createRunCompleteData(
   return {
     runId,
     finalAnswer: result.finalAnswer,
+    ...(result.structuredAnswer !== undefined
+      ? { structuredAnswer: result.structuredAnswer }
+      : {}),
     sources: result.sources,
     completedAt: result.completedAt ?? Date.now(),
     durationMs: result.durationMs ?? 0,

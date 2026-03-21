@@ -11,6 +11,23 @@ import {
 } from "../contracts.js";
 
 export type RunPhase = "idle" | "starting" | "running" | "completed" | "failed";
+type DraftRunEvent = Omit<CanonicalRunEvent, "event_seq" | "safety">;
+type AppendableRunEvent = DraftRunEvent & {
+  safety?: CanonicalRunEvent["safety"];
+};
+type RunEventStateSlice = Pick<RunState, "runEvents" | "selectedEventKey" | "nextEventSeq">;
+type ResettableRunStateFields = Pick<
+  RunState,
+  | "phase"
+  | "activeRunId"
+  | "error"
+  | "finalAnswer"
+  | "completedAt"
+  | "toolCalls"
+  | "runEvents"
+  | "selectedEventKey"
+  | "nextEventSeq"
+>;
 
 export interface ToolCallRecord {
   toolCallId: string;
@@ -70,42 +87,30 @@ export const initialRunState: RunState = {
 export function reduceRunState(state: RunState, action: RunAction): RunState {
   switch (action.type) {
     case "prompt_updated":
-      return {
+      return resetFailedState({
         ...state,
         prompt: action.prompt,
-        ...(state.phase === "failed" ? { phase: "idle", error: null } : {}),
-      };
+      });
     case "mode_updated":
-      return {
+      return resetFailedState({
         ...state,
         selectedMode: action.mode,
-        ...(state.phase === "failed" ? { phase: "idle", error: null } : {}),
-      };
+      });
     case "run_requested":
-      if (
-        state.phase === "starting" ||
-        state.phase === "running"
-      ) {
+      if (isRunInFlight(state.phase)) {
         return state;
       }
 
-      return {
-        ...state,
+      return createRunStateSnapshot(state, {
         phase: "starting",
-        activeRunId: null,
-        error: null,
-        finalAnswer: null,
-        completedAt: null,
-        toolCalls: [],
-        runEvents: [],
-        selectedEventKey: null,
-        nextEventSeq: 0,
-      };
+      });
     case "run_started":
       if (state.phase !== "starting") {
         return state;
       }
 
+      const startedAtIso = toIsoTimestamp();
+      const runInput = createRunInputPayload(state);
       return {
         ...state,
         phase: "running",
@@ -114,30 +119,15 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         finalAnswer: null,
         completedAt: null,
         toolCalls: [],
-        ...appendRunEvents(state, [
-          {
-            run_id: action.response.runId,
-            event_type: "run_started",
-            ts: new Date().toISOString(),
-            tool_input: {
-              prompt: state.prompt,
-              mode: state.selectedMode,
-            },
-          },
-          createResearchProgressEvent(
+        ...appendRunEvents(
+          state,
+          createRunStartedEvents(
             action.response.runId,
-            "research_planning_started",
-            new Date().toISOString(),
-            {
-              stage: "planning",
-              message: getPlanningMessage(state.selectedMode),
-            },
-            {
-              prompt: state.prompt,
-              mode: state.selectedMode,
-            },
+            state.selectedMode,
+            startedAtIso,
+            runInput,
           ),
-        ]),
+        ),
       };
     case "run_failed":
       if (
@@ -148,20 +138,12 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         return state;
       }
 
-      return {
-        ...state,
+      return createRunStateSnapshot(state, {
         phase: "failed",
-        activeRunId: null,
         error: action.message,
-        finalAnswer: null,
-        completedAt: null,
-        toolCalls: [],
-        runEvents: [],
-        selectedEventKey: null,
-        nextEventSeq: 0,
-      };
+      });
     case "run_state_received":
-      if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
+      if (shouldIgnoreRunUpdate(state, action.event.runId)) {
         return state;
       }
 
@@ -188,56 +170,26 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
           };
       }
     case "tool_call_received":
-      if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
+      if (shouldIgnoreRunUpdate(state, action.event.runId)) {
         return state;
       }
-
-      const sourceExpansionEvent = hasRunEventType(
-        state.runEvents,
-        "research_sources_expanded",
-      )
-        ? []
-        : [
-            createResearchProgressEvent(
-              action.event.runId,
-              "research_sources_expanded",
-              new Date(
-                action.event.startedAt ??
-                  action.event.endedAt ??
-                  Date.now(),
-              ).toISOString(),
-              {
-                stage: "source_expansion",
-                message: `Expanding sources with ${formatToolLabel(action.event.toolName)}.`,
-                completed: countDistinctToolCalls(state.toolCalls, action.event.toolCallId),
-              },
-              action.event.status === "started"
-                ? undefined
-                : {
-                    tool: action.event.toolName,
-                    preview:
-                      action.event.outputPreview ??
-                      action.event.inputPreview ??
-                      action.event.error ??
-                      "Research source update recorded.",
-                  },
-            ),
-          ];
 
       return {
         ...state,
         phase: "running",
         toolCalls: mergeToolCall(state.toolCalls, action.event),
         ...appendRunEvents(state, [
-          ...sourceExpansionEvent,
+          ...createSourceExpansionEvents(state, action.event),
           createCanonicalToolEvent(action.event),
         ]),
       };
     case "run_completed":
-      if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
+      if (shouldIgnoreRunUpdate(state, action.event.runId)) {
         return state;
       }
 
+      const completedAtIso = toIsoTimestamp(action.event.completedAt);
+      const completedToolCalls = countCompletedToolCalls(state.toolCalls);
       return {
         ...state,
         phase: "completed",
@@ -248,40 +200,38 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
           createResearchProgressEvent(
             action.event.runId,
             "research_synthesis_started",
-            new Date(action.event.completedAt).toISOString(),
+            completedAtIso,
             {
               stage: "synthesis",
               message: "Synthesizing collected evidence into the final answer.",
-              completed: state.toolCalls.filter((toolCall) => toolCall.status === "completed").length,
+              completed: completedToolCalls,
               total: state.toolCalls.length,
             },
             {
               toolCalls: state.toolCalls.length,
-              completedToolCalls: state.toolCalls.filter((toolCall) => toolCall.status === "completed").length,
+              completedToolCalls,
             },
           ),
-          {
-            run_id: action.event.runId,
-            event_type: "final_answer_generated",
-            ts: new Date(action.event.completedAt).toISOString(),
-            final_answer: action.event.finalAnswer,
-            ...(action.event.sources.length > 0
-              ? { tool_output: { sources: action.event.sources } }
-              : {}),
-          },
-          {
-            run_id: action.event.runId,
-            event_type: "run_completed",
-            ts: new Date(action.event.completedAt).toISOString(),
-            final_answer: action.event.finalAnswer,
-            ...(action.event.sources.length > 0
-              ? { tool_output: { sources: action.event.sources } }
-              : {}),
-          },
+          createRunOutcomeEvent(
+            action.event.runId,
+            "final_answer_generated",
+            completedAtIso,
+            action.event.finalAnswer,
+            action.event.structuredAnswer,
+            action.event.sources,
+          ),
+          createRunOutcomeEvent(
+            action.event.runId,
+            "run_completed",
+            completedAtIso,
+            action.event.finalAnswer,
+            action.event.structuredAnswer,
+            action.event.sources,
+          ),
         ]),
       };
     case "run_error_received":
-      if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
+      if (shouldIgnoreRunUpdate(state, action.event.runId)) {
         return state;
       }
 
@@ -293,7 +243,7 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         ...appendRunEvent(state, {
           run_id: action.event.runId,
           event_type: "run_failed",
-          ts: new Date(action.event.failedAt).toISOString(),
+          ts: toIsoTimestamp(action.event.failedAt),
           error_output: {
             code: action.event.code ?? "RUN_FAILED",
             message: action.event.message,
@@ -306,17 +256,15 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         selectedEventKey: action.eventKey,
       };
     case "preview_events_loaded": {
-      const runEvents = [...action.events].sort(compareRunEvents);
-      const selectedEvent = runEvents[runEvents.length - 1] ?? null;
       return {
         ...state,
-        runEvents,
-        selectedEventKey: selectedEvent ? createRunEventKey(selectedEvent) : null,
-        nextEventSeq:
+        ...createRunEventStateSlice(
+          [...action.events].sort(compareRunEvents),
           action.events.reduce(
             (highest, event) => Math.max(highest, event.event_seq),
             -1,
           ) + 1,
+        ),
       };
     }
   }
@@ -324,85 +272,125 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
 
 function appendRunEvent(
   state: RunState,
-  event: Omit<CanonicalRunEvent, "event_seq" | "safety"> & {
-    safety?: CanonicalRunEvent["safety"];
-  },
-): Pick<RunState, "runEvents" | "selectedEventKey" | "nextEventSeq"> {
+  event: AppendableRunEvent,
+): RunEventStateSlice {
   return appendRunEvents(state, [event]);
 }
 
 function appendRunEvents(
   state: RunState,
-  events: Array<
-    Omit<CanonicalRunEvent, "event_seq" | "safety"> & {
-      safety?: CanonicalRunEvent["safety"];
-    }
-  >,
-): Pick<RunState, "runEvents" | "selectedEventKey" | "nextEventSeq"> {
+  events: AppendableRunEvent[],
+): RunEventStateSlice {
   let nextEventSeq = state.nextEventSeq;
   const appended = events.map((event) => ({
     ...event,
     event_seq: nextEventSeq++,
     safety: event.safety ?? createEmptyEventSafety(),
   })) as CanonicalRunEvent[];
-  const runEvents = [...state.runEvents, ...appended].sort(compareRunEvents);
-  const selectedEvent = runEvents[runEvents.length - 1] ?? null;
-
-  return {
-    runEvents,
-    selectedEventKey: selectedEvent ? createRunEventKey(selectedEvent) : null,
+  return createRunEventStateSlice(
+    [...state.runEvents, ...appended].sort(compareRunEvents),
     nextEventSeq,
+  );
+}
+
+function createRunInputPayload(
+  state: Pick<RunState, "prompt" | "selectedMode">,
+): CanonicalRunEvent["tool_input"] {
+  return {
+    prompt: state.prompt,
+    mode: state.selectedMode,
   };
+}
+
+function createRunStartedEvents(
+  runId: string,
+  mode: RunMode,
+  timestamp: string,
+  runInput: CanonicalRunEvent["tool_input"],
+): DraftRunEvent[] {
+  return [
+    {
+      run_id: runId,
+      event_type: "run_started",
+      ts: timestamp,
+      tool_input: runInput,
+    },
+    createResearchProgressEvent(
+      runId,
+      "research_planning_started",
+      timestamp,
+      {
+        stage: "planning",
+        message: getPlanningMessage(mode),
+      },
+      runInput,
+    ),
+  ];
 }
 
 function createCanonicalToolEvent(
   event: ToolCallEvent,
-): Omit<CanonicalRunEvent, "event_seq" | "safety"> {
+): DraftRunEvent {
   switch (event.status) {
     case "started":
       return {
-        run_id: event.runId,
-        event_type: "tool_call_started",
-        ts: new Date(event.startedAt ?? Date.now()).toISOString(),
-        tool_name: event.toolName,
-        tool_call_id: event.toolCallId,
-        tool_input:
-          event.inputPreview === undefined
-            ? {
-                preview: "Tool input preview unavailable.",
-              }
-            : {
-                preview: event.inputPreview,
-              },
+        ...createToolEventBase(
+          event,
+          "tool_call_started",
+          event.startedAt ?? Date.now(),
+        ),
+        tool_input: createPreviewPayload(
+          event.inputPreview,
+          "Tool input preview unavailable.",
+        ),
       };
     case "completed":
       return {
-        run_id: event.runId,
-        event_type: "tool_call_succeeded",
-        ts: new Date(event.endedAt ?? Date.now()).toISOString(),
-        tool_name: event.toolName,
-        tool_call_id: event.toolCallId,
-        tool_output:
-          event.outputPreview === undefined
-            ? {
-                preview: "Tool output preview unavailable.",
-              }
-            : {
-                preview: event.outputPreview,
-              },
+        ...createToolEventBase(
+          event,
+          "tool_call_succeeded",
+          event.endedAt ?? Date.now(),
+        ),
+        tool_output: createPreviewPayload(
+          event.outputPreview,
+          "Tool output preview unavailable.",
+        ),
       };
     case "failed":
       return {
-        run_id: event.runId,
-        event_type: "tool_call_failed",
-        ts: new Date(event.endedAt ?? Date.now()).toISOString(),
-        tool_name: event.toolName,
-        tool_call_id: event.toolCallId,
+        ...createToolEventBase(
+          event,
+          "tool_call_failed",
+          event.endedAt ?? Date.now(),
+        ),
         error_output: {
           message: event.error ?? "Tool call failed.",
         },
       };
   }
+}
+
+function createToolEventBase(
+  event: ToolCallEvent,
+  eventType: CanonicalRunEvent["event_type"],
+  timestamp: number,
+): Pick<
+  CanonicalRunEvent,
+  "run_id" | "event_type" | "ts" | "tool_name" | "tool_call_id"
+> {
+  return {
+    run_id: event.runId,
+    event_type: eventType,
+    ts: toIsoTimestamp(timestamp),
+    tool_name: event.toolName,
+    tool_call_id: event.toolCallId,
+  };
+}
+
+function createPreviewPayload(preview: string | undefined, fallback: string) {
+  return {
+    preview: preview ?? fallback,
+  };
 }
 
 function createResearchProgressEvent(
@@ -414,7 +402,7 @@ function createResearchProgressEvent(
   timestamp: string,
   progress: CanonicalRunProgress,
   payload?: CanonicalRunEvent["tool_input"] | CanonicalRunEvent["tool_output"],
-): Omit<CanonicalRunEvent, "event_seq" | "safety"> {
+): DraftRunEvent {
   if (eventType === "research_planning_started") {
     return {
       run_id: runId,
@@ -434,12 +422,101 @@ function createResearchProgressEvent(
   };
 }
 
+function createSourceExpansionEvents(
+  state: RunState,
+  event: ToolCallEvent,
+): DraftRunEvent[] {
+  if (hasRunEventType(state.runEvents, "research_sources_expanded")) {
+    return [];
+  }
+
+  return [
+    createResearchProgressEvent(
+      event.runId,
+      "research_sources_expanded",
+      toIsoTimestamp(event.startedAt ?? event.endedAt),
+      {
+        stage: "source_expansion",
+        message: `Expanding sources with ${formatToolLabel(event.toolName)}.`,
+        completed: countDistinctToolCalls(state.toolCalls, event.toolCallId),
+      },
+      event.status === "started"
+        ? undefined
+        : {
+            tool: event.toolName,
+            preview:
+              event.outputPreview ??
+              event.inputPreview ??
+              event.error ??
+              "Research source update recorded.",
+          },
+    ),
+  ];
+}
+
+function createRunOutcomeEvent(
+  runId: string,
+  eventType: "final_answer_generated" | "run_completed",
+  timestamp: string,
+  finalAnswer: string,
+  structuredAnswer: RunCompleteEvent["structuredAnswer"],
+  sources: RunCompleteEvent["sources"],
+): DraftRunEvent {
+  const toolOutput: NonNullable<CanonicalRunEvent["tool_output"]> = {};
+
+  if (structuredAnswer !== undefined) {
+    toolOutput.answer = structuredAnswer;
+  }
+
+  if (sources.length > 0) {
+    toolOutput.sources = sources;
+  }
+
+  return {
+    run_id: runId,
+    event_type: eventType,
+    ts: timestamp,
+    final_answer: finalAnswer,
+    ...(Object.keys(toolOutput).length > 0 ? { tool_output: toolOutput } : {}),
+  };
+}
+
 function compareRunEvents(left: CanonicalRunEvent, right: CanonicalRunEvent): number {
   if (left.run_id !== right.run_id) {
     return left.run_id.localeCompare(right.run_id);
   }
 
   return left.event_seq - right.event_seq;
+}
+
+function createRunStateSnapshot(
+  state: RunState,
+  overrides: Partial<ResettableRunStateFields>,
+): RunState {
+  return {
+    ...state,
+    activeRunId: null,
+    error: null,
+    finalAnswer: null,
+    completedAt: null,
+    toolCalls: [],
+    runEvents: [],
+    selectedEventKey: null,
+    nextEventSeq: 0,
+    ...overrides,
+  };
+}
+
+function createRunEventStateSlice(
+  runEvents: CanonicalRunEvent[],
+  nextEventSeq: number,
+): RunEventStateSlice {
+  const selectedEvent = runEvents[runEvents.length - 1] ?? null;
+  return {
+    runEvents,
+    selectedEventKey: selectedEvent ? createRunEventKey(selectedEvent) : null,
+    nextEventSeq,
+  };
 }
 
 function hasRunEventType(
@@ -471,6 +548,26 @@ function getPlanningMessage(mode: RunMode): string {
     case "deep_research":
       return "Preparing a longer background research plan with broader source expansion.";
   }
+}
+
+function resetFailedState(state: RunState): RunState {
+  if (state.phase !== "failed") {
+    return state;
+  }
+
+  return {
+    ...state,
+    phase: "idle",
+    error: null,
+  };
+}
+
+function countCompletedToolCalls(toolCalls: ToolCallRecord[]): number {
+  return toolCalls.filter((toolCall) => toolCall.status === "completed").length;
+}
+
+function toIsoTimestamp(timestamp: number = Date.now()): string {
+  return new Date(timestamp).toISOString();
 }
 
 function createEmptyEventSafety(): CanonicalRunEvent["safety"] {
@@ -577,8 +674,16 @@ function isTerminalPhase(phase: RunPhase): boolean {
   return phase === "completed" || phase === "failed";
 }
 
+function isRunInFlight(phase: RunPhase): boolean {
+  return phase === "starting" || phase === "running";
+}
+
 function isActiveRunEvent(state: RunState, runId: string): boolean {
   return state.activeRunId !== null && state.activeRunId === runId;
+}
+
+function shouldIgnoreRunUpdate(state: RunState, runId: string): boolean {
+  return !isActiveRunEvent(state, runId) || isTerminalPhase(state.phase);
 }
 
 function minDefined(

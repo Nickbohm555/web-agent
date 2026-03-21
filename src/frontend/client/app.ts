@@ -9,6 +9,7 @@ import {
   type RunHistoryRunSnapshot,
   type RunHistoryRunSummary,
 } from "../contracts.js";
+import { resolveRunAnswer, segmentStructuredAnswer } from "./answer-rendering.js";
 import {
   createRun,
   subscribeToRunEvents,
@@ -28,6 +29,27 @@ interface SelectedRunView {
   label: string;
 }
 
+const RUN_MODE_DETAILS: Record<
+  RunMode,
+  {
+    label: string;
+    description: string;
+  }
+> = {
+  quick: {
+    label: "Quick search",
+    description: "Fastest path. One quick web-grounded pass for a concise answer.",
+  },
+  agentic: {
+    label: "Agentic search",
+    description: "Balanced exploration. Uses bounded search and crawl steps before answering.",
+  },
+  deep_research: {
+    label: "Deep research",
+    description: "Longest path. Runs broader background research and streams progress over time.",
+  },
+};
+
 const promptInput = requireElement<HTMLTextAreaElement>("prompt-input");
 const modeInputs = document.querySelectorAll<HTMLInputElement>('input[name="run-mode"]');
 const promptError = requireElement<HTMLElement>("prompt-error");
@@ -43,6 +65,7 @@ const historyList = requireElement<HTMLOListElement>("history-list");
 const runViewHeader = requireElement<HTMLElement>("run-view-header");
 const runViewMeta = requireElement<HTMLElement>("run-view-meta");
 const finalAnswer = requireElement<HTMLElement>("final-answer");
+const sourceList = requireElement<HTMLElement>("source-list");
 const retentionNote = requireElement<HTMLElement>("retention-note");
 const timelineEmpty = requireElement<HTMLElement>("timeline-empty");
 const timelineList = requireElement<HTMLElement>("timeline-list");
@@ -174,11 +197,12 @@ function dispatch(action: Parameters<typeof reduceRunState>[1]) {
 
 function render() {
   promptInput.value = state.prompt;
+  const runInFlight = state.phase === "starting" || state.phase === "running";
   for (const input of modeInputs) {
     input.checked = input.value === state.selectedMode;
-    input.disabled = state.phase === "starting" || state.phase === "running";
+    input.disabled = runInFlight;
   }
-  runButton.disabled = state.phase === "starting" || state.phase === "running";
+  runButton.disabled = runInFlight;
   historyRefreshButton.disabled = historyRefreshInFlight;
 
   promptError.textContent =
@@ -214,15 +238,16 @@ function statusLabel(currentState: RunState): string {
 }
 
 function detailsLabel(currentState: RunState): string {
+  const modeLabel = formatModeLabel(currentState.selectedMode);
   switch (currentState.phase) {
     case "idle":
-      return `Selected mode: ${formatModeLabel(currentState.selectedMode)}. Enter a prompt to start one run, select prior history, or load the preview.`;
+      return `Selected mode: ${modeLabel}. Enter a prompt to start one run, select prior history, or load the preview.`;
     case "starting":
-      return `Creating ${formatModeLabel(currentState.selectedMode)} run...`;
+      return `Creating ${modeLabel} run...`;
     case "running":
       return currentState.activeRunId === null
-        ? `${formatModeLabel(currentState.selectedMode)} run active.`
-        : `${formatModeLabel(currentState.selectedMode)} run ${currentState.activeRunId} is active. Live events stream into the run viewer below.`;
+        ? `${modeLabel} run active.`
+        : `${modeLabel} run ${currentState.activeRunId} is active. Live events stream into the run viewer below.`;
     case "completed":
       return currentState.finalAnswer ?? "Run completed.";
     case "failed":
@@ -231,25 +256,11 @@ function detailsLabel(currentState: RunState): string {
 }
 
 function formatModeLabel(mode: RunMode): string {
-  switch (mode) {
-    case "quick":
-      return "Quick search";
-    case "agentic":
-      return "Agentic search";
-    case "deep_research":
-      return "Deep research";
-  }
+  return RUN_MODE_DETAILS[mode].label;
 }
 
 function describeMode(mode: RunMode): string {
-  switch (mode) {
-    case "quick":
-      return "Fastest path. One quick web-grounded pass for a concise answer.";
-    case "agentic":
-      return "Balanced exploration. Uses bounded search and crawl steps before answering.";
-    case "deep_research":
-      return "Longest path. Runs broader background research and streams progress over time.";
-  }
+  return RUN_MODE_DETAILS[mode].description;
 }
 
 function parseRunModeInput(input: string): RunMode {
@@ -299,7 +310,11 @@ function renderRunViewSummary() {
     runViewHeader.textContent = "No run selected";
     runViewMeta.textContent =
       "Start a run, refresh history, or load the preview to inspect a cohesive answer and trace view.";
-    finalAnswer.textContent = "Final answers for the selected run appear here.";
+    renderAnswerSummary({
+      text: "Final answers for the selected run appear here.",
+      structuredAnswer: null,
+      sources: [],
+    });
     retentionNote.textContent =
       "Retention bounds and truncation markers will be shown when present.";
     return;
@@ -314,8 +329,12 @@ function renderRunViewSummary() {
       ? ""
       : ` · updated ${formatDateTime(selectedRunView.updatedAt)}`
   }`;
-  finalAnswer.textContent =
-    selectedRunView.finalAnswer ?? "No final answer stored for this run.";
+  renderAnswerSummary(
+    resolveRunAnswer(
+      selectedRunView.events,
+      selectedRunView.finalAnswer ?? "No final answer stored for this run.",
+    ),
+  );
   retentionNote.textContent = describeRetention(selectedRunView.retention);
 }
 
@@ -688,6 +707,76 @@ function renderFinalAnswer(answer: string | undefined) {
   inspectorFinalAnswer.append(body);
 }
 
+function renderAnswerSummary(answerView: ReturnType<typeof resolveRunAnswer>) {
+  finalAnswer.replaceChildren();
+  sourceList.replaceChildren();
+
+  const body = document.createElement("p");
+  body.className = "answer-value";
+
+  if (answerView.structuredAnswer === null) {
+    body.textContent = answerView.text ?? "No final answer stored for this run.";
+  } else {
+    for (const segment of segmentStructuredAnswer(
+      answerView.structuredAnswer,
+      answerView.sources,
+    )) {
+      if (segment.kind === "text") {
+        body.append(segment.text);
+        continue;
+      }
+
+      const link = document.createElement("a");
+      link.className = "answer-citation";
+      link.href = segment.citation.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.title = segment.source?.title ?? segment.citation.title;
+      link.textContent = segment.text;
+      body.append(link);
+
+      const marker = document.createElement("sup");
+      marker.className = "answer-citation-index";
+      marker.textContent = `[${segment.citationNumber}]`;
+      body.append(marker);
+    }
+  }
+
+  finalAnswer.append(body);
+
+  if (answerView.sources.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "source-empty";
+    empty.textContent = "No sources were stored for this run.";
+    sourceList.append(empty);
+    return;
+  }
+
+  const list = document.createElement("ol");
+  list.className = "source-list";
+
+  for (const [index, source] of answerView.sources.entries()) {
+    const item = document.createElement("li");
+    item.className = "source-item";
+
+    const link = document.createElement("a");
+    link.className = "source-link";
+    link.href = source.url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = `[${index + 1}] ${source.title}`;
+
+    const snippet = document.createElement("p");
+    snippet.className = "source-snippet";
+    snippet.textContent = source.snippet;
+
+    item.append(link, snippet);
+    list.append(item);
+  }
+
+  sourceList.append(list);
+}
+
 function describeRetention(retention: RunHistoryRetentionMetadata | null): string {
   if (retention === null) {
     return "Live runs update continuously. Stored retention metadata appears after history is persisted.";
@@ -923,13 +1012,34 @@ function createPreviewEvents(): CanonicalRunEvent[] {
       final_answer:
         "Search succeeded, crawl failed safely, and the agent kept the error visible.",
       tool_output: {
+        answer: {
+          text: "Search succeeded, crawl failed safely, and the agent kept the error visible.",
+          citations: [
+            {
+              source_id: "release-notes",
+              title: "Retrieval SDK release notes",
+              url: "https://example.com/release-notes",
+              start_index: 0,
+              end_index: 16,
+            },
+            {
+              source_id: "incident-summary",
+              title: "Provider incident summary",
+              url: "https://status.example.com/incidents/123",
+              start_index: 18,
+              end_index: 43,
+            },
+          ],
+        },
         sources: [
           {
+            source_id: "release-notes",
             title: "Retrieval SDK release notes",
             url: "https://example.com/release-notes",
             snippet: "Primary evidence for the reliability notes.",
           },
           {
+            source_id: "incident-summary",
             title: "Provider incident summary",
             url: "https://status.example.com/incidents/123",
             snippet: "Operational context for the failure mode.",

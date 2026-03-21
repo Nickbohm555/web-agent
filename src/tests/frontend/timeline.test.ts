@@ -5,6 +5,10 @@ import {
   toRunEventTimelineRows,
   toTimelineRows,
 } from "../../frontend/client/timeline.js";
+import {
+  resolveRunAnswer,
+  segmentStructuredAnswer,
+} from "../../frontend/client/answer-rendering.js";
 import type { ToolCallRecord } from "../../frontend/client/state.js";
 import { createEmptyRunEventSafety, type CanonicalRunEvent } from "../../frontend/contracts.js";
 
@@ -177,6 +181,147 @@ describe("timeline helpers", () => {
       "Building the research plan.",
       "web_search",
       "Combining evidence. (2/3)",
+    ]);
+  });
+
+  it("resolves structured answers and sources from canonical completion events", () => {
+    const resolved = resolveRunAnswer(
+      [
+        createRunEvent({
+          event_seq: 7,
+          event_type: "final_answer_generated",
+          final_answer: "Alpha leads while Beta remains relevant.",
+          tool_output: {
+            answer: {
+              text: "Alpha leads while Beta remains relevant.",
+              citations: [
+                {
+                  source_id: "alpha-report",
+                  title: "Alpha report",
+                  url: "https://example.com/alpha",
+                  start_index: 0,
+                  end_index: 11,
+                },
+                {
+                  source_id: "beta-report",
+                  title: "Beta report",
+                  url: "https://example.com/beta",
+                  start_index: 18,
+                  end_index: 22,
+                },
+              ],
+            },
+            sources: [
+              {
+                source_id: "alpha-report",
+                title: "Alpha report",
+                url: "https://example.com/alpha",
+                snippet: "Alpha summary.",
+              },
+              {
+                source_id: "beta-report",
+                title: "Beta report",
+                url: "https://example.com/beta",
+                snippet: "Beta summary.",
+              },
+            ],
+          },
+        }),
+      ],
+      null,
+    );
+
+    expect(resolved.structuredAnswer?.text).toBe(
+      "Alpha leads while Beta remains relevant.",
+    );
+    expect(resolved.sources.map((source) => source.source_id)).toEqual([
+      "alpha-report",
+      "beta-report",
+    ]);
+  });
+
+  it("splits structured answers into text and citation segments for rendering", () => {
+    const segments = segmentStructuredAnswer(
+      {
+        text: "Alpha leads while Beta remains relevant.",
+        citations: [
+          {
+            source_id: "alpha-report",
+            title: "Alpha report",
+            url: "https://example.com/alpha",
+            start_index: 0,
+            end_index: 11,
+          },
+          {
+            source_id: "beta-report",
+            title: "Beta report",
+            url: "https://example.com/beta",
+            start_index: 18,
+            end_index: 22,
+          },
+        ],
+      },
+      [
+        {
+          source_id: "alpha-report",
+          title: "Alpha report",
+          url: "https://example.com/alpha",
+          snippet: "Alpha summary.",
+        },
+        {
+          source_id: "beta-report",
+          title: "Beta report",
+          url: "https://example.com/beta",
+          snippet: "Beta summary.",
+        },
+      ],
+    );
+
+    expect(segments).toEqual([
+      {
+        kind: "citation",
+        text: "Alpha leads",
+        citation: {
+          source_id: "alpha-report",
+          title: "Alpha report",
+          url: "https://example.com/alpha",
+          start_index: 0,
+          end_index: 11,
+        },
+        source: {
+          source_id: "alpha-report",
+          title: "Alpha report",
+          url: "https://example.com/alpha",
+          snippet: "Alpha summary.",
+        },
+        citationNumber: 1,
+      },
+      {
+        kind: "text",
+        text: " while ",
+      },
+      {
+        kind: "citation",
+        text: "Beta",
+        citation: {
+          source_id: "beta-report",
+          title: "Beta report",
+          url: "https://example.com/beta",
+          start_index: 18,
+          end_index: 22,
+        },
+        source: {
+          source_id: "beta-report",
+          title: "Beta report",
+          url: "https://example.com/beta",
+          snippet: "Beta summary.",
+        },
+        citationNumber: 2,
+      },
+      {
+        kind: "text",
+        text: " remains relevant.",
+      },
     ]);
   });
 });

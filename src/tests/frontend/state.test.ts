@@ -278,7 +278,26 @@ describe("run state reducer", () => {
         event: {
           runId: "run-123",
           finalAnswer: "Provider A had fewer outages.",
-          sources: [],
+          structuredAnswer: {
+            text: "Provider A had fewer outages.",
+            citations: [
+              {
+                source_id: "provider-status",
+                title: "Provider status report",
+                url: "https://example.com/status",
+                start_index: 0,
+                end_index: 10,
+              },
+            ],
+          },
+          sources: [
+            {
+              source_id: "provider-status",
+              title: "Provider status report",
+              url: "https://example.com/status",
+              snippet: "Weekly outage summary.",
+            },
+          ],
           completedAt: 300,
           durationMs: 200,
         },
@@ -319,6 +338,32 @@ describe("run state reducer", () => {
         completed: 0,
         total: 1,
       },
+    });
+    expect(state.runEvents[5]).toMatchObject({
+      event_type: "final_answer_generated",
+      final_answer: "Provider A had fewer outages.",
+    });
+    expect(state.runEvents[5]?.tool_output).toEqual({
+      answer: {
+        text: "Provider A had fewer outages.",
+        citations: [
+          {
+            source_id: "provider-status",
+            title: "Provider status report",
+            url: "https://example.com/status",
+            start_index: 0,
+            end_index: 10,
+          },
+        ],
+      },
+      sources: [
+        {
+          source_id: "provider-status",
+          title: "Provider status report",
+          url: "https://example.com/status",
+          snippet: "Weekly outage summary.",
+        },
+      ],
     });
   });
 });

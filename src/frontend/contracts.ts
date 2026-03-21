@@ -408,6 +408,7 @@ export const RunCompleteEventSchema = z
   .object({
     runId: RunIdSchema,
     finalAnswer: z.string(),
+    structuredAnswer: StructuredAnswerSchema.optional(),
     sources: z.array(RunSourceSchema).default([]),
     completedAt: RunEventTimestampSchema,
     durationMs: z.number().nonnegative(),
