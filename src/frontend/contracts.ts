@@ -205,9 +205,32 @@ export const RunStartResponseSchema = z
 
 export const RunSourceSchema = z
   .object({
+    source_id: z.string().trim().min(1),
     title: z.string().trim().min(1),
     url: z.string().url(),
     snippet: z.string(),
+  })
+  .strict();
+
+export const StructuredAnswerCitationSchema = z
+  .object({
+    source_id: z.string().trim().min(1),
+    start_index: z.number().int().nonnegative(),
+    end_index: z.number().int().positive(),
+  })
+  .strict()
+  .refine(
+    (citation) => citation.end_index > citation.start_index,
+    {
+      message: "Citation end_index must be greater than start_index.",
+      path: ["end_index"],
+    },
+  );
+
+export const StructuredAnswerSchema = z
+  .object({
+    text: z.string().trim().min(1),
+    citations: z.array(StructuredAnswerCitationSchema).default([]),
   })
   .strict();
 
@@ -215,7 +238,7 @@ export const BackendAgentRunSuccessResponseSchema = z
   .object({
     run_id: z.string().trim().min(1),
     status: z.literal("completed"),
-    final_answer: z.string().trim().min(1),
+    final_answer: StructuredAnswerSchema,
     sources: z.array(RunSourceSchema),
     tool_call_count: z.number().int().nonnegative(),
     elapsed_ms: z.number().int().nonnegative(),
@@ -398,6 +421,8 @@ export type RunStartRequest = z.output<typeof RunStartRequestSchema>;
 export type RunRetrievalPolicy = z.output<typeof NormalizedRunRetrievalPolicySchema>;
 export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
 export type RunSource = z.output<typeof RunSourceSchema>;
+export type StructuredAnswerCitation = z.output<typeof StructuredAnswerCitationSchema>;
+export type StructuredAnswer = z.output<typeof StructuredAnswerSchema>;
 export type BackendAgentRunSuccessResponse = z.output<typeof BackendAgentRunSuccessResponseSchema>;
 export type CanonicalRunEvent = RunEvent;
 export type CanonicalRunEventType = RunEventType;

@@ -400,6 +400,7 @@ describe("run history API", () => {
         finalAnswer: `Completed ${selectedMode} run for ${prompt}.`,
         sources: [
           {
+            source_id: `${selectedMode}-source`,
             title: `${selectedMode} source`,
             url: `https://example.com/${selectedMode}`,
             snippet: `Evidence for ${selectedMode}.`,
@@ -557,7 +558,7 @@ async function createHarness(options: {
     | {
       status: "completed";
       finalAnswer: string;
-      sources: Array<{ title: string; url: string; snippet: string }>;
+      sources: Array<{ source_id: string; title: string; url: string; snippet: string }>;
       durationMs: number;
       completedAt: number;
     }

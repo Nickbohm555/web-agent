@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.agent.types import (
+    AgentStructuredAnswer,
     AgentRunMode,
     AgentRunResult,
     AgentRunRetrievalPolicy,
@@ -58,7 +59,7 @@ class AgentRunSuccessResponse(BaseModel):
 
     run_id: str = Field(min_length=1)
     status: Literal["completed"]
-    final_answer: str = Field(min_length=1)
+    final_answer: AgentStructuredAnswer
     sources: list[AgentSourceReference] = Field(default_factory=list)
     tool_call_count: int = Field(ge=0)
     elapsed_ms: int = Field(ge=0)

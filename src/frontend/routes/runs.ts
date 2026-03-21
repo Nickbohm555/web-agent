@@ -181,11 +181,7 @@ export function createRunsRouter(): Router {
     if (streamFactory === undefined) {
       res.write(
         serializeRunStreamEvent(
-          createRunErrorEvent(
-            req.params.runId,
-            "Run event stream is unavailable.",
-            "STREAM_UNAVAILABLE",
-          ),
+          createRunStreamUnavailableEvent(req.params.runId),
         ),
       );
       res.end();
@@ -215,15 +211,7 @@ export function createRunsRouter(): Router {
       }
     } catch {
       if (!abortController.signal.aborted) {
-        res.write(
-          serializeRunStreamEvent(
-            createRunErrorEvent(
-              req.params.runId,
-              "Run event stream failed.",
-              "STREAM_FAILURE",
-            ),
-          ),
-        );
+        res.write(serializeRunStreamEvent(createRunStreamFailureEvent(req.params.runId)));
       }
     } finally {
       res.end();
@@ -243,18 +231,11 @@ export function createExecutorBackedRunEventStreamFactory(
     const pendingRun = pendingRuns.get(context.runId);
 
     if (pendingRun === undefined) {
-      yield createRunErrorEvent(
-        context.runId,
-        "Run was not found or has already been consumed.",
-        "RUN_NOT_FOUND",
-      );
+      yield createRunNotFoundEvent(context.runId);
       return;
     }
 
-    yield {
-      event: "run_state",
-      data: createRunningState(context.runId),
-    };
+    yield createRunningRunStateEvent(context.runId);
 
     try {
       const result = await executor({
@@ -273,18 +254,9 @@ export function createExecutorBackedRunEventStreamFactory(
         return;
       }
 
-      yield createRunErrorEvent(
-        context.runId,
-        result.message,
-        result.code ?? DEFAULT_RUN_FAILED_CODE,
-        result.failedAt ?? Date.now(),
-      );
+      yield createRunResultFailureEvent(context.runId, result);
     } catch (error: unknown) {
-      yield createRunErrorEvent(
-        context.runId,
-        error instanceof Error ? error.message : "Run execution failed.",
-        "RUN_EXECUTION_FAILED",
-      );
+      yield createRunExecutionFailureEvent(context.runId, error);
     } finally {
       pendingRuns.delete(context.runId);
     }
@@ -365,10 +337,7 @@ async function executeBackgroundRun(options: {
 
   await withRunContext(
     async () => {
-      emitBackgroundRunEvent(options.run, {
-        event: "run_state",
-        data: createRunningState(options.run.runId),
-      });
+      emitBackgroundRunEvent(options.run, createRunningRunStateEvent(options.run.runId));
 
       try {
         for await (const rawEvent of options.eventProducer) {
@@ -385,11 +354,7 @@ async function executeBackgroundRun(options: {
           }
         }
       } catch (error: unknown) {
-        const event = createRunErrorEvent(
-          options.run.runId,
-          error instanceof Error ? error.message : "Run event stream failed.",
-          "STREAM_FAILURE",
-        );
+        const event = createRunStreamFailureEvent(options.run.runId, error);
         nextEventSeq = ingestRunStreamEventHistory(
           options.historyStore,
           event,
@@ -399,10 +364,7 @@ async function executeBackgroundRun(options: {
         options.run.completionError =
           error instanceof Error ? error : new Error(String(error));
       } finally {
-        options.pendingRuns.delete(options.run.runId);
-        options.run.isComplete = true;
-        options.run.notifyCompleted();
-        trimBackgroundRuns(options.backgroundRuns);
+        finalizeBackgroundRun(options);
       }
     },
     {
@@ -532,12 +494,18 @@ async function* createExecutorBackedEventProducer(
     return;
   }
 
-  yield createRunErrorEvent(
-    run.runId,
-    result.message,
-    result.code ?? DEFAULT_RUN_FAILED_CODE,
-    result.failedAt ?? Date.now(),
-  );
+  yield createRunResultFailureEvent(run.runId, result);
+}
+
+function finalizeBackgroundRun(options: {
+  run: BackgroundRunRecord;
+  pendingRuns: Map<string, PendingRun>;
+  backgroundRuns: Map<string, BackgroundRunRecord>;
+}) {
+  options.pendingRuns.delete(options.run.runId);
+  options.run.isComplete = true;
+  options.run.notifyCompleted();
+  trimBackgroundRuns(options.backgroundRuns);
 }
 
 function trimBackgroundRuns(backgroundRuns: Map<string, BackgroundRunRecord>) {
@@ -598,7 +566,7 @@ export function createHttpAgentRunExecutor(
 
       return {
         status: "completed",
-        finalAnswer: responseRecord.final_answer,
+        finalAnswer: responseRecord.final_answer.text,
         sources: responseRecord.sources,
         durationMs: responseRecord.elapsed_ms,
         completedAt: Date.now(),
@@ -853,6 +821,56 @@ function createRunErrorEvent(
   };
 }
 
+function createRunNotFoundEvent(runId: string): RunStreamEvent {
+  return createRunErrorEvent(
+    runId,
+    "Run was not found or has already been consumed.",
+    "RUN_NOT_FOUND",
+  );
+}
+
+function createRunStreamUnavailableEvent(runId: string): RunStreamEvent {
+  return createRunErrorEvent(
+    runId,
+    "Run event stream is unavailable.",
+    "STREAM_UNAVAILABLE",
+  );
+}
+
+function createRunStreamFailureEvent(
+  runId: string,
+  error: unknown = undefined,
+): RunStreamEvent {
+  return createRunErrorEvent(
+    runId,
+    error instanceof Error ? error.message : "Run event stream failed.",
+    "STREAM_FAILURE",
+  );
+}
+
+function createRunExecutionFailureEvent(
+  runId: string,
+  error: unknown,
+): RunStreamEvent {
+  return createRunErrorEvent(
+    runId,
+    error instanceof Error ? error.message : "Run execution failed.",
+    "RUN_EXECUTION_FAILED",
+  );
+}
+
+function createRunResultFailureEvent(
+  runId: string,
+  result: Extract<RunExecutorResult, { status: "failed" }>,
+): RunStreamEvent {
+  return createRunErrorEvent(
+    runId,
+    result.message,
+    result.code ?? DEFAULT_RUN_FAILED_CODE,
+    result.failedAt ?? Date.now(),
+  );
+}
+
 function createRunCompleteData(
   runId: string,
   result: Extract<RunExecutorResult, { status: "completed" }>,
@@ -871,6 +889,13 @@ function createRunningState(runId: string) {
     runId,
     state: "running" as const,
     ts: Date.now(),
+  };
+}
+
+function createRunningRunStateEvent(runId: string): RunStreamEvent {
+  return {
+    event: "run_state",
+    data: createRunningState(runId),
   };
 }
 

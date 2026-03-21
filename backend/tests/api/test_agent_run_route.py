@@ -113,9 +113,13 @@ def test_run_success_contract_normalizes_required_response_fields() -> None:
     assert payload.model_dump(mode="json") == {
         "run_id": "run-123",
         "status": "completed",
-        "final_answer": "One source summary.",
+        "final_answer": {
+            "text": "One source summary.",
+            "citations": [],
+        },
         "sources": [
             {
+                "source_id": "https-example-com-source",
                 "title": "Primary source",
                 "url": "https://example.com/source",
                 "snippet": "Key evidence.",
@@ -224,9 +228,13 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
     assert response.json() == {
         "run_id": f"run-{mode}-success",
         "status": "completed",
-        "final_answer": f"{mode} source summary.",
+        "final_answer": {
+            "text": f"{mode} source summary.",
+            "citations": [],
+        },
         "sources": [
             {
+                "source_id": f"https-example-com-{mode.replace('_', '-')}",
                 "title": f"{mode} source",
                 "url": f"https://example.com/{mode}",
                 "snippet": f"Evidence for {mode}.",

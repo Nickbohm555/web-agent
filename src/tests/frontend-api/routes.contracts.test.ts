@@ -316,9 +316,19 @@ describe("frontend API route contracts", () => {
       parseBackendAgentRunSuccessResponse({
         run_id: "run-123",
         status: "completed",
-        final_answer: "Answer with sources.",
+        final_answer: {
+          text: "Answer with sources.",
+          citations: [
+            {
+              source_id: "source-example",
+              start_index: 12,
+              end_index: 19,
+            },
+          ],
+        },
         sources: [
           {
+            source_id: "source-example",
             title: "Example source",
             url: "https://example.com/source",
             snippet: "Evidence snippet.",
@@ -334,9 +344,19 @@ describe("frontend API route contracts", () => {
     ).toEqual({
       run_id: "run-123",
       status: "completed",
-      final_answer: "Answer with sources.",
+      final_answer: {
+        text: "Answer with sources.",
+        citations: [
+          {
+            source_id: "source-example",
+            start_index: 12,
+            end_index: 19,
+          },
+        ],
+      },
       sources: [
         {
+          source_id: "source-example",
           title: "Example source",
           url: "https://example.com/source",
           snippet: "Evidence snippet.",
@@ -358,9 +378,19 @@ describe("frontend API route contracts", () => {
       parseBackendAgentRunSuccessResponse({
         run_id: "run-123",
         status: "completed",
-        final_answer: "Answer with sources.",
+        final_answer: {
+          text: "Answer with sources.",
+          citations: [
+            {
+              source_id: "source-example",
+              start_index: 7,
+              end_index: 3,
+            },
+          ],
+        },
         sources: [
           {
+            source_id: "source-example",
             title: "",
             url: "not-a-url",
             snippet: "Evidence snippet.",

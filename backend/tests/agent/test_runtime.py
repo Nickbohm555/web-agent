@@ -153,9 +153,11 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
 
     assert isinstance(result, AgentRunResult)
     assert result.status == "completed"
-    assert result.final_answer == "Final answer with one source."
+    assert result.final_answer is not None
+    assert result.final_answer.text == "Final answer with one source."
     assert result.model_dump(mode="json")["sources"] == [
         {
+            "source_id": "https-example-com-source",
             "title": "Example source",
             "url": "https://example.com/source",
             "snippet": "Evidence snippet.",
@@ -189,7 +191,7 @@ def test_run_agent_once_rejects_empty_prompt() -> None:
     result = run_agent_once("   ")
 
     assert result.status == "failed"
-    assert result.final_answer == ""
+    assert result.final_answer is None
     assert result.error is not None
     assert result.error.category == "invalid_prompt"
     assert result.error.retryable is False
@@ -285,16 +287,19 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
 
     assert result.status == "completed"
     assert result.tool_call_count == 1
-    assert "Example One: First summary." in result.final_answer
-    assert "Sources:" in result.final_answer
-    assert "https://example.com/one" in result.final_answer
+    assert result.final_answer is not None
+    assert "Example One: First summary." in result.final_answer.text
+    assert "Sources:" in result.final_answer.text
+    assert "https://example.com/one" in result.final_answer.text
     assert result.model_dump(mode="json")["sources"] == [
         {
+            "source_id": "https-example-com-one",
             "title": "Example One",
             "url": "https://example.com/one",
             "snippet": "First summary",
         },
         {
+            "source_id": "https-example-com-two",
             "title": "Example Two",
             "url": "https://example.com/two",
             "snippet": "Second summary",
@@ -503,7 +508,8 @@ def test_run_agent_once_has_a_happy_path_for_each_mode(mode: AgentRunMode) -> No
     )
 
     assert result.status == "completed"
-    assert result.final_answer == f"{mode} answer."
+    assert result.final_answer is not None
+    assert result.final_answer.text == f"{mode} answer."
     assert agent.captured_config == expected_runtime_config(mode)
 
 
