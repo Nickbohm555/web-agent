@@ -30,6 +30,7 @@ describe("run start API contracts", () => {
 
     const response = await callRoute({
       prompt: "  Find recent agent tooling updates  ",
+      mode: "quick",
     });
 
     expect(response.status).toBe(201);
@@ -44,6 +45,7 @@ describe("run start API contracts", () => {
 
     const response = await callRoute({
       prompt: "   ",
+      mode: "agentic",
     });
 
     expect(response.status).toBe(400);
@@ -56,6 +58,27 @@ describe("run start API contracts", () => {
 
     if (envelope.error.details && "fieldErrors" in envelope.error.details) {
       expect(envelope.error.details.fieldErrors.prompt).toBeDefined();
+    } else {
+      throw new Error("Expected validation error details.");
+    }
+  });
+
+  it("rejects unknown run modes with explicit validation details", async () => {
+    const { RunStartErrorEnvelope } = await import("../../frontend/contracts.js");
+
+    const response = await callRoute({
+      prompt: "Find sources",
+      mode: "turbo",
+    });
+
+    expect(response.status).toBe(400);
+
+    const envelope = RunStartErrorEnvelope.parse(response.json);
+    expect(envelope.ok).toBe(false);
+    expect(envelope.error.code).toBe("VALIDATION_ERROR");
+
+    if (envelope.error.details && "fieldErrors" in envelope.error.details) {
+      expect(envelope.error.details.fieldErrors.mode).toBeDefined();
     } else {
       throw new Error("Expected validation error details.");
     }

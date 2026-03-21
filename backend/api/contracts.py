@@ -4,13 +4,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from backend.agent.types import AgentRunResult
+from backend.agent.types import AgentRunMode, AgentRunResult
 
 
 class AgentRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     prompt: str = Field(min_length=1)
+    mode: AgentRunMode
 
     @field_validator("prompt")
     @classmethod

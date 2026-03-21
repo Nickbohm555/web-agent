@@ -41,6 +41,7 @@ import {
 } from "../core/policy/retrieval-controls.js";
 
 export const FrontendOperationSchema = z.enum(["search", "fetch", "run_start"]);
+export const RunModeSchema = z.enum(["quick", "agentic", "deep_research"]);
 
 export const FrontendErrorCodeSchema = z.enum([
   "VALIDATION_ERROR",
@@ -159,6 +160,7 @@ const FetchApiErrorEnvelopeSchema = z
 export const RunStartRequestSchema = z
   .object({
     prompt: z.string().trim().min(1),
+    mode: RunModeSchema,
   })
   .strict();
 
@@ -337,6 +339,7 @@ export const RunStartErrorEnvelope = RunStartErrorEnvelopeSchema;
 
 export type SearchApiRequest = z.output<typeof SearchRequestSchema>;
 export type FetchApiRequest = z.output<typeof FetchRequestSchema>;
+export type RunMode = z.output<typeof RunModeSchema>;
 export type RunStartRequest = z.output<typeof RunStartRequestSchema>;
 export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
 export type CanonicalRunEvent = RunEvent;

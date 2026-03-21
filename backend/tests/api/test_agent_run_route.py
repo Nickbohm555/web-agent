@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from backend.agent.types import AgentRunError, AgentRunResult
+from backend.agent.types import AgentRunError, AgentRunMode, AgentRunResult
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import map_runtime_failure
 from backend.app.config import get_settings
@@ -16,10 +16,10 @@ from backend.main import create_app
 class StubRuntimeRunner:
     def __init__(self, result: AgentRunResult) -> None:
         self.result = result
-        self.calls: list[str] = []
+        self.calls: list[tuple[str, AgentRunMode]] = []
 
-    def __call__(self, prompt: str) -> AgentRunResult:
-        self.calls.append(prompt)
+    def __call__(self, prompt: str, mode: AgentRunMode) -> AgentRunResult:
+        self.calls.append((prompt, mode))
         return self.result
 
 
@@ -41,12 +41,17 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
 def test_run_request_contract_rejects_blank_prompt() -> None:
     with pytest.raises(ValidationError, match="prompt must not be empty"):
-        AgentRunRequest(prompt="   ")
+        AgentRunRequest(prompt="   ", mode="agentic")
 
 
 def test_run_request_contract_forbids_unknown_fields() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        AgentRunRequest(prompt="find one source", extra_field=True)
+        AgentRunRequest(prompt="find one source", mode="quick", extra_field=True)
+
+
+def test_run_request_contract_rejects_unknown_mode() -> None:
+    with pytest.raises(ValidationError, match="Input should be 'quick', 'agentic' or 'deep_research'"):
+        AgentRunRequest(prompt="find one source", mode="turbo")
 
 
 def test_run_success_contract_normalizes_required_response_fields() -> None:
@@ -115,7 +120,7 @@ def test_runtime_error_mapping_is_explicit_and_stable(
 
 
 def test_run_route_rejects_blank_prompt_payload(client: TestClient) -> None:
-    response = client.post("/api/agent/run", json={"prompt": "   "})
+    response = client.post("/api/agent/run", json={"prompt": "   ", "mode": "agentic"})
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["msg"] == "Value error, prompt must not be empty"
@@ -124,11 +129,18 @@ def test_run_route_rejects_blank_prompt_payload(client: TestClient) -> None:
 def test_run_route_rejects_unknown_request_fields(client: TestClient) -> None:
     response = client.post(
         "/api/agent/run",
-        json={"prompt": "find one source", "unexpected": True},
+        json={"prompt": "find one source", "mode": "quick", "unexpected": True},
     )
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["msg"] == "Extra inputs are not permitted"
+
+
+def test_run_route_rejects_unknown_modes(client: TestClient) -> None:
+    response = client.post("/api/agent/run", json={"prompt": "find one source", "mode": "turbo"})
+
+    assert response.status_code == 422
+    assert "Input should be 'quick', 'agentic' or 'deep_research'" in response.json()["detail"][0]["msg"]
 
 
 def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
@@ -143,7 +155,7 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
     )
     client.app.state.run_agent_once = runner
 
-    response = client.post("/api/agent/run", json={"prompt": "  find one source  "})
+    response = client.post("/api/agent/run", json={"prompt": "  find one source  ", "mode": "quick"})
 
     assert response.status_code == 200
     assert response.json() == {
@@ -157,7 +169,7 @@ def test_run_route_returns_stable_success_envelope(client: TestClient) -> None:
             "elapsed_ms": 81,
         },
     }
-    assert runner.calls == ["find one source"]
+    assert runner.calls == [("find one source", "quick")]
 
 
 @pytest.mark.parametrize(
@@ -223,8 +235,8 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     )
     client.app.state.run_agent_once = runner
 
-    response = client.post("/api/agent/run", json={"prompt": "find one source"})
+    response = client.post("/api/agent/run", json={"prompt": "find one source", "mode": "deep_research"})
 
     assert response.status_code == expected_status
     assert response.json() == expected_payload
-    assert runner.calls == ["find one source"]
+    assert runner.calls == [("find one source", "deep_research")]

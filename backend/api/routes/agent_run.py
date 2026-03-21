@@ -5,7 +5,7 @@ from collections.abc import Callable
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from backend.agent.types import AgentRunResult
+from backend.agent.types import AgentRunMode, AgentRunResult
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import AgentRunErrorResponse, map_runtime_failure
 
@@ -26,7 +26,7 @@ router = APIRouter()
 )
 async def run_agent(request: Request, payload: AgentRunRequest) -> AgentRunSuccessResponse | JSONResponse:
     runner = _get_runtime_runner(request)
-    result = runner(payload.prompt)
+    result = runner(payload.prompt, payload.mode)
 
     if result.status == "failed":
         mapped_error = map_runtime_failure(result)
@@ -38,7 +38,7 @@ async def run_agent(request: Request, payload: AgentRunRequest) -> AgentRunSucce
     return AgentRunSuccessResponse.from_run_result(result)
 
 
-def _get_runtime_runner(request: Request) -> Callable[[str], AgentRunResult]:
+def _get_runtime_runner(request: Request) -> Callable[[str, AgentRunMode], AgentRunResult]:
     runner = getattr(request.app.state, "run_agent_once", None)
     if runner is None:
         raise RuntimeError("agent runtime is not configured")

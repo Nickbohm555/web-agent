@@ -1,5 +1,6 @@
 import {
   parseRunStreamEvent,
+  type RunMode,
   type RunCompleteEvent,
   type RunErrorEvent,
   type RunStateEvent,
@@ -9,6 +10,7 @@ import {
 
 export interface RunStartRequest {
   prompt: string;
+  mode: RunMode;
 }
 
 export interface RunStartResponse {
@@ -258,7 +260,12 @@ function parseRunStartErrorEnvelope(input: unknown): RunStartErrorEnvelope {
 
 function isRunStartRequest(input: unknown): input is RunStartRequest {
   const record = asRecord(input);
-  return typeof record.prompt === "string";
+  return (
+    typeof record.prompt === "string" &&
+    (record.mode === "quick" ||
+      record.mode === "agentic" ||
+      record.mode === "deep_research")
+  );
 }
 
 function asRecord(input: unknown): Record<string, unknown> {

@@ -6,7 +6,7 @@ from typing import Any, Callable, Protocol
 from uuid import uuid4
 
 from backend.agent.prompts import SYSTEM_PROMPT
-from backend.agent.types import AgentRunError, AgentRunResult
+from backend.agent.types import AgentRunError, AgentRunMode, AgentRunResult
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
 
@@ -26,6 +26,7 @@ class RuntimeDependencies:
 
 def run_agent_once(
     prompt: str,
+    mode: AgentRunMode = "agentic",
     *,
     runtime_dependencies: RuntimeDependencies | None = None,
 ) -> AgentRunResult:
@@ -44,7 +45,7 @@ def run_agent_once(
         dependencies = runtime_dependencies or build_runtime_dependencies()
         raw_result = dependencies.agent.invoke(
             _build_inputs(prompt),
-            {"recursion_limit": DEFAULT_RECURSION_LIMIT},
+            {"recursion_limit": DEFAULT_RECURSION_LIMIT, "run_mode": mode},
         )
         return AgentRunResult(
             run_id=run_id,

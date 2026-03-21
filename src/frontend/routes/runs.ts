@@ -45,6 +45,7 @@ export function createRunsRouter(): Router {
         ts: new Date().toISOString(),
         tool_input: {
           prompt: request.prompt,
+          mode: request.mode,
         },
         safety: createEmptyRunEventSafety(),
       });

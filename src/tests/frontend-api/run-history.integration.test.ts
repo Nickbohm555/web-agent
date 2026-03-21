@@ -85,6 +85,7 @@ describe("run history API", () => {
     try {
       const startResponse = await harness.postJson("/api/runs", {
         prompt: "Find sources",
+        mode: "quick",
       });
       expect(startResponse.status).toBe(201);
 
@@ -120,6 +121,10 @@ describe("run history API", () => {
         "final_answer_generated",
         "run_completed",
       ]);
+      expect(detailPayload.events[0]?.tool_input).toEqual({
+        prompt: "Find sources",
+        mode: "quick",
+      });
       expect(detailPayload.events.at(-1)?.final_answer).toBe(
         "Answer with citations.",
       );
@@ -190,6 +195,7 @@ describe("run history API", () => {
     try {
       const startResponse = await harness.postJson("/api/runs", {
         prompt: "Bounded run",
+        mode: "deep_research",
       });
       const runId = parseRunId(startResponse.json);
 

@@ -123,7 +123,7 @@ runForm.addEventListener("submit", async (event) => {
   closeRunStream();
   dispatch({ type: "run_requested" });
 
-  const result = await createRun({ prompt });
+  const result = await createRun({ prompt, mode: "agentic" });
   if (result.ok) {
     dispatch({
       type: "run_started",

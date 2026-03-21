@@ -91,7 +91,10 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
     assert agent.captured_inputs == {
         "messages": [{"role": "user", "content": "find one source and summarize"}]
     }
-    assert agent.captured_config == {"recursion_limit": DEFAULT_RECURSION_LIMIT}
+    assert agent.captured_config == {
+        "recursion_limit": DEFAULT_RECURSION_LIMIT,
+        "run_mode": "agentic",
+    }
     assert "provider_payload" not in result.model_dump()
 
 
@@ -132,7 +135,26 @@ def test_run_agent_once_maps_recursion_limit_failures() -> None:
     assert result.error.category == "loop_limit"
     assert result.error.message == "agent exceeded bounded execution limit"
     assert result.error.retryable is False
-    assert agent.captured_config == {"recursion_limit": DEFAULT_RECURSION_LIMIT}
+    assert agent.captured_config == {
+        "recursion_limit": DEFAULT_RECURSION_LIMIT,
+        "run_mode": "agentic",
+    }
+
+
+def test_run_agent_once_passes_selected_mode_into_runtime_config() -> None:
+    agent = StubAgent(raw_result={"output": "Fast answer."})
+
+    result = run_agent_once(
+        "find one source and summarize",
+        "quick",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert agent.captured_config == {
+        "recursion_limit": DEFAULT_RECURSION_LIMIT,
+        "run_mode": "quick",
+    }
 
 
 def test_run_agent_once_maps_tool_failures() -> None:

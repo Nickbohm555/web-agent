@@ -5,6 +5,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+AgentRunMode = Literal["quick", "agentic", "deep_research"]
 AgentRunStatus = Literal["completed", "failed"]
 AgentRunErrorCategory = Literal[
     "invalid_prompt",
