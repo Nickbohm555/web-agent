@@ -56,19 +56,37 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_FILE="$ROOT_DIR/build_prompt.md"
+IMPLEMENTATION_PLAN_FILE="$ROOT_DIR/implementation_plan.md"
 
 if [[ ! -f "$PROMPT_FILE" ]]; then
   echo "Missing build_prompt.md at $PROMPT_FILE" >&2
   exit 1
 fi
 
+if [[ ! -f "$IMPLEMENTATION_PLAN_FILE" ]]; then
+  echo "Missing implementation_plan.md at $IMPLEMENTATION_PLAN_FILE" >&2
+  exit 1
+fi
+
 iter=1
 while [[ "$max_iterations" -eq 0 || "$iter" -le "$max_iterations" ]]; do
+  current_section="$(awk -F': ' '/^Current Section:/ { print $2; exit }' "$IMPLEMENTATION_PLAN_FILE")"
+
+  if ! [[ "${current_section:-}" =~ ^[0-9]+$ ]]; then
+    echo "Failed to read a valid Current Section from $IMPLEMENTATION_PLAN_FILE" >&2
+    exit 1
+  fi
+
   codex exec \
     --dangerously-bypass-approvals-and-sandbox \
     - <<EOF
 @${ROOT_DIR}/AGENTS.md
 @${PROMPT_FILE}
+@${IMPLEMENTATION_PLAN_FILE}
+
+You are executing iteration ${iter}.
+Start immediately on Current Section ${current_section} from implementation_plan.md.
+Do not stop after merely summarizing or acknowledging files. Read the current section, implement it, run the listed tests, confirm the success conditions in the section's How to Test text, then update Current Section only if the section is fully complete.
 EOF
 
   codex exec \
