@@ -241,23 +241,10 @@ export function createExecutorBackedRunEventStreamFactory(
     yield createRunningRunStateEvent(context.runId);
 
     try {
-      const result = await executor({
-        runId: context.runId,
-        signal: context.signal,
-        prompt: pendingRun.prompt,
-        mode: pendingRun.mode,
-        retrievalPolicy: pendingRun.retrievalPolicy,
-      });
-
-      if (result.status === "completed") {
-        yield {
-          event: "run_complete",
-          data: createRunCompleteData(context.runId, result),
-        };
-        return;
-      }
-
-      yield createRunResultFailureEvent(context.runId, result);
+      const result = await executor(
+        createRunExecutorContext(context.runId, context.signal, pendingRun),
+      );
+      yield createRunExecutorEvent(context.runId, result);
     } catch (error: unknown) {
       yield createRunExecutionFailureEvent(context.runId, error);
     } finally {
@@ -481,23 +468,10 @@ async function* createExecutorBackedEventProducer(
   executor: RunExecutor,
   run: PendingRun & { runId: string },
 ): AsyncIterable<RunStreamEvent> {
-  const result = await executor({
-    runId: run.runId,
-    signal: new AbortController().signal,
-    prompt: run.prompt,
-    mode: run.mode,
-    retrievalPolicy: run.retrievalPolicy,
-  });
-
-  if (result.status === "completed") {
-    yield {
-      event: "run_complete",
-      data: createRunCompleteData(run.runId, result),
-    };
-    return;
-  }
-
-  yield createRunResultFailureEvent(run.runId, result);
+  const result = await executor(
+    createRunExecutorContext(run.runId, new AbortController().signal, run),
+  );
+  yield createRunExecutorEvent(run.runId, result);
 }
 
 function finalizeBackgroundRun(options: {
@@ -631,15 +605,9 @@ function serializeRunRetrievalPolicy(policy: RunRetrievalPolicy) {
       country: policy.search.country,
       language: policy.search.language,
       freshness: policy.search.freshness,
-      domainScope: {
-        includeDomains: [...policy.search.domainScope.includeDomains],
-        excludeDomains: [...policy.search.domainScope.excludeDomains],
-      },
+      domainScope: serializeDomainScope(policy),
     },
-    fetch: {
-      maxAgeMs: policy.fetch.maxAgeMs,
-      fresh: policy.fetch.fresh,
-    },
+    fetch: serializeFetchPolicy(policy),
   };
 }
 
@@ -649,13 +617,9 @@ function serializeBackendRetrievalPolicy(policy: RunRetrievalPolicy) {
       country: policy.search.country,
       language: policy.search.language,
       freshness: policy.search.freshness,
-      include_domains: [...policy.search.domainScope.includeDomains],
-      exclude_domains: [...policy.search.domainScope.excludeDomains],
+      ...serializeBackendDomainScope(policy),
     },
-    fetch: {
-      max_age_ms: policy.fetch.maxAgeMs,
-      fresh: policy.fetch.fresh,
-    },
+    fetch: serializeBackendFetchPolicy(policy),
   };
 }
 
@@ -898,27 +862,7 @@ function createRunCompletionEvent(
   structuredAnswer: StructuredAnswer | undefined,
   sources: RunSource[],
 ): CanonicalRunEvent {
-  const toolOutput: NonNullable<CanonicalRunEvent["tool_output"]> = {};
-
-  if (structuredAnswer !== undefined) {
-    toolOutput.answer = structuredAnswer;
-  }
-
-  if (sources.length > 0) {
-    toolOutput.sources = sources;
-  }
-
-  if (eventType === "final_answer_generated") {
-    return {
-      run_id: runId,
-      event_seq: eventSeq,
-      event_type: eventType,
-      ts: timestamp,
-      final_answer: finalAnswer,
-      ...(Object.keys(toolOutput).length > 0 ? { tool_output: toolOutput } : {}),
-      safety: createEmptyRunEventSafety(),
-    };
-  }
+  const toolOutput = createCompletionToolOutput(structuredAnswer, sources);
 
   return {
     run_id: runId,
@@ -926,8 +870,22 @@ function createRunCompletionEvent(
     event_type: eventType,
     ts: timestamp,
     final_answer: finalAnswer,
-    ...(Object.keys(toolOutput).length > 0 ? { tool_output: toolOutput } : {}),
+    ...(toolOutput !== undefined ? { tool_output: toolOutput } : {}),
     safety: createEmptyRunEventSafety(),
+  };
+}
+
+function createCompletionToolOutput(
+  structuredAnswer: StructuredAnswer | undefined,
+  sources: RunSource[],
+): NonNullable<CanonicalRunEvent["tool_output"]> | undefined {
+  if (structuredAnswer === undefined && sources.length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...(structuredAnswer !== undefined ? { answer: structuredAnswer } : {}),
+    ...(sources.length > 0 ? { sources } : {}),
   };
 }
 
@@ -1034,6 +992,34 @@ function createRunCompleteData(
   };
 }
 
+function createRunExecutorContext(
+  runId: string,
+  signal: AbortSignal,
+  run: PendingRun,
+): RunExecutorContext {
+  return {
+    runId,
+    signal,
+    prompt: run.prompt,
+    mode: run.mode,
+    retrievalPolicy: run.retrievalPolicy,
+  };
+}
+
+function createRunExecutorEvent(
+  runId: string,
+  result: RunExecutorResult,
+): RunStreamEvent {
+  if (result.status === "completed") {
+    return {
+      event: "run_complete",
+      data: createRunCompleteData(runId, result),
+    };
+  }
+
+  return createRunResultFailureEvent(runId, result);
+}
+
 function createRunningState(runId: string) {
   return {
     runId,
@@ -1094,6 +1080,34 @@ function toIsoTimestamp(timestamp: number): string {
 
 function toPreviewPayload(preview: string | undefined): { preview: string } | undefined {
   return preview === undefined ? undefined : { preview };
+}
+
+function serializeDomainScope(policy: RunRetrievalPolicy) {
+  return {
+    includeDomains: [...policy.search.domainScope.includeDomains],
+    excludeDomains: [...policy.search.domainScope.excludeDomains],
+  };
+}
+
+function serializeBackendDomainScope(policy: RunRetrievalPolicy) {
+  return {
+    include_domains: [...policy.search.domainScope.includeDomains],
+    exclude_domains: [...policy.search.domainScope.excludeDomains],
+  };
+}
+
+function serializeFetchPolicy(policy: RunRetrievalPolicy) {
+  return {
+    maxAgeMs: policy.fetch.maxAgeMs,
+    fresh: policy.fetch.fresh,
+  };
+}
+
+function serializeBackendFetchPolicy(policy: RunRetrievalPolicy) {
+  return {
+    max_age_ms: policy.fetch.maxAgeMs,
+    fresh: policy.fetch.fresh,
+  };
 }
 
 function serializeRunStreamEvent(event: unknown): string {

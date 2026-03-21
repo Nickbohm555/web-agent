@@ -462,22 +462,14 @@ function createRunOutcomeEvent(
   structuredAnswer: RunCompleteEvent["structuredAnswer"],
   sources: RunCompleteEvent["sources"],
 ): DraftRunEvent {
-  const toolOutput: NonNullable<CanonicalRunEvent["tool_output"]> = {};
-
-  if (structuredAnswer !== undefined) {
-    toolOutput.answer = structuredAnswer;
-  }
-
-  if (sources.length > 0) {
-    toolOutput.sources = sources;
-  }
+  const toolOutput = createCompletionToolOutput(structuredAnswer, sources);
 
   return {
     run_id: runId,
     event_type: eventType,
     ts: timestamp,
     final_answer: finalAnswer,
-    ...(Object.keys(toolOutput).length > 0 ? { tool_output: toolOutput } : {}),
+    ...(toolOutput !== undefined ? { tool_output: toolOutput } : {}),
   };
 }
 
@@ -516,6 +508,20 @@ function createRunEventStateSlice(
     runEvents,
     selectedEventKey: selectedEvent ? createRunEventKey(selectedEvent) : null,
     nextEventSeq,
+  };
+}
+
+function createCompletionToolOutput(
+  structuredAnswer: RunCompleteEvent["structuredAnswer"],
+  sources: RunCompleteEvent["sources"],
+): NonNullable<CanonicalRunEvent["tool_output"]> | undefined {
+  if (structuredAnswer === undefined && sources.length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...(structuredAnswer !== undefined ? { answer: structuredAnswer } : {}),
+    ...(sources.length > 0 ? { sources } : {}),
   };
 }
 
