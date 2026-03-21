@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from time import perf_counter
 from typing import Any, Callable, Protocol
+from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -25,6 +27,7 @@ from backend.agent.types import (
     AgentRuntimeProfile,
 )
 from backend.app.contracts.tool_errors import ToolErrorEnvelope
+from backend.app.contracts.web_crawl import WebCrawlSuccess
 from backend.app.contracts.web_search import WebSearchResponse
 from backend.app.tools.web_crawl import build_web_crawl_tool, web_crawl
 from backend.app.tools.web_search import build_web_search_tool, web_search
@@ -96,6 +99,86 @@ class RuntimeDependencies:
     quick_search_runner: QuickSearchRunner | None = None
 
 
+@dataclass
+class RuntimeSourceRegistry:
+    _sources_by_key: dict[str, AgentSourceReference]
+    _aliases: dict[str, str]
+
+    @classmethod
+    def empty(cls) -> "RuntimeSourceRegistry":
+        return cls(_sources_by_key={}, _aliases={})
+
+    def register(
+        self,
+        *,
+        url: str,
+        title: str,
+        snippet: str = "",
+        alias_urls: tuple[str, ...] = (),
+    ) -> None:
+        canonical_key = _normalize_source_url(url)
+        if canonical_key is None:
+            return
+
+        target_key = self._aliases.get(canonical_key, canonical_key)
+        related_keys = {
+            canonical_key,
+            *(key for key in (_normalize_source_url(alias) for alias in alias_urls) if key is not None),
+        }
+        existing_source_keys = {
+            self._aliases.get(key, key)
+            for key in related_keys
+        }
+
+        source = self._sources_by_key.get(target_key)
+        if source is None:
+            source = AgentSourceReference(title=title, url=url, snippet=snippet)
+        else:
+            source = source.model_copy(
+                update=_merge_source_metadata(
+                    source=source,
+                    incoming_title=title,
+                    incoming_url=url,
+                    incoming_snippet=snippet,
+                )
+            )
+
+        self._sources_by_key[target_key] = source
+        self._merge_alias_sources(target_key, existing_source_keys)
+        for key in related_keys:
+            self._aliases[key] = target_key
+
+    def _merge_alias_sources(self, target_key: str, related_source_keys: set[str]) -> None:
+        target_source = self._sources_by_key[target_key]
+        for source_key in tuple(related_source_keys):
+            if source_key == target_key or source_key not in self._sources_by_key:
+                continue
+            target_source = target_source.model_copy(
+                update=_merge_source_metadata(
+                    source=target_source,
+                    incoming_title=self._sources_by_key[source_key].title,
+                    incoming_url=str(self._sources_by_key[source_key].url),
+                    incoming_snippet=self._sources_by_key[source_key].snippet,
+                )
+            )
+            self._sources_by_key[target_key] = target_source
+            del self._sources_by_key[source_key]
+            for alias, mapped_key in tuple(self._aliases.items()):
+                if mapped_key == source_key:
+                    self._aliases[alias] = target_key
+
+    def source_lookup(self) -> dict[str, AgentSourceReference]:
+        lookup = _build_source_lookup(self.sources())
+        for alias_key, source_key in self._aliases.items():
+            source = self._sources_by_key.get(source_key)
+            if source is not None:
+                lookup[alias_key] = source
+        return lookup
+
+    def sources(self) -> list[AgentSourceReference]:
+        return sorted(self._sources_by_key.values(), key=lambda source: source.source_id)
+
+
 def run_agent_once(
     prompt: str,
     mode: AgentRunMode = "agentic",
@@ -131,11 +214,12 @@ def run_agent_once(
             _build_inputs(prompt),
             _build_runtime_config(profile, effective_policy),
         )
-        sources = _extract_sources(raw_result)
+        source_registry = _extract_sources(raw_result)
+        sources = source_registry.sources()
         return AgentRunResult(
             run_id=run_id,
             status="completed",
-            final_answer=_extract_final_answer(raw_result, sources),
+            final_answer=_extract_final_answer(raw_result, source_registry.source_lookup()),
             sources=sources,
             tool_call_count=_count_tool_calls(raw_result),
             elapsed_ms=_elapsed_ms(started_at),
@@ -246,7 +330,7 @@ def _run_quick_mode(
         run_id=run_id,
         status="completed",
         final_answer=synthesize_quick_answer(response),
-        sources=_extract_search_sources(response),
+        sources=_extract_search_sources(response).sources(),
         tool_call_count=1,
         elapsed_ms=_elapsed_ms(started_at),
     )
@@ -318,9 +402,9 @@ def _build_runtime_config(
 
 def _extract_final_answer(
     raw_result: Any,
-    sources: list[AgentSourceReference] | None = None,
+    source_lookup: dict[str, AgentSourceReference] | None = None,
 ) -> AgentStructuredAnswer:
-    source_lookup = _build_source_lookup(sources or [])
+    source_lookup = source_lookup or {}
 
     if isinstance(raw_result, str):
         return AgentStructuredAnswer(text=raw_result.strip())
@@ -382,22 +466,24 @@ def _count_tool_calls(raw_result: Any) -> int:
     return total
 
 
-def _extract_sources(raw_result: Any) -> list[AgentSourceReference]:
+def _extract_sources(raw_result: Any) -> RuntimeSourceRegistry:
+    registry = RuntimeSourceRegistry.empty()
     if not isinstance(raw_result, dict):
-        return []
+        return registry
 
     direct_sources = raw_result.get("sources")
     if isinstance(direct_sources, list):
-        return _validate_sources(direct_sources)
+        _register_source_payload(registry, direct_sources)
 
     messages = raw_result.get("messages")
     if isinstance(messages, list):
-        for message in reversed(messages):
+        for message in messages:
             source_payload = _coerce_message_sources(message)
             if source_payload:
-                return source_payload
+                _register_source_payload(registry, source_payload)
+            _register_message_tool_sources(registry, message)
 
-    return []
+    return registry
 
 
 def _coerce_message_sources(message: Any) -> list[AgentSourceReference]:
@@ -420,6 +506,49 @@ def _coerce_message_sources(message: Any) -> list[AgentSourceReference]:
         return _validate_sources(additional_kwargs["sources"])
 
     return []
+
+
+def _register_source_payload(
+    registry: RuntimeSourceRegistry,
+    source_payload: list[Any] | list[AgentSourceReference],
+) -> None:
+    for source in _validate_sources(list(source_payload)):
+        registry.register(
+            url=str(source.url),
+            title=source.title,
+            snippet=source.snippet,
+        )
+
+
+def _register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any) -> None:
+    tool_name = _coerce_message_tool_name(message)
+    if tool_name not in CANONICAL_TOOL_NAMES:
+        return
+
+    payload = _coerce_message_tool_payload(message)
+    if not isinstance(payload, dict):
+        return
+
+    if tool_name == "web_search":
+        try:
+            response = WebSearchResponse.model_validate(payload)
+        except ValidationError:
+            return
+        _merge_search_sources_into_registry(registry, response)
+        return
+
+    try:
+        crawl_result = WebCrawlSuccess.model_validate(payload)
+    except ValidationError:
+        return
+
+    source_record = crawl_result.to_source_record()
+    registry.register(
+        url=source_record["url"],
+        title=source_record["title"],
+        snippet=source_record["snippet"],
+        alias_urls=crawl_result.source_alias_urls(),
+    )
 
 
 def _coerce_message_final_answer(message: Any) -> dict[str, Any] | None:
@@ -456,15 +585,23 @@ def _validate_sources(source_payload: list[Any]) -> list[AgentSourceReference]:
     return sources
 
 
-def _extract_search_sources(response: WebSearchResponse) -> list[AgentSourceReference]:
-    return [
-        AgentSourceReference(
-            title=result.title,
-            url=result.url,
-            snippet=result.snippet,
+def _extract_search_sources(response: WebSearchResponse) -> RuntimeSourceRegistry:
+    registry = RuntimeSourceRegistry.empty()
+    _merge_search_sources_into_registry(registry, response)
+    return registry
+
+
+def _merge_search_sources_into_registry(
+    registry: RuntimeSourceRegistry,
+    response: WebSearchResponse,
+) -> None:
+    for result in response.results[:3]:
+        source_record = result.to_source_record()
+        registry.register(
+            url=source_record["url"],
+            title=source_record["title"],
+            snippet=source_record["snippet"],
         )
-        for result in response.results[:3]
-    ]
 
 
 def _build_source_lookup(
@@ -475,6 +612,93 @@ def _build_source_lookup(
         lookup[source.source_id] = source
         lookup[str(source.url)] = source
     return lookup
+
+
+def _coerce_message_tool_name(message: Any) -> str | None:
+    if isinstance(message, dict):
+        for key in ("name", "tool_name"):
+            value = message.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        additional_kwargs = message.get("additional_kwargs")
+        if isinstance(additional_kwargs, dict):
+            for key in ("name", "tool_name"):
+                value = additional_kwargs.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        return None
+
+    for key in ("name", "tool_name"):
+        value = getattr(message, key, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    additional_kwargs = getattr(message, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict):
+        for key in ("name", "tool_name"):
+            value = additional_kwargs.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+    return None
+
+
+def _coerce_message_tool_payload(message: Any) -> dict[str, Any] | None:
+    if isinstance(message, dict):
+        payload = (
+            message.get("tool_output")
+            or message.get("artifact")
+            or message.get("payload")
+            or _decode_json_object(message.get("content"))
+        )
+        if isinstance(payload, dict):
+            return payload
+
+        additional_kwargs = message.get("additional_kwargs")
+        if isinstance(additional_kwargs, dict):
+            nested_payload = (
+                additional_kwargs.get("tool_output")
+                or additional_kwargs.get("artifact")
+                or additional_kwargs.get("payload")
+                or _decode_json_object(additional_kwargs.get("content"))
+            )
+            if isinstance(nested_payload, dict):
+                return nested_payload
+        return None
+
+    for key in ("tool_output", "artifact", "payload"):
+        payload = getattr(message, key, None)
+        if isinstance(payload, dict):
+            return payload
+
+    payload = _decode_json_object(getattr(message, "content", None))
+    if isinstance(payload, dict):
+        return payload
+
+    additional_kwargs = getattr(message, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict):
+        for key in ("tool_output", "artifact", "payload"):
+            payload = additional_kwargs.get(key)
+            if isinstance(payload, dict):
+                return payload
+        payload = _decode_json_object(additional_kwargs.get("content"))
+        if isinstance(payload, dict):
+            return payload
+
+    return None
+
+
+def _decode_json_object(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return None
+
+    try:
+        decoded = json.loads(value)
+    except ValueError:
+        return None
+    return decoded if isinstance(decoded, dict) else None
 
 
 def _coerce_message_citations(
@@ -546,11 +770,99 @@ def _hydrate_citation(
 
     source = source_lookup.get(lookup_key) if lookup_key else None
     if source is not None:
-        citation.setdefault("source_id", source.source_id)
-        citation.setdefault("title", source.title)
-        citation.setdefault("url", str(source.url))
+        citation["source_id"] = source.source_id
+        citation["title"] = source.title
+        citation["url"] = str(source.url)
 
     return citation
+
+
+def _merge_source_metadata(
+    *,
+    source: AgentSourceReference,
+    incoming_title: str,
+    incoming_url: str,
+    incoming_snippet: str,
+) -> dict[str, str]:
+    return {
+        "title": _select_preferred_title(
+            existing_title=source.title,
+            existing_url=str(source.url),
+            incoming_title=incoming_title,
+            incoming_url=incoming_url,
+        ),
+        "url": source.url,
+        "snippet": _select_preferred_snippet(source.snippet, incoming_snippet),
+    }
+
+
+def _select_preferred_title(
+    *,
+    existing_title: str,
+    existing_url: str,
+    incoming_title: str,
+    incoming_url: str,
+) -> str:
+    if not existing_title.strip():
+        return incoming_title
+    if not incoming_title.strip():
+        return existing_title
+    if _looks_like_fallback_title(existing_title, existing_url) and not _looks_like_fallback_title(
+        incoming_title, incoming_url
+    ):
+        return incoming_title
+    if _looks_like_fallback_title(incoming_title, incoming_url):
+        return existing_title
+    return incoming_title if len(incoming_title) >= len(existing_title) else existing_title
+
+
+def _select_preferred_snippet(existing_snippet: str, incoming_snippet: str) -> str:
+    existing = existing_snippet.strip()
+    incoming = incoming_snippet.strip()
+    if not existing:
+        return incoming
+    if not incoming:
+        return existing
+    return incoming if len(incoming) >= len(existing) else existing
+
+
+def _looks_like_fallback_title(title: str, url: str) -> bool:
+    normalized_title = title.strip().lower()
+    normalized_url = url.strip().lower()
+    if normalized_title == normalized_url:
+        return True
+
+    normalized_key = _normalize_source_url(url)
+    if normalized_key is None:
+        return False
+
+    parsed = urlsplit(normalized_key)
+    hostname = (parsed.hostname or "").lower()
+    path = parsed.path.strip("/").lower()
+    return normalized_title in {hostname, f"{hostname}/{path}".strip("/")}
+
+
+def _normalize_source_url(url: str | None) -> str | None:
+    if not isinstance(url, str) or not url.strip():
+        return None
+
+    parsed = urlsplit(url.strip())
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    scheme = parsed.scheme.lower()
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return None
+
+    port = parsed.port
+    netloc = hostname
+    if port and not ((scheme == "http" and port == 80) or (scheme == "https" and port == 443)):
+        netloc = f"{hostname}:{port}"
+    path = parsed.path or "/"
+    if path != "/":
+        path = path.rstrip("/")
+    return urlunsplit((scheme, netloc, path, parsed.query, ""))
 
 
 def _coerce_message_content(message: Any) -> str:

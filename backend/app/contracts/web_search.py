@@ -46,6 +46,13 @@ class WebSearchResult(BaseModel):
             raise ValueError("title must not be blank")
         return self
 
+    def to_source_record(self) -> dict[str, str]:
+        return {
+            "title": self.title,
+            "url": str(self.url),
+            "snippet": self.snippet,
+        }
+
 
 class SearchMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)

@@ -538,6 +538,138 @@ def test_run_agent_once_preserves_explicit_structured_final_answer_citations() -
     }
 
 
+def test_run_agent_once_assembles_consulted_sources_from_search_and_crawl_messages() -> None:
+    agent = StubAgent(
+        raw_result={
+            "messages": [
+                {
+                    "role": "tool",
+                    "name": "web_search",
+                    "content": {
+                        "query": "example topic",
+                        "results": [
+                            {
+                                "title": "Example source",
+                                "url": "https://example.com/start",
+                                "snippet": "Search snippet.",
+                                "rank": {"position": 1, "provider_position": 1},
+                            },
+                            {
+                                "title": "Other source",
+                                "url": "https://example.com/other",
+                                "snippet": "Other snippet.",
+                                "rank": {"position": 2, "provider_position": 2},
+                            },
+                        ],
+                        "metadata": {"result_count": 2, "provider": "serper"},
+                        "meta": {
+                            "operation": "web_search",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 12,
+                            "timings": {"total_ms": 12, "provider_ms": 8},
+                        },
+                    },
+                },
+                {
+                    "role": "tool",
+                    "name": "web_crawl",
+                    "content": {
+                        "url": "https://example.com/start",
+                        "final_url": "https://example.com/final",
+                        "text": "Expanded crawl content from the final page.",
+                        "markdown": "Expanded crawl content from the final page.",
+                        "status_code": 200,
+                        "content_type": "text/html",
+                        "fallback_reason": None,
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 20,
+                            "timings": {"total_ms": 20},
+                        },
+                    },
+                },
+                {
+                    "role": "assistant",
+                    "final_answer": {
+                        "text": "Example final answer",
+                        "citations": [
+                            {
+                                "url": "https://example.com/start",
+                                "start_index": 0,
+                                "end_index": 7,
+                            }
+                        ],
+                    },
+                },
+            ]
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.final_answer is not None
+    assert result.final_answer.model_dump(mode="json")["citations"] == [
+        {
+            "source_id": "https-example-com-final",
+            "title": "Example source",
+            "url": "https://example.com/final",
+            "start_index": 0,
+            "end_index": 7,
+        }
+    ]
+    assert result.model_dump(mode="json")["sources"] == [
+        {
+            "source_id": "https-example-com-final",
+            "title": "Example source",
+            "url": "https://example.com/final",
+            "snippet": "Expanded crawl content from the final page.",
+        },
+        {
+            "source_id": "https-example-com-other",
+            "title": "Other source",
+            "url": "https://example.com/other",
+            "snippet": "Other snippet.",
+        },
+    ]
+
+
+def test_run_agent_once_parses_json_encoded_tool_payloads_into_source_registry() -> None:
+    agent = StubAgent(
+        raw_result={
+            "messages": [
+                {
+                    "role": "tool",
+                    "name": "web_search",
+                    "content": '{"query":"example topic","results":[{"title":"Example source","url":"https://example.com/a","snippet":"Snippet A","rank":{"position":1,"provider_position":1}}],"metadata":{"result_count":1,"provider":"serper"},"meta":{"operation":"web_search","attempts":1,"retries":0,"duration_ms":12,"timings":{"total_ms":12}}}',
+                },
+                {"role": "assistant", "content": "Answer."},
+            ]
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.model_dump(mode="json")["sources"] == [
+        {
+            "source_id": "https-example-com-a",
+            "title": "Example source",
+            "url": "https://example.com/a",
+            "snippet": "Snippet A",
+        }
+    ]
+
+
 def test_run_agent_once_rejects_overlapping_citation_spans() -> None:
     agent = StubAgent(
         raw_result={

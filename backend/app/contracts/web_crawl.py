@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from urllib.parse import urlsplit
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
@@ -40,6 +41,21 @@ class WebCrawlSuccess(BaseModel):
     def normalize_text(cls, value: str) -> str:
         return value.strip()
 
+    def to_source_record(self) -> dict[str, str]:
+        snippet = self.text[:280].strip()
+        return {
+            "title": _derive_source_title(str(self.final_url)),
+            "url": str(self.final_url),
+            "snippet": snippet,
+        }
+
+    def source_alias_urls(self) -> tuple[str, ...]:
+        original_url = str(self.url)
+        final_url = str(self.final_url)
+        if original_url == final_url:
+            return ()
+        return (original_url,)
+
 
 class WebCrawlError(ToolErrorEnvelope):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -57,3 +73,13 @@ class ExtractionResult(BaseModel):
     @classmethod
     def normalize_output(cls, value: str) -> str:
         return value.strip()
+
+
+def _derive_source_title(url: str) -> str:
+    parsed = urlsplit(url)
+    hostname = parsed.hostname or url
+    path = parsed.path.rstrip("/")
+    if not path or path == "/":
+        return hostname
+    path_tail = path.split("/")[-1]
+    return f"{hostname}{('/' + path_tail) if path_tail else ''}"
