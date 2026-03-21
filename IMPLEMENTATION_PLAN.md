@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 9
+Current Section: 10
 
 ## Section 1: Define Search Mode Contract
 
@@ -192,6 +192,8 @@ Completed with `npm run test -- src/tests/search-controls.integration.test.ts`, 
 
 ## Section 9: Add Source-Aware Answer Contracts
 
+✓ Completed: Added a normalized `sources` contract to backend run results and API responses, propagated source references through the frontend executor and completion events, and validated the new provenance shape in backend/runtime/frontend tests.
+
 Task:
 Extend run result contracts to include normalized citations or source references alongside the final answer.
 
@@ -210,7 +212,7 @@ How to Test:
 Success looks like completed runs returning structured provenance data instead of plain answers only, while frontend contracts continue to validate the response shape. We know this section is working when cited or sourced answers can cross the API boundary without ad hoc parsing.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `pytest backend/tests/api/test_agent_run_route.py -q`, `pytest backend/tests/agent/test_runtime.py -q`, `npm run test -- src/tests/frontend-api/routes.contracts.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 ## Section 10: Preserve Observability And Safety Bounds
 
