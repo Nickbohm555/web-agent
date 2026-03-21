@@ -23,6 +23,21 @@ describe("run stream API contracts", () => {
         },
       };
       yield {
+        event: "retrieval_action",
+        data: {
+          runId,
+          actionId: "action-1",
+          actionType: "search",
+          status: "completed",
+          query: "Find sources",
+          startedAt: 1_710_000_000_050,
+          endedAt: 1_710_000_000_150,
+          durationMs: 100,
+          resultCount: 2,
+          outputPreview: "Found two sources",
+        },
+      };
+      yield {
         event: "tool_call",
         data: {
           runId,
@@ -51,6 +66,7 @@ describe("run stream API contracts", () => {
     expect(response.status).toBe(200);
     expect(response.contentType).toContain("text/event-stream");
     expect(response.body).toContain("event: run_state");
+    expect(response.body).toContain("event: retrieval_action");
     expect(response.body).toContain("event: tool_call");
     expect(response.body).toContain("event: run_complete");
   });
@@ -275,6 +291,7 @@ describe("run stream client", () => {
     const handlers = {
       onOpen: vi.fn(),
       onRunState: vi.fn(),
+      onRetrievalAction: vi.fn(),
       onToolCall: vi.fn(),
       onRunComplete: vi.fn(),
       onRunError: vi.fn(),
@@ -293,6 +310,20 @@ describe("run stream client", () => {
         runId: "run-123",
         state: "running",
         ts: 10,
+      }),
+    );
+    eventSource.emitMessage(
+      "retrieval_action",
+      JSON.stringify({
+        runId: "run-123",
+        actionId: "action-1",
+        actionType: "open_page",
+        status: "completed",
+        url: "https://example.com/release-notes",
+        startedAt: 10,
+        endedAt: 11,
+        durationMs: 1,
+        title: "Release notes",
       }),
     );
     eventSource.emitMessage(
@@ -321,6 +352,17 @@ describe("run stream client", () => {
       runId: "run-123",
       state: "running",
       ts: 10,
+    });
+    expect(handlers.onRetrievalAction).toHaveBeenCalledWith({
+      runId: "run-123",
+      actionId: "action-1",
+      actionType: "open_page",
+      status: "completed",
+      url: "https://example.com/release-notes",
+      startedAt: 10,
+      endedAt: 11,
+      durationMs: 1,
+      title: "Release notes",
     });
     expect(handlers.onToolCall).toHaveBeenCalledWith({
       runId: "run-123",

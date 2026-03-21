@@ -16,6 +16,8 @@ import {
   type RunProgress,
   type RunProgressStage,
   type RunEventSafety,
+  type RunEventRetrievalAction as CanonicalRunEventRetrievalActionType,
+  type RunEventRetrievalActionType as CanonicalRunEventRetrievalActionKindType,
   type RunEventToolName as CanonicalRunEventToolNameType,
   type RunEventType,
 } from "./contracts/run-events.js";
@@ -326,12 +328,18 @@ const RunIdSchema = z.string().trim().min(1);
 
 export const RunStreamEventNameSchema = z.enum([
   "run_state",
+  "retrieval_action",
   "tool_call",
   "run_complete",
   "run_error",
 ]);
 
 export const RunEventToolNameSchema = z.enum(["web_search", "web_crawl"]);
+export const RetrievalActionTypeSchema = z.enum([
+  "search",
+  "open_page",
+  "find_in_page",
+]);
 
 export const RunStateEventSchema = z
   .object({
@@ -340,6 +348,46 @@ export const RunStateEventSchema = z
     ts: RunEventTimestampSchema,
   })
   .strict();
+
+const RetrievalActionEventBaseSchema = z
+  .object({
+    runId: RunIdSchema,
+    actionId: z.string().trim().min(1),
+    actionType: RetrievalActionTypeSchema,
+    status: z.enum(["started", "completed", "failed"]),
+    startedAt: RunEventTimestampSchema.optional(),
+    endedAt: RunEventTimestampSchema.optional(),
+    durationMs: z.number().nonnegative().optional(),
+    title: z.string().trim().min(1).optional(),
+    resultCount: z.number().int().nonnegative().optional(),
+    matchCount: z.number().int().nonnegative().optional(),
+    inputPreview: z.string().optional(),
+    outputPreview: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .strict();
+
+const SearchRetrievalActionEventSchema = RetrievalActionEventBaseSchema.extend({
+  actionType: z.literal("search"),
+  query: z.string().trim().min(1),
+});
+
+const OpenPageRetrievalActionEventSchema = RetrievalActionEventBaseSchema.extend({
+  actionType: z.literal("open_page"),
+  url: z.string().url(),
+});
+
+const FindInPageRetrievalActionEventSchema = RetrievalActionEventBaseSchema.extend({
+  actionType: z.literal("find_in_page"),
+  url: z.string().url(),
+  pattern: z.string().trim().min(1),
+});
+
+export const RetrievalActionEventSchema = z.discriminatedUnion("actionType", [
+  SearchRetrievalActionEventSchema,
+  OpenPageRetrievalActionEventSchema,
+  FindInPageRetrievalActionEventSchema,
+]);
 
 export const ToolCallEventSchema = z
   .object({
@@ -379,6 +427,10 @@ export const RunStreamEventSchema = z.discriminatedUnion("event", [
   z.object({
     event: z.literal("run_state"),
     data: RunStateEventSchema,
+  }).strict(),
+  z.object({
+    event: z.literal("retrieval_action"),
+    data: RetrievalActionEventSchema,
   }).strict(),
   z.object({
     event: z.literal("tool_call"),
@@ -435,6 +487,8 @@ export type CanonicalRunEventPayloadSafety = RunEventPayloadSafety;
 export type CanonicalRunEventSafety = RunEventSafety;
 export type CanonicalRunProgressStage = RunProgressStage;
 export type CanonicalRunProgress = RunProgress;
+export type CanonicalRunEventRetrievalActionKind = CanonicalRunEventRetrievalActionKindType;
+export type CanonicalRunEventRetrievalAction = CanonicalRunEventRetrievalActionType;
 export type RunHistoryEventTruncation = z.output<typeof RunHistoryEventTruncationSchema>;
 export type RunHistoryRetentionMetadata = z.output<typeof RunHistoryRetentionMetadataSchema>;
 export type RunHistoryRunSummary = z.output<typeof RunHistoryRunSummarySchema>;
@@ -443,7 +497,9 @@ export type RunHistoryListResponse = z.output<typeof RunHistoryListResponseSchem
 export type RunHistoryNotFoundError = z.output<typeof RunHistoryNotFoundErrorSchema>;
 export type RunStreamEventName = z.output<typeof RunStreamEventNameSchema>;
 export type RunEventToolName = z.output<typeof RunEventToolNameSchema>;
+export type RetrievalActionType = z.output<typeof RetrievalActionTypeSchema>;
 export type RunStateEvent = z.output<typeof RunStateEventSchema>;
+export type RetrievalActionEvent = z.output<typeof RetrievalActionEventSchema>;
 export type ToolCallEvent = z.output<typeof ToolCallEventSchema>;
 export type RunCompleteEvent = z.output<typeof RunCompleteEventSchema>;
 export type RunErrorEvent = z.output<typeof RunErrorEventSchema>;

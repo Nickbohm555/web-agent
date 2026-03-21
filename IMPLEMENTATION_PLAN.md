@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 15
+Current Section: 16
 
 ## Section 1: Define Search Mode Contract
 
@@ -335,6 +335,8 @@ Completed with `pytest backend/tests/agent/test_runtime.py -q`, `pytest backend/
 
 ## Section 15: Expand Streamed Retrieval Action Events
 
+✓ Completed: Added typed `retrieval_action` SSE events for search, page-open, and in-page lookup activity; expanded canonical run-history events with explicit retrieval-action lifecycle records; and preserved ordered stream-to-history ingestion without falling back to generic tool-call payloads.
+
 Task:
 Extend the SSE and run-history event contracts so retrieval actions are represented explicitly rather than only as generic tool lifecycle events.
 
@@ -352,7 +354,7 @@ How to Test:
 Success looks like streamed retrieval actions validating as typed events and appearing in order on the live run stream. We know this section is working when search/open/find style actions can be emitted and consumed without collapsing back into generic unstructured payloads.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm run test -- src/tests/frontend-api/run-events.contracts.test.ts`, `npm run test -- src/tests/frontend-api/runs.stream.test.ts`, `npm run typecheck`, and `npm run build`.
 
 ## Section 16: Map Canonical Tools To Richer Action Records
 

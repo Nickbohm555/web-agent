@@ -128,6 +128,12 @@ function formatRunEventTypeLabel(eventType: CanonicalRunEvent["event_type"]): st
       return "Source expansion";
     case "research_synthesis_started":
       return "Synthesis";
+    case "retrieval_action_started":
+      return "Retrieval started";
+    case "retrieval_action_succeeded":
+      return "Retrieval succeeded";
+    case "retrieval_action_failed":
+      return "Retrieval failed";
     case "tool_call_started":
       return "Tool started";
     case "tool_call_succeeded":
@@ -156,6 +162,17 @@ function formatRunEventSummary(event: CanonicalRunEvent): string | null {
 
   if ("tool_name" in event && event.tool_name !== undefined) {
     return event.tool_name;
+  }
+
+  if ("retrieval_action" in event && event.retrieval_action !== undefined) {
+    switch (event.retrieval_action.action_type) {
+      case "search":
+        return event.retrieval_action.query ?? "Search action";
+      case "open_page":
+        return event.retrieval_action.url ?? "Open page action";
+      case "find_in_page":
+        return event.retrieval_action.pattern ?? "Find in page action";
+    }
   }
 
   if ("final_answer" in event && event.final_answer !== undefined) {

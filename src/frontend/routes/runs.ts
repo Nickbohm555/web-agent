@@ -10,6 +10,7 @@ import {
   parseRunStartRequest,
   parseRunStreamEvent,
   type CanonicalRunEvent,
+  type RetrievalActionEvent,
   type RunHistoryRunSnapshot,
   type RunMode,
   type RunRetrievalPolicy,
@@ -674,6 +675,12 @@ function ingestRunStreamEventHistory(
   switch (event.event) {
     case "run_state":
       return nextEventSeq;
+    case "retrieval_action":
+      ingestRunHistoryEvent(
+        store,
+        createCanonicalRetrievalActionEvent(event.data, nextEventSeq),
+      );
+      return nextEventSeq + 1;
     case "tool_call":
       ingestRunHistoryEvent(store, createCanonicalToolEvent(event.data, nextEventSeq));
       return nextEventSeq + 1;
@@ -716,6 +723,54 @@ function ingestRunStreamEventHistory(
       );
       return nextEventSeq + 1;
   }
+}
+
+function createCanonicalRetrievalActionEvent(
+  event: RetrievalActionEvent,
+  eventSeq: number,
+): CanonicalRunEvent {
+  const timestamp =
+    event.status === "started"
+      ? event.startedAt ?? Date.now()
+      : event.endedAt ?? event.startedAt ?? Date.now();
+  const retrievalAction = createCanonicalRetrievalActionMetadata(event);
+
+  if (event.status === "completed") {
+    return {
+      run_id: event.runId,
+      event_seq: eventSeq,
+      event_type: "retrieval_action_succeeded",
+      ts: toIsoTimestamp(timestamp),
+      retrieval_action: retrievalAction,
+      tool_output: createRetrievalActionOutputPayload(event),
+      safety: createEmptyRunEventSafety(),
+    };
+  }
+
+  if (event.status === "failed") {
+    return {
+      run_id: event.runId,
+      event_seq: eventSeq,
+      event_type: "retrieval_action_failed",
+      ts: toIsoTimestamp(timestamp),
+      retrieval_action: retrievalAction,
+      tool_input: createRetrievalActionInputPayload(event),
+      error_output: {
+        message: event.error ?? "Retrieval action failed.",
+      },
+      safety: createEmptyRunEventSafety(),
+    };
+  }
+
+  return {
+    run_id: event.runId,
+    event_seq: eventSeq,
+    event_type: "retrieval_action_started",
+    ts: toIsoTimestamp(timestamp),
+    retrieval_action: retrievalAction,
+    tool_input: createRetrievalActionInputPayload(event),
+    safety: createEmptyRunEventSafety(),
+  };
 }
 
 function createCanonicalToolEvent(
@@ -763,6 +818,70 @@ function createToolEventBase(
     tool_call_id: event.toolCallId,
     safety: createEmptyRunEventSafety(),
   };
+}
+
+function createCanonicalRetrievalActionMetadata(event: RetrievalActionEvent) {
+  return {
+    action_id: event.actionId,
+    action_type: event.actionType,
+    ...(event.actionType === "search" ? { query: event.query } : {}),
+    ...(event.actionType === "open_page" ? { url: event.url } : {}),
+    ...(event.actionType === "find_in_page"
+      ? {
+          url: event.url,
+          pattern: event.pattern,
+        }
+      : {}),
+    ...(event.resultCount !== undefined ? { result_count: event.resultCount } : {}),
+    ...(event.matchCount !== undefined ? { match_count: event.matchCount } : {}),
+  };
+}
+
+function createRetrievalActionInputPayload(
+  event: RetrievalActionEvent,
+): Record<string, string> | undefined {
+  switch (event.actionType) {
+    case "search":
+      return {
+        query: event.query,
+        ...(event.inputPreview !== undefined ? { preview: event.inputPreview } : {}),
+      };
+    case "open_page":
+      return {
+        url: event.url,
+        ...(event.inputPreview !== undefined ? { preview: event.inputPreview } : {}),
+      };
+    case "find_in_page":
+      return {
+        url: event.url,
+        pattern: event.pattern,
+        ...(event.inputPreview !== undefined ? { preview: event.inputPreview } : {}),
+      };
+  }
+}
+
+function createRetrievalActionOutputPayload(
+  event: RetrievalActionEvent,
+): Record<string, string | number> | undefined {
+  const payload: Record<string, string | number> = {};
+
+  if (event.outputPreview !== undefined) {
+    payload.preview = event.outputPreview;
+  }
+
+  if (event.title !== undefined) {
+    payload.title = event.title;
+  }
+
+  if (event.resultCount !== undefined) {
+    payload.result_count = event.resultCount;
+  }
+
+  if (event.matchCount !== undefined) {
+    payload.match_count = event.matchCount;
+  }
+
+  return Object.keys(payload).length > 0 ? payload : undefined;
 }
 
 function createRunCompletionEvent(

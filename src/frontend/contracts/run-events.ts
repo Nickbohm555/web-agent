@@ -19,6 +19,9 @@ export const RunEventTypeSchema = z.enum([
   "research_planning_started",
   "research_sources_expanded",
   "research_synthesis_started",
+  "retrieval_action_started",
+  "retrieval_action_succeeded",
+  "retrieval_action_failed",
   "tool_call_started",
   "tool_call_succeeded",
   "tool_call_failed",
@@ -70,6 +73,59 @@ export const RunProgressStageSchema = z.enum([
   "synthesis",
 ]);
 
+export const RunEventRetrievalActionTypeSchema = z.enum([
+  "search",
+  "open_page",
+  "find_in_page",
+]);
+
+export const RunEventRetrievalActionSchema = z
+  .object({
+    action_id: z.string().trim().min(1),
+    action_type: RunEventRetrievalActionTypeSchema,
+    query: z.string().trim().min(1).optional(),
+    url: z.string().url().optional(),
+    pattern: z.string().trim().min(1).optional(),
+    result_count: z.number().int().nonnegative().optional(),
+    match_count: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .superRefine((action, ctx) => {
+    if (action.action_type === "search" && action.query === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Search retrieval actions must include a query.",
+        path: ["query"],
+      });
+    }
+
+    if (action.action_type === "open_page" && action.url === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Open-page retrieval actions must include a url.",
+        path: ["url"],
+      });
+    }
+
+    if (action.action_type === "find_in_page") {
+      if (action.url === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Find-in-page retrieval actions must include a url.",
+          path: ["url"],
+        });
+      }
+
+      if (action.pattern === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Find-in-page retrieval actions must include a pattern.",
+          path: ["pattern"],
+        });
+      }
+    }
+  });
+
 export const RunProgressSchema = z
   .object({
     stage: RunProgressStageSchema,
@@ -100,6 +156,7 @@ const RunEventBaseSchema = z
     error_output: RunEventJsonSchema.optional(),
     final_answer: z.string().optional(),
     progress: RunProgressSchema.optional(),
+    retrieval_action: RunEventRetrievalActionSchema.optional(),
     safety: RunEventSafetySchema,
   })
   .strict();
@@ -131,6 +188,25 @@ const ResearchSynthesisStartedEventSchema = RunEventBaseSchema.extend({
     message: "Synthesis progress events must use the synthesis stage.",
   }),
   tool_output: RunEventJsonSchema.optional(),
+});
+
+const RetrievalActionStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("retrieval_action_started"),
+  retrieval_action: RunEventRetrievalActionSchema,
+  tool_input: RunEventJsonSchema.optional(),
+});
+
+const RetrievalActionSucceededEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("retrieval_action_succeeded"),
+  retrieval_action: RunEventRetrievalActionSchema,
+  tool_output: RunEventJsonSchema.optional(),
+});
+
+const RetrievalActionFailedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("retrieval_action_failed"),
+  retrieval_action: RunEventRetrievalActionSchema,
+  tool_input: RunEventJsonSchema.optional(),
+  error_output: RunEventJsonSchema.optional(),
 });
 
 const ToolCallStartedEventSchema = RunEventBaseSchema.extend({
@@ -176,6 +252,9 @@ export const RunEventSchema = z
     ResearchPlanningStartedEventSchema,
     ResearchSourcesExpandedEventSchema,
     ResearchSynthesisStartedEventSchema,
+    RetrievalActionStartedEventSchema,
+    RetrievalActionSucceededEventSchema,
+    RetrievalActionFailedEventSchema,
     ToolCallStartedEventSchema,
     ToolCallSucceededEventSchema,
     ToolCallFailedEventSchema,
@@ -198,6 +277,8 @@ export type RunEventPayloadSafety = z.output<typeof RunEventPayloadSafetySchema>
 export type RunEventSafety = z.output<typeof RunEventSafetySchema>;
 export type RunProgressStage = z.output<typeof RunProgressStageSchema>;
 export type RunProgress = z.output<typeof RunProgressSchema>;
+export type RunEventRetrievalActionType = z.output<typeof RunEventRetrievalActionTypeSchema>;
+export type RunEventRetrievalAction = z.output<typeof RunEventRetrievalActionSchema>;
 export type RunEvent = z.output<typeof RunEventSchema>;
 
 export function parseRunEvent(input: unknown): RunEvent {

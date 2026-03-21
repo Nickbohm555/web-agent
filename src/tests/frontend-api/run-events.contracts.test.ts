@@ -134,6 +134,39 @@ describe("run event contracts", () => {
     });
   });
 
+  it("parses typed retrieval action events with explicit search/open/find metadata", () => {
+    const event = parseRunEvent({
+      run_id: "run-123",
+      event_seq: 5,
+      event_type: "retrieval_action_succeeded",
+      ts: "2026-03-17T12:00:02.000Z",
+      retrieval_action: {
+        action_id: "action-1",
+        action_type: "find_in_page",
+        url: "https://example.com/release-notes",
+        pattern: "retry budget",
+        match_count: 2,
+      },
+      tool_output: {
+        preview: "Found retry budget references",
+        match_count: 2,
+      },
+      safety: createEmptyRunEventSafety(),
+    });
+
+    expect(event.retrieval_action).toEqual({
+      action_id: "action-1",
+      action_type: "find_in_page",
+      url: "https://example.com/release-notes",
+      pattern: "retry budget",
+      match_count: 2,
+    });
+    expect(event.tool_output).toEqual({
+      preview: "Found retry budget references",
+      match_count: 2,
+    });
+  });
+
   it("rejects malformed events that omit correlation fields", () => {
     expect(() =>
       parseRunEvent({
@@ -159,6 +192,22 @@ describe("run event contracts", () => {
         safety: createEmptyRunEventSafety(),
       })
     ).toThrow(/synthesis stage/i);
+  });
+
+  it("rejects malformed retrieval actions that omit required typed fields", () => {
+    expect(() =>
+      parseRunEvent({
+        run_id: "run-123",
+        event_seq: 7,
+        event_type: "retrieval_action_started",
+        ts: "2026-03-17T12:00:03.000Z",
+        retrieval_action: {
+          action_id: "action-2",
+          action_type: "search",
+        },
+        safety: createEmptyRunEventSafety(),
+      })
+    ).toThrow(/query/i);
   });
 
   it("rejects events that leak raw secrets into payloads", () => {

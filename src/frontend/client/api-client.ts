@@ -4,6 +4,7 @@ import {
   type RunMode,
   type RunCompleteEvent,
   type RunErrorEvent,
+  type RetrievalActionEvent,
   type RunStateEvent,
   type RunStreamEvent,
   type ToolCallEvent,
@@ -58,6 +59,7 @@ export interface RunStreamSubscription {
 export interface RunStreamHandlers {
   onOpen?: () => void;
   onRunState?: (event: RunStateEvent) => void;
+  onRetrievalAction?: (event: RetrievalActionEvent) => void;
   onToolCall?: (event: ToolCallEvent) => void;
   onRunComplete?: (event: RunCompleteEvent) => void;
   onRunError?: (event: RunErrorEvent) => void;
@@ -157,6 +159,9 @@ export function subscribeToRunEvents(
       case "run_state":
         handlers.onRunState?.(event.data);
         return;
+      case "retrieval_action":
+        handlers.onRetrievalAction?.(event.data);
+        return;
       case "tool_call":
         handlers.onToolCall?.(event.data);
         return;
@@ -203,6 +208,9 @@ export function subscribeToRunEvents(
     },
     run_state: (event: Event | MessageEvent<string>) => {
       parseAndHandleEvent("run_state", event);
+    },
+    retrieval_action: (event: Event | MessageEvent<string>) => {
+      parseAndHandleEvent("retrieval_action", event);
     },
     tool_call: (event: Event | MessageEvent<string>) => {
       parseAndHandleEvent("tool_call", event);
