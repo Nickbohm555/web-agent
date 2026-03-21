@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 12
+Current Section: 13
 
 ## Section 1: Define Search Mode Contract
 
@@ -265,6 +265,8 @@ Do not end this section until it has been thoroughly tested.
 
 ## Section 12: Lock Down End-To-End Mode Coverage
 
+✓ Completed: Added explicit end-to-end happy/failure mode matrices for `/api/runs`, legacy `/api/agent/run`, and runtime profile execution so `quick`, `agentic`, and `deep_research` each verify coherent start, stream, completion/history, and stable failure behavior through full frontend/backend validation.
+
 Task:
 Add an end-to-end verification matrix covering happy-path and failure-path behavior for all three execution modes.
 
@@ -284,7 +286,7 @@ How to Test:
 Success looks like the entire mode matrix passing both focused and full-suite validation with no contract drift between start, stream, completion, and history surfaces. We know this section is working when all three modes have at least one happy path and one failure path covered and the full repo validation loop passes cleanly.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm run typecheck`, `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`, `pytest backend/tests/api/test_agent_run_route.py backend/tests/agent/test_runtime.py -q`, `npm run test`, `npm run build`, and `pytest backend/tests -q`.
 
 ## Section 13: Define Structured Answer Output
 
