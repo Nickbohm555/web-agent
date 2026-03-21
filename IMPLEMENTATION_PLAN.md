@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 17
+Current Section: 18
 
 ## Section 1: Define Search Mode Contract
 
@@ -382,6 +382,8 @@ Completed with `pytest backend/tests/tools/test_web_search_tool.py -q`, `pytest 
 
 ## Section 17: Assemble Source Registry During Execution
 
+✓ Completed: Added a runtime source registry that merges explicit source payloads, search-result sources, and crawl-derived consulted pages into one deduplicated registry; normalizes redirect aliases so citations resolve against final URLs consistently; and parses both structured and JSON-encoded tool outputs during runtime assembly.
+
 Task:
 Aggregate consulted URLs into a normalized source registry during runtime execution and attach cited or consulted subsets to final outputs.
 
@@ -398,7 +400,7 @@ How to Test:
 Success looks like runtime execution accumulating a deduplicated consulted-source registry across searches, crawls, and redirects. We know this section is working when repeated URLs collapse into stable source records and cited answers can reference those records consistently.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm install`, `pytest backend/tests/agent/test_runtime.py -q`, `npm run typecheck`, `npm run test`, `npm run build`, and `pytest backend/tests -q`.
 
 ## Section 18: Render Inline Citations And Sources In The Frontend
 
