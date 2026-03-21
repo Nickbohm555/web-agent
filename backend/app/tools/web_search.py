@@ -2,16 +2,24 @@ from __future__ import annotations
 
 from time import perf_counter
 from typing import Any, Callable
-from urllib.parse import urlparse
 
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from backend.agent.types import AgentRunRetrievalPolicy
+from backend.agent.types import (
+    AgentRunRetrievalPolicy,
+    AgentRunRetrievalSearchPolicy,
+)
 from backend.app.config import get_settings
 from backend.app.contracts.web_search import WebSearchInput, WebSearchResponse
 from backend.app.providers.serper_client import SerperClient, SerperClientError
-from backend.app.tools._tool_utils import build_tool_error_payload, validation_error_message
+from backend.app.tools._tool_utils import (
+    build_tool_error_payload,
+    domain_scope_kwargs,
+    has_domain_scope,
+    is_url_allowed,
+    validation_error_message,
+)
 
 
 def create_serper_client() -> SerperClient:
@@ -31,12 +39,14 @@ def build_web_search_tool(
     def bounded_web_search(query: str, max_results: int = 5) -> dict[str, Any]:
         """Search the web and return normalized results or a structured error envelope."""
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
+        search_policy = effective_policy.search
+        domain_scope = domain_scope_kwargs(search_policy)
         payload = runner(
-            query=_apply_domain_scope_to_query(query, effective_policy),
+            query=_apply_domain_scope_to_query(query, search_policy),
             max_results=min(max_results, bounded_cap),
-            freshness=effective_policy.search.freshness,
+            freshness=search_policy.freshness,
         )
-        return _filter_search_payload_by_domain_scope(payload, effective_policy)
+        return _filter_search_payload_by_domain_scope(payload, domain_scope)
 
     return bounded_web_search
 
@@ -100,13 +110,13 @@ def _elapsed_ms(start: float) -> int:
 
 def _apply_domain_scope_to_query(
     query: str,
-    retrieval_policy: AgentRunRetrievalPolicy,
+    search_policy: AgentRunRetrievalSearchPolicy,
 ) -> str:
     include_terms = [
-        f"site:{domain}" for domain in retrieval_policy.search.include_domains
+        f"site:{domain}" for domain in search_policy.include_domains
     ]
     exclude_terms = [
-        f"-site:{domain}" for domain in retrieval_policy.search.exclude_domains
+        f"-site:{domain}" for domain in search_policy.exclude_domains
     ]
     scope_terms = [*include_terms, *exclude_terms]
 
@@ -118,9 +128,9 @@ def _apply_domain_scope_to_query(
 
 def _filter_search_payload_by_domain_scope(
     payload: dict[str, Any],
-    retrieval_policy: AgentRunRetrievalPolicy,
+    domain_scope: dict[str, list[str]],
 ) -> dict[str, Any]:
-    if not retrieval_policy.search.include_domains and not retrieval_policy.search.exclude_domains:
+    if not has_domain_scope(**domain_scope):
         return payload
 
     try:
@@ -131,7 +141,7 @@ def _filter_search_payload_by_domain_scope(
     filtered_results = [
         result
         for result in response.results
-        if _is_url_allowed(str(result.url), retrieval_policy)
+        if is_url_allowed(str(result.url), **domain_scope)
     ]
 
     return response.model_copy(
@@ -144,28 +154,52 @@ def _filter_search_payload_by_domain_scope(
     ).model_dump(mode="json")
 
 
-def _is_url_allowed(url: str, retrieval_policy: AgentRunRetrievalPolicy) -> bool:
-    hostname = _normalize_hostname(url)
-    if hostname is None:
-        return False
+def build_web_search_action_record(
+    *,
+    query: str,
+    payload: dict[str, Any],
+    preview_limit: int = 3,
+) -> dict[str, Any]:
+    normalized_query = query.strip()
 
-    if any(_hostname_matches(hostname, blocked) for blocked in retrieval_policy.search.exclude_domains):
-        return False
+    try:
+        response = WebSearchResponse.model_validate(payload)
+        preview_items = [
+            {
+                "title": result.title,
+                "url": str(result.url),
+                "snippet": result.snippet,
+                "position": result.rank.position,
+            }
+            for result in response.results[: max(preview_limit, 0)]
+        ]
+        return {
+            "action_type": "search",
+            "query": response.query or normalized_query,
+            "result_count": response.metadata.result_count,
+            "provider": response.metadata.provider,
+            "results_preview": preview_items,
+        }
+    except ValidationError:
+        pass
 
-    include_domains = retrieval_policy.search.include_domains
-    if not include_domains:
-        return True
+    error = payload.get("error")
+    meta = payload.get("meta")
+    if isinstance(error, dict):
+        action_record = {
+            "action_type": "search",
+            "query": normalized_query,
+            "error_kind": error.get("kind"),
+            "message": error.get("message"),
+            "retryable": error.get("retryable"),
+        }
+        if isinstance(meta, dict):
+            action_record["attempts"] = meta.get("attempts")
+        if error.get("status_code") is not None:
+            action_record["status_code"] = error.get("status_code")
+        return action_record
 
-    return any(_hostname_matches(hostname, allowed) for allowed in include_domains)
-
-
-def _hostname_matches(hostname: str, domain: str) -> bool:
-    return hostname == domain or hostname.endswith(f".{domain}")
-
-
-def _normalize_hostname(value: str) -> str | None:
-    parsed = urlparse(value if "://" in value else f"https://{value}")
-    hostname = parsed.hostname
-    if hostname is None:
-        return None
-    return hostname.strip().lower()
+    return {
+        "action_type": "search",
+        "query": normalized_query,
+    }

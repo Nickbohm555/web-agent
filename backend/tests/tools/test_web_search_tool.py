@@ -16,7 +16,12 @@ from backend.app.providers.serper_client import (
     RetryableSerperError,
     SerperClient,
 )
-from backend.app.tools.web_search import build_web_search_tool, run_web_search, web_search
+from backend.app.tools.web_search import (
+    build_web_search_tool,
+    build_web_search_action_record,
+    run_web_search,
+    web_search,
+)
 
 
 def test_web_search_input_normalizes_query_and_bounds_max_results() -> None:
@@ -67,6 +72,77 @@ def test_web_search_response_accepts_normalized_success_payload() -> None:
     assert response.results[0].snippet == "Summary text."
     assert str(response.results[0].url) == "https://example.com/article"
     assert response.metadata.result_count == 1
+
+
+def test_build_web_search_action_record_summarizes_success_payload() -> None:
+    record = build_web_search_action_record(
+        query="  agents  ",
+        payload={
+            "query": "agents",
+            "results": [
+                {
+                    "title": "Example result",
+                    "url": "https://example.com/article",
+                    "snippet": "Summary text.",
+                    "rank": {"position": 1, "provider_position": 1},
+                }
+            ],
+            "metadata": {"result_count": 1, "provider": "serper"},
+            "meta": {
+                "operation": "web_search",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 15,
+                "timings": {"total_ms": 15, "provider_ms": 10},
+            },
+        },
+    )
+
+    assert record == {
+        "action_type": "search",
+        "query": "agents",
+        "result_count": 1,
+        "provider": "serper",
+        "results_preview": [
+            {
+                "title": "Example result",
+                "url": "https://example.com/article",
+                "snippet": "Summary text.",
+                "position": 1,
+            }
+        ],
+    }
+
+
+def test_build_web_search_action_record_summarizes_error_payload() -> None:
+    record = build_web_search_action_record(
+        query="  agents  ",
+        payload={
+            "error": {
+                "kind": "provider_unavailable",
+                "message": "Temporary upstream failure",
+                "retryable": True,
+                "status_code": 503,
+            },
+            "meta": {
+                "operation": "web_search",
+                "attempts": 2,
+                "retries": 1,
+                "duration_ms": 400,
+                "timings": {"total_ms": 400, "provider_ms": 380},
+            },
+        },
+    )
+
+    assert record == {
+        "action_type": "search",
+        "query": "agents",
+        "error_kind": "provider_unavailable",
+        "message": "Temporary upstream failure",
+        "retryable": True,
+        "attempts": 2,
+        "status_code": 503,
+    }
 
 
 @pytest.mark.parametrize(

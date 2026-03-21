@@ -5,7 +5,12 @@ import httpx
 from backend.agent.types import AgentRunRetrievalPolicy
 from backend.app.contracts.web_crawl import WebCrawlError, WebCrawlSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
-from backend.app.tools.web_crawl import build_web_crawl_tool, run_web_crawl, web_crawl
+from backend.app.tools.web_crawl import (
+    build_web_crawl_action_record,
+    build_web_crawl_tool,
+    run_web_crawl,
+    web_crawl,
+)
 
 
 web_crawl_module = importlib.import_module("backend.app.tools.web_crawl")
@@ -62,6 +67,69 @@ def test_run_web_crawl_returns_success_fallback_for_low_content_quality() -> Non
     assert result.fallback_reason == "low-content-quality"
     assert result.text == ""
     assert result.markdown == ""
+
+
+def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
+    record = build_web_crawl_action_record(
+        url="https://example.com/article",
+        payload={
+            "url": "https://example.com/article",
+            "final_url": "https://example.com/final",
+            "text": "A concise extracted summary of the page body.",
+            "markdown": "A concise extracted summary of the page body.",
+            "status_code": 200,
+            "content_type": "text/html",
+            "fallback_reason": None,
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12},
+            },
+        },
+    )
+
+    assert record == {
+        "action_type": "open_page",
+        "url": "https://example.com/article",
+        "final_url": "https://example.com/final",
+        "status_code": 200,
+        "content_type": "text/html",
+        "fallback_reason": None,
+        "text_preview": "A concise extracted summary of the page body.",
+    }
+
+
+def test_build_web_crawl_action_record_summarizes_error_payload() -> None:
+    record = build_web_crawl_action_record(
+        url="https://example.com/article",
+        payload={
+            "error": {
+                "kind": "http_error",
+                "message": "upstream unavailable",
+                "retryable": True,
+                "status_code": 503,
+            },
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 3,
+                "retries": 2,
+                "duration_ms": 100,
+                "timings": {"total_ms": 100},
+            },
+        },
+    )
+
+    assert record == {
+        "action_type": "open_page",
+        "url": "https://example.com/article",
+        "error_kind": "http_error",
+        "message": "upstream unavailable",
+        "retryable": True,
+        "attempts": 3,
+        "status_code": 503,
+    }
 
 
 def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -> None:

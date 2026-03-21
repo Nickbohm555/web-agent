@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from time import perf_counter
 from typing import Any, Callable
-from urllib.parse import urlparse
 
 from langchain_core.tools import tool
 from pydantic import ValidationError
@@ -11,7 +10,12 @@ from backend.agent.types import AgentRunRetrievalPolicy
 from backend.app.contracts.web_crawl import WebCrawlError, WebCrawlInput, WebCrawlSuccess
 from backend.app.crawler.extractor import extract_content, extraction_result_from_fetch_failure
 from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchWorker
-from backend.app.tools._tool_utils import build_tool_error_payload, validation_error_message
+from backend.app.tools._tool_utils import (
+    build_tool_error_payload,
+    domain_scope_kwargs,
+    is_url_allowed,
+    validation_error_message,
+)
 
 
 def create_http_fetch_worker() -> HttpFetchWorker:
@@ -31,7 +35,7 @@ def build_web_crawl_tool(
     def bounded_web_crawl(url: str) -> dict[str, Any]:
         """Fetch a URL, extract main content, and return a structured result or error envelope."""
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
-        if not _is_url_allowed(url, effective_policy):
+        if not is_url_allowed(url, **domain_scope_kwargs(effective_policy.search)):
             return build_tool_error_payload(
                 kind="invalid_request",
                 message="url is outside the configured retrieval policy domain scope",
@@ -49,7 +53,9 @@ def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> d
     operation_start = perf_counter()
     try:
         validated_input = WebCrawlInput(url=url)
-        fetch_result = (fetch_worker or create_http_fetch_worker()).fetch(url=str(validated_input.url))
+        fetch_result = (fetch_worker or create_http_fetch_worker()).fetch(
+            url=str(validated_input.url)
+        )
 
         if isinstance(fetch_result, HttpFetchFailure):
             if fetch_result.error.kind == "unsupported_content_type":
@@ -58,7 +64,10 @@ def run_web_crawl(*, url: str, fetch_worker: HttpFetchWorker | None = None) -> d
                     fetch_result=fetch_result,
                 )
 
-            return WebCrawlError(error=fetch_result.error, meta=fetch_result.meta).model_dump(mode="json")
+            return WebCrawlError(
+                error=fetch_result.error,
+                meta=fetch_result.meta,
+            ).model_dump(mode="json")
 
         extraction_result = extract_content(
             body=fetch_result.body,
@@ -140,35 +149,46 @@ def _truncate_crawl_payload(payload: dict[str, Any], *, max_content_chars: int) 
     ).model_dump(mode="json")
 
 
-def _is_url_allowed(url: str, retrieval_policy: AgentRunRetrievalPolicy) -> bool:
-    include_domains = retrieval_policy.search.include_domains
-    exclude_domains = retrieval_policy.search.exclude_domains
-    if not include_domains and not exclude_domains:
-        return True
+def build_web_crawl_action_record(
+    *,
+    url: str,
+    payload: dict[str, Any],
+    preview_chars: int = 160,
+) -> dict[str, Any]:
+    normalized_url = url.strip()
 
-    hostname = _normalize_hostname(url)
-    if hostname is None:
-        return False
+    try:
+        success = WebCrawlSuccess.model_validate(payload)
+        text_preview = success.text[: max(preview_chars, 0)].strip()
+        return {
+            "action_type": "open_page",
+            "url": str(success.url),
+            "final_url": str(success.final_url),
+            "status_code": success.status_code,
+            "content_type": success.content_type,
+            "fallback_reason": success.fallback_reason,
+            "text_preview": text_preview,
+        }
+    except ValidationError:
+        pass
 
-    if any(_hostname_matches(hostname, blocked) for blocked in exclude_domains):
-        return False
+    error = payload.get("error")
+    meta = payload.get("meta")
+    if isinstance(error, dict):
+        action_record = {
+            "action_type": "open_page",
+            "url": normalized_url,
+            "error_kind": error.get("kind"),
+            "message": error.get("message"),
+            "retryable": error.get("retryable"),
+        }
+        if isinstance(meta, dict):
+            action_record["attempts"] = meta.get("attempts")
+        if error.get("status_code") is not None:
+            action_record["status_code"] = error.get("status_code")
+        return action_record
 
-    if not include_domains:
-        return True
-
-    return any(_hostname_matches(hostname, allowed) for allowed in include_domains)
-
-
-def _hostname_matches(hostname: str, domain: str) -> bool:
-    return hostname == domain or hostname.endswith(f".{domain}")
-
-
-def _normalize_hostname(value: str) -> str | None:
-    normalized_value = str(value)
-    parsed = urlparse(
-        normalized_value if "://" in normalized_value else f"https://{normalized_value}"
-    )
-    hostname = parsed.hostname
-    if hostname is None:
-        return None
-    return hostname.strip().lower()
+    return {
+        "action_type": "open_page",
+        "url": normalized_url,
+    }
