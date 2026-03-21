@@ -217,6 +217,92 @@ describe("run history API", () => {
       await harness.close();
     }
   });
+
+  it("persists deep-research progress before the run stream is consumed", async () => {
+    const harness = await createHarness({
+      runEventStream: async function* (context) {
+        yield {
+          event: "tool_call",
+          data: {
+            runId: context.runId,
+            toolCallId: "tool-1",
+            toolName: "web_search",
+            status: "started",
+            startedAt: Date.parse("2026-03-17T00:00:01.000Z"),
+            inputPreview: "{\"query\":\"deep research\"}",
+          },
+        };
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        yield {
+          event: "tool_call",
+          data: {
+            runId: context.runId,
+            toolCallId: "tool-1",
+            toolName: "web_search",
+            status: "completed",
+            startedAt: Date.parse("2026-03-17T00:00:01.000Z"),
+            endedAt: Date.parse("2026-03-17T00:00:02.000Z"),
+            durationMs: 1000,
+            outputPreview: "{\"top\":\"result\"}",
+          },
+        };
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        yield {
+          event: "run_complete",
+          data: {
+            runId: context.runId,
+            finalAnswer: "Long-running answer.",
+            completedAt: Date.parse("2026-03-17T00:00:03.000Z"),
+            durationMs: 3000,
+          },
+        };
+      },
+    });
+
+    try {
+      const startResponse = await harness.postJson("/api/runs", {
+        prompt: "Investigate deep research",
+        mode: "deep_research",
+      });
+      expect(startResponse.status).toBe(201);
+
+      const runId = parseRunId(startResponse.json);
+      await new Promise((resolve) => setTimeout(resolve, 8));
+
+      const detailBeforeStream = await harness.getJson(`/api/runs/${runId}/history`);
+      expect(detailBeforeStream.status).toBe(200);
+      const snapshotBeforeStream = parseRunHistoryRunSnapshot(detailBeforeStream.json);
+      expect(snapshotBeforeStream.events.map((event) => event.event_type)).toEqual([
+        "run_started",
+        "tool_call_started",
+        "tool_call_succeeded",
+      ]);
+
+      await new Promise((resolve) => setTimeout(resolve, 8));
+
+      const streamText = await harness.getText(`/api/runs/${runId}/events`);
+      expect(streamText.status).toBe(200);
+      expect(parseSseFrames(streamText.body).map((frame) => frame.event)).toEqual([
+        "run_state",
+        "tool_call",
+        "tool_call",
+        "run_complete",
+      ]);
+
+      const detailAfterStream = await harness.getJson(`/api/runs/${runId}/history`);
+      const snapshotAfterStream = parseRunHistoryRunSnapshot(detailAfterStream.json);
+      expect(snapshotAfterStream.events.map((event) => event.event_type)).toEqual([
+        "run_started",
+        "tool_call_started",
+        "tool_call_succeeded",
+        "final_answer_generated",
+        "run_completed",
+      ]);
+      expect(snapshotAfterStream.finalAnswer).toBe("Long-running answer.");
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 function parseRunId(input: unknown): string {
@@ -310,4 +396,25 @@ async function createHarness(options: {
       });
     },
   };
+}
+
+function parseSseFrames(body: string): Array<{ event: string; data: string }> {
+  return body
+    .trim()
+    .split("\n\n")
+    .filter((frame) => frame.length > 0)
+    .map((frame) => {
+      const lines = frame.split("\n");
+      const event = lines.find((line) => line.startsWith("event: "));
+      const data = lines.find((line) => line.startsWith("data: "));
+
+      if (event === undefined || data === undefined) {
+        throw new Error("Invalid SSE frame.");
+      }
+
+      return {
+        event: event.slice("event: ".length),
+        data: data.slice("data: ".length),
+      };
+    });
 }

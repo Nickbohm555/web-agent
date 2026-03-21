@@ -141,6 +141,81 @@ describe("run stream API contracts", () => {
       });
     }
   });
+
+  it("starts deep-research execution before any SSE client connects", async () => {
+    const { createFrontendServerApp } = await import("../../frontend/server.js");
+    const app = createFrontendServerApp();
+    let resolveRun:
+      | ((value: {
+        status: "completed";
+        finalAnswer: string;
+        durationMs: number;
+        completedAt: number;
+      }) => void)
+      | undefined;
+    const runExecutor = vi.fn(() => new Promise((resolve) => {
+      resolveRun = resolve;
+    }));
+    app.locals.runExecutor = runExecutor;
+
+    const server = await new Promise<import("node:http").Server>((resolve) => {
+      const listeningServer = app.listen(0, "127.0.0.1", () => {
+        resolve(listeningServer);
+      });
+    });
+    const address = server.address() as AddressInfo;
+
+    try {
+      const startResponse = await fetch(`http://127.0.0.1:${address.port}/api/runs`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: "Investigate background runs",
+          mode: "deep_research",
+        }),
+      });
+
+      expect(startResponse.status).toBe(201);
+      const startPayload = await startResponse.json() as { runId: string };
+      expect(runExecutor).toHaveBeenCalledTimes(1);
+      expect(runExecutor).toHaveBeenCalledWith({
+        runId: startPayload.runId,
+        prompt: "Investigate background runs",
+        mode: "deep_research",
+        signal: expect.any(AbortSignal),
+      });
+
+      resolveRun?.({
+        status: "completed",
+        finalAnswer: "Background run completed.",
+        durationMs: 120,
+        completedAt: 1_710_000_000_120,
+      });
+
+      const streamResponse = await fetch(
+        `http://127.0.0.1:${address.port}/api/runs/${startPayload.runId}/events`,
+      );
+      const frames = parseSseFrames(await streamResponse.text());
+
+      expect(frames.map((frame) => frame.event)).toEqual([
+        "run_state",
+        "run_complete",
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    }
+  });
 });
 
 describe("run stream client", () => {

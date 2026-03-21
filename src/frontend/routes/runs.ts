@@ -25,6 +25,22 @@ export interface RunExecutorContext extends RunEventStreamContext {
   mode: RunMode;
 }
 
+interface PendingRun {
+  prompt: string;
+  mode: RunMode;
+}
+
+interface BackgroundRunRecord {
+  readonly runId: string;
+  readonly mode: RunMode;
+  readonly events: RunStreamEvent[];
+  readonly subscribers: Set<(event: RunStreamEvent) => void>;
+  readonly completed: Promise<void>;
+  isComplete: boolean;
+  completionError: Error | null;
+  notifyCompleted: () => void;
+}
+
 export type RunExecutorResult =
   | {
     status: "completed";
@@ -54,7 +70,8 @@ interface RunHistoryStoreLike {
 
 export function createRunsRouter(): Router {
   const router = Router();
-  const pendingRuns = new Map<string, { prompt: string; mode: RunMode }>();
+  const pendingRuns = new Map<string, PendingRun>();
+  const backgroundRuns = new Map<string, BackgroundRunRecord>();
 
   router.post("/", (req, res) => {
     const startedAt = createRequestTimer();
@@ -74,6 +91,16 @@ export function createRunsRouter(): Router {
           mode: request.mode,
         },
         safety: createEmptyRunEventSafety(),
+      });
+
+      startBackgroundRunIfNeeded({
+        request,
+        runId,
+        runEventStreamLike: req.app.locals.runEventStream,
+        runExecutorLike: req.app.locals.runExecutor,
+        pendingRuns,
+        backgroundRuns,
+        historyStore: getRunHistoryStore(req.app.locals.runHistoryStore),
       });
 
       res.status(201).json(
@@ -115,17 +142,25 @@ export function createRunsRouter(): Router {
       abortController.abort();
     });
 
+    const backgroundRun = backgroundRuns.get(req.params.runId);
+    if (backgroundRun !== undefined) {
+      await streamBackgroundRun({
+        run: backgroundRun,
+        response: res,
+        signal: abortController.signal,
+      });
+      return;
+    }
+
     if (streamFactory === undefined) {
       res.write(
-        serializeRunStreamEvent({
-          event: "run_error",
-          data: {
-            runId: req.params.runId,
-            message: "Run event stream is unavailable.",
-            code: "STREAM_UNAVAILABLE",
-            failedAt: Date.now(),
-          },
-        }),
+        serializeRunStreamEvent(
+          createRunErrorEvent(
+            req.params.runId,
+            "Run event stream is unavailable.",
+            "STREAM_UNAVAILABLE",
+          ),
+        ),
       );
       res.end();
       return;
@@ -158,15 +193,13 @@ export function createRunsRouter(): Router {
     } catch {
       if (!abortController.signal.aborted) {
         res.write(
-          serializeRunStreamEvent({
-            event: "run_error",
-            data: {
-              runId: req.params.runId,
-              message: "Run event stream failed.",
-              code: "STREAM_FAILURE",
-              failedAt: Date.now(),
-            },
-          }),
+          serializeRunStreamEvent(
+            createRunErrorEvent(
+              req.params.runId,
+              "Run event stream failed.",
+              "STREAM_FAILURE",
+            ),
+          ),
         );
       }
     } finally {
@@ -179,7 +212,7 @@ export function createRunsRouter(): Router {
 
 export function createExecutorBackedRunEventStreamFactory(
   executor: RunExecutor,
-  pendingRuns: Map<string, { prompt: string; mode: RunMode }>,
+  pendingRuns: Map<string, PendingRun>,
 ): RunEventStreamFactory {
   return async function* executorBackedStream(
     context: RunEventStreamContext,
@@ -187,25 +220,17 @@ export function createExecutorBackedRunEventStreamFactory(
     const pendingRun = pendingRuns.get(context.runId);
 
     if (pendingRun === undefined) {
-      yield {
-        event: "run_error",
-        data: {
-          runId: context.runId,
-          message: "Run was not found or has already been consumed.",
-          code: "RUN_NOT_FOUND",
-          failedAt: Date.now(),
-        },
-      };
+      yield createRunErrorEvent(
+        context.runId,
+        "Run was not found or has already been consumed.",
+        "RUN_NOT_FOUND",
+      );
       return;
     }
 
     yield {
       event: "run_state",
-      data: {
-        runId: context.runId,
-        state: "running",
-        ts: Date.now(),
-      },
+      data: createRunningState(context.runId),
     };
 
     try {
@@ -217,43 +242,278 @@ export function createExecutorBackedRunEventStreamFactory(
       });
 
       if (result.status === "completed") {
-        const completedAt = result.completedAt ?? Date.now();
         yield {
           event: "run_complete",
-          data: {
-            runId: context.runId,
-            finalAnswer: result.finalAnswer,
-            completedAt,
-            durationMs: result.durationMs ?? 0,
-          },
+          data: createRunCompleteData(context.runId, result),
         };
         return;
       }
 
-      yield {
-        event: "run_error",
-        data: {
-          runId: context.runId,
-          message: result.message,
-          code: result.code ?? "RUN_FAILED",
-          failedAt: result.failedAt ?? Date.now(),
-        },
-      };
+      yield createRunErrorEvent(
+        context.runId,
+        result.message,
+        result.code ?? "RUN_FAILED",
+        result.failedAt ?? Date.now(),
+      );
     } catch (error: unknown) {
-      yield {
-        event: "run_error",
-        data: {
-          runId: context.runId,
-          message:
-            error instanceof Error ? error.message : "Run execution failed.",
-          code: "RUN_EXECUTION_FAILED",
-          failedAt: Date.now(),
-        },
-      };
+      yield createRunErrorEvent(
+        context.runId,
+        error instanceof Error ? error.message : "Run execution failed.",
+        "RUN_EXECUTION_FAILED",
+      );
     } finally {
       pendingRuns.delete(context.runId);
     }
   };
+}
+
+function startBackgroundRunIfNeeded(options: {
+  request: PendingRun;
+  runId: string;
+  runEventStreamLike: unknown;
+  runExecutorLike: unknown;
+  pendingRuns: Map<string, PendingRun>;
+  backgroundRuns: Map<string, BackgroundRunRecord>;
+  historyStore: RunHistoryStoreLike | null;
+}) {
+  if (options.request.mode !== "deep_research") {
+    return;
+  }
+
+  const eventProducer = resolveBackgroundEventProducer(
+    options.runEventStreamLike,
+    options.runExecutorLike,
+    options.request,
+    options.runId,
+  );
+
+  if (eventProducer === undefined) {
+    return;
+  }
+
+  const existingRun = options.backgroundRuns.get(options.runId);
+  if (existingRun !== undefined) {
+    return;
+  }
+
+  const run = createBackgroundRunRecord(options.runId, options.request.mode);
+  options.backgroundRuns.set(options.runId, run);
+  trimBackgroundRuns(options.backgroundRuns);
+
+  void executeBackgroundRun({
+    run,
+    eventProducer,
+    pendingRuns: options.pendingRuns,
+    historyStore: options.historyStore,
+    backgroundRuns: options.backgroundRuns,
+  });
+}
+
+function createBackgroundRunRecord(
+  runId: string,
+  mode: RunMode,
+): BackgroundRunRecord {
+  let notifyCompleted = () => {};
+  const completed = new Promise<void>((resolve) => {
+    notifyCompleted = resolve;
+  });
+
+  return {
+    runId,
+    mode,
+    events: [],
+    subscribers: new Set(),
+    completed,
+    isComplete: false,
+    completionError: null,
+    notifyCompleted,
+  };
+}
+
+async function executeBackgroundRun(options: {
+  run: BackgroundRunRecord;
+  eventProducer: AsyncIterable<RunStreamEvent>;
+  pendingRuns: Map<string, PendingRun>;
+  historyStore: RunHistoryStoreLike | null;
+  backgroundRuns: Map<string, BackgroundRunRecord>;
+}) {
+  let nextEventSeq = resolveNextEventSeq(options.historyStore, options.run.runId);
+
+  emitBackgroundRunEvent(options.run, {
+    event: "run_state",
+    data: createRunningState(options.run.runId),
+  });
+
+  try {
+    for await (const rawEvent of options.eventProducer) {
+      const event = parseRunStreamEvent(rawEvent);
+      nextEventSeq = ingestRunStreamEventHistory(
+        options.historyStore,
+        event,
+        nextEventSeq,
+      );
+      emitBackgroundRunEvent(options.run, event);
+
+      if (event.event === "run_complete" || event.event === "run_error") {
+        break;
+      }
+    }
+  } catch (error: unknown) {
+    const event = createRunErrorEvent(
+      options.run.runId,
+      error instanceof Error ? error.message : "Run event stream failed.",
+      "STREAM_FAILURE",
+    );
+    nextEventSeq = ingestRunStreamEventHistory(
+      options.historyStore,
+      event,
+      nextEventSeq,
+    );
+    emitBackgroundRunEvent(options.run, event);
+    options.run.completionError =
+      error instanceof Error ? error : new Error(String(error));
+  } finally {
+    options.pendingRuns.delete(options.run.runId);
+    options.run.isComplete = true;
+    options.run.notifyCompleted();
+    trimBackgroundRuns(options.backgroundRuns);
+  }
+}
+
+function emitBackgroundRunEvent(run: BackgroundRunRecord, event: RunStreamEvent) {
+  run.events.push(event);
+
+  for (const subscriber of run.subscribers) {
+    subscriber(event);
+  }
+}
+
+async function streamBackgroundRun(options: {
+  run: BackgroundRunRecord;
+  response: import("express").Response;
+  signal: AbortSignal;
+}) {
+  for (const event of options.run.events) {
+    if (options.signal.aborted) {
+      return;
+    }
+
+    options.response.write(serializeRunStreamEvent(event));
+  }
+
+  if (options.run.isComplete) {
+    options.response.end();
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const subscriber = (event: RunStreamEvent) => {
+      if (options.signal.aborted) {
+        cleanup();
+        resolve();
+        return;
+      }
+
+      options.response.write(serializeRunStreamEvent(event));
+      if (event.event === "run_complete" || event.event === "run_error") {
+        cleanup();
+        resolve();
+      }
+    };
+
+    const onAbort = () => {
+      cleanup();
+      resolve();
+    };
+
+    const cleanup = () => {
+      options.run.subscribers.delete(subscriber);
+      options.signal.removeEventListener("abort", onAbort);
+    };
+
+    options.run.subscribers.add(subscriber);
+    options.signal.addEventListener("abort", onAbort, { once: true });
+    void options.run.completed.then(() => {
+      cleanup();
+      resolve();
+    });
+  });
+
+  options.response.end();
+}
+
+function resolveBackgroundEventProducer(
+  streamFactoryLike: unknown,
+  executorLike: unknown,
+  request: PendingRun,
+  runId: string,
+): AsyncIterable<RunStreamEvent> | undefined {
+  if (typeof streamFactoryLike === "function") {
+    return createValidatedEventProducer(
+      (streamFactoryLike as RunEventStreamFactory)({
+        runId,
+        signal: new AbortController().signal,
+      }),
+    );
+  }
+
+  if (typeof executorLike === "function") {
+    return createExecutorBackedEventProducer(executorLike as RunExecutor, {
+      runId,
+      prompt: request.prompt,
+      mode: request.mode,
+    });
+  }
+
+  return undefined;
+}
+
+async function* createValidatedEventProducer(
+  source: AsyncIterable<unknown>,
+): AsyncIterable<RunStreamEvent> {
+  for await (const event of source) {
+    yield parseRunStreamEvent(event);
+  }
+}
+
+async function* createExecutorBackedEventProducer(
+  executor: RunExecutor,
+  run: PendingRun & { runId: string },
+): AsyncIterable<RunStreamEvent> {
+  const result = await executor({
+    runId: run.runId,
+    signal: new AbortController().signal,
+    prompt: run.prompt,
+    mode: run.mode,
+  });
+
+  if (result.status === "completed") {
+    yield {
+      event: "run_complete",
+      data: createRunCompleteData(run.runId, result),
+    };
+    return;
+  }
+
+  yield createRunErrorEvent(
+    run.runId,
+    result.message,
+    result.code ?? "RUN_FAILED",
+    result.failedAt ?? Date.now(),
+  );
+}
+
+function trimBackgroundRuns(backgroundRuns: Map<string, BackgroundRunRecord>) {
+  const MAX_BACKGROUND_RUNS = 25;
+
+  while (backgroundRuns.size > MAX_BACKGROUND_RUNS) {
+    const oldestCompletedRun = [...backgroundRuns.values()].find((run) => run.isComplete);
+    if (oldestCompletedRun === undefined) {
+      return;
+    }
+
+    backgroundRuns.delete(oldestCompletedRun.runId);
+  }
 }
 
 export function createHttpAgentRunExecutor(
@@ -280,9 +540,9 @@ export function createHttpAgentRunExecutor(
 
     const payload = await safelyReadJson(response);
     if (response.ok) {
-      const finalAnswer =
-        asRecord(payload).final_answer;
-      const elapsedMs = asRecord(payload).elapsed_ms;
+      const responseRecord = asRecord(payload);
+      const finalAnswer = responseRecord.final_answer;
+      const elapsedMs = responseRecord.elapsed_ms;
 
       if (typeof finalAnswer !== "string" || typeof elapsedMs !== "number") {
         throw new Error("Backend agent response failed validation.");
@@ -328,7 +588,7 @@ function getRunHistoryStore(input: unknown): RunHistoryStoreLike | null {
 function resolveRunEventStreamFactory(
   streamFactoryLike: unknown,
   executorLike: unknown,
-  pendingRuns: Map<string, { prompt: string; mode: RunMode }>,
+  pendingRuns: Map<string, PendingRun>,
 ): RunEventStreamFactory | undefined {
   if (typeof streamFactoryLike === "function") {
     return streamFactoryLike as RunEventStreamFactory;
@@ -366,36 +626,41 @@ function ingestRunStreamEventHistory(
     case "tool_call":
       ingestRunHistoryEvent(store, createCanonicalToolEvent(event.data, nextEventSeq));
       return nextEventSeq + 1;
-    case "run_complete":
-      ingestRunHistoryEvent(store, {
-        run_id: event.data.runId,
-        event_seq: nextEventSeq,
-        event_type: "final_answer_generated",
-        ts: new Date(event.data.completedAt).toISOString(),
-        final_answer: event.data.finalAnswer,
-        safety: createEmptyRunEventSafety(),
-      });
-      ingestRunHistoryEvent(store, {
-        run_id: event.data.runId,
-        event_seq: nextEventSeq + 1,
-        event_type: "run_completed",
-        ts: new Date(event.data.completedAt).toISOString(),
-        final_answer: event.data.finalAnswer,
-        safety: createEmptyRunEventSafety(),
-      });
+    case "run_complete": {
+      const completedAt = toIsoTimestamp(event.data.completedAt);
+      ingestRunHistoryEvent(
+        store,
+        createRunCompletionEvent(
+          event.data.runId,
+          nextEventSeq,
+          "final_answer_generated",
+          completedAt,
+          event.data.finalAnswer,
+        ),
+      );
+      ingestRunHistoryEvent(
+        store,
+        createRunCompletionEvent(
+          event.data.runId,
+          nextEventSeq + 1,
+          "run_completed",
+          completedAt,
+          event.data.finalAnswer,
+        ),
+      );
       return nextEventSeq + 2;
+    }
     case "run_error":
-      ingestRunHistoryEvent(store, {
-        run_id: event.data.runId,
-        event_seq: nextEventSeq,
-        event_type: "run_failed",
-        ts: new Date(event.data.failedAt).toISOString(),
-        error_output: {
-          code: event.data.code ?? "RUN_FAILED",
-          message: event.data.message,
-        },
-        safety: createEmptyRunEventSafety(),
-      });
+      ingestRunHistoryEvent(
+        store,
+        createRunFailureEvent(
+          event.data.runId,
+          nextEventSeq,
+          event.data.failedAt,
+          event.data.message,
+          event.data.code,
+        ),
+      );
       return nextEventSeq + 1;
   }
 }
@@ -408,48 +673,116 @@ function createCanonicalToolEvent(
 
   if (event.status === "completed") {
     return {
-      run_id: event.runId,
-      event_seq: eventSeq,
+      ...createToolEventBase(event, eventSeq, completedAt),
       event_type: "tool_call_succeeded",
-      ts: new Date(completedAt).toISOString(),
-      tool_name: event.toolName,
-      tool_call_id: event.toolCallId,
-      tool_output: event.outputPreview === undefined
-        ? undefined
-        : { preview: event.outputPreview },
-      safety: createEmptyRunEventSafety(),
+      tool_output: toPreviewPayload(event.outputPreview),
     };
   }
 
   if (event.status === "failed") {
     return {
-      run_id: event.runId,
-      event_seq: eventSeq,
+      ...createToolEventBase(event, eventSeq, completedAt),
       event_type: "tool_call_failed",
-      ts: new Date(completedAt).toISOString(),
-      tool_name: event.toolName,
-      tool_call_id: event.toolCallId,
-      tool_input: event.inputPreview === undefined
-        ? undefined
-        : { preview: event.inputPreview },
+      tool_input: toPreviewPayload(event.inputPreview),
       error_output: {
         message: event.error ?? "Tool call failed.",
       },
-      safety: createEmptyRunEventSafety(),
     };
   }
 
   return {
+    ...createToolEventBase(event, eventSeq, event.startedAt ?? Date.now()),
+    event_type: "tool_call_started",
+    tool_input: toPreviewPayload(event.inputPreview),
+  };
+}
+
+function createToolEventBase(
+  event: ToolCallEvent,
+  eventSeq: number,
+  timestamp: number,
+) {
+  return {
     run_id: event.runId,
     event_seq: eventSeq,
-    event_type: "tool_call_started",
-    ts: new Date(event.startedAt ?? Date.now()).toISOString(),
+    ts: toIsoTimestamp(timestamp),
     tool_name: event.toolName,
     tool_call_id: event.toolCallId,
-    tool_input: event.inputPreview === undefined
-      ? undefined
-      : { preview: event.inputPreview },
     safety: createEmptyRunEventSafety(),
+  };
+}
+
+function createRunCompletionEvent(
+  runId: string,
+  eventSeq: number,
+  eventType: "final_answer_generated" | "run_completed",
+  timestamp: string,
+  finalAnswer: string,
+): CanonicalRunEvent {
+  return {
+    run_id: runId,
+    event_seq: eventSeq,
+    event_type: eventType,
+    ts: timestamp,
+    final_answer: finalAnswer,
+    safety: createEmptyRunEventSafety(),
+  };
+}
+
+function createRunFailureEvent(
+  runId: string,
+  eventSeq: number,
+  failedAt: number,
+  message: string,
+  code?: string,
+): CanonicalRunEvent {
+  return {
+    run_id: runId,
+    event_seq: eventSeq,
+    event_type: "run_failed",
+    ts: toIsoTimestamp(failedAt),
+    error_output: {
+      code: code ?? "RUN_FAILED",
+      message,
+    },
+    safety: createEmptyRunEventSafety(),
+  };
+}
+
+function createRunErrorEvent(
+  runId: string,
+  message: string,
+  code: string,
+  failedAt = Date.now(),
+): RunStreamEvent {
+  return {
+    event: "run_error",
+    data: {
+      runId,
+      message,
+      code,
+      failedAt,
+    },
+  };
+}
+
+function createRunCompleteData(
+  runId: string,
+  result: Extract<RunExecutorResult, { status: "completed" }>,
+) {
+  return {
+    runId,
+    finalAnswer: result.finalAnswer,
+    completedAt: result.completedAt ?? Date.now(),
+    durationMs: result.durationMs ?? 0,
+  };
+}
+
+function createRunningState(runId: string) {
+  return {
+    runId,
+    state: "running" as const,
+    ts: Date.now(),
   };
 }
 
@@ -490,6 +823,14 @@ function asRecord(input: unknown): Record<string, unknown> {
   }
 
   return input as Record<string, unknown>;
+}
+
+function toIsoTimestamp(timestamp: number): string {
+  return new Date(timestamp).toISOString();
+}
+
+function toPreviewPayload(preview: string | undefined): { preview: string } | undefined {
+  return preview === undefined ? undefined : { preview };
 }
 
 function serializeRunStreamEvent(event: unknown): string {
