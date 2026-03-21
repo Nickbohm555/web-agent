@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 19
+Current Section: 20
 
 ## Section 1: Define Search Mode Contract
 
@@ -427,6 +427,8 @@ Completed with `npm run test -- src/tests/frontend/state.test.ts`, `npm run test
 
 ## Section 19: Make History Storage Citation-Aware
 
+✓ Completed: Run-history storage now truncates completion payloads structurally instead of dropping them wholesale, keeping stored structured answers renderable with valid citation spans and non-orphaned source references after payload limits are applied, with integration coverage proving truncated history snapshots still reload and segment safely.
+
 Task:
 Update run-history persistence and truncation logic so structured answers, citation spans, and source lists are retained safely.
 
@@ -443,7 +445,7 @@ How to Test:
 Success looks like stored runs preserving citation-aware answers without producing invalid spans or orphaned sources after truncation. We know this section is working when history snapshots can be reloaded and rendered safely even for large answers and payloads.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm run test -- src/tests/frontend-api/run-history.integration.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 ## Section 20: Enforce Safe Citation URL Exposure
 
