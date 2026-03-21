@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 13
+Current Section: 14
 
 ## Section 1: Define Search Mode Contract
 
@@ -290,6 +290,8 @@ Completed with `npm run typecheck`, `npm run test -- src/tests/frontend-api/run-
 
 ## Section 13: Define Structured Answer Output
 
+✓ Completed: Replaced plain-string backend/frontend final-answer contracts with a structured answer object carrying answer text plus citation spans, normalized source records with stable `source_id` values, preserved runtime compatibility by coercing legacy string answers into the new shape, and updated route/integration coverage to validate the typed response boundary.
+
 Task:
 Add a structured final-answer contract that can represent answer text, inline citations, and consulted sources instead of only a plain string.
 
@@ -307,7 +309,7 @@ How to Test:
 Success looks like final responses carrying structured answer objects that validate cleanly across backend and frontend boundaries. We know this section is working when answers can include text, citations, and sources without forcing either side to treat them as untyped blobs.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `./.venv/bin/pytest backend/tests/api/test_agent_run_route.py -q`, `npm run test -- src/tests/frontend-api/routes.contracts.test.ts`, `./.venv/bin/pytest backend/tests/agent/test_runtime.py -q`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 ## Section 14: Normalize Citation Spans
 
