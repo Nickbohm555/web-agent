@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 7
+Current Section: 9
 
 ## Section 1: Define Search Mode Contract
 
@@ -143,6 +143,8 @@ Do not end this section until it has been thoroughly tested.
 
 ## Section 7: Expand Run Event Schema For Research Progress
 
+✓ Completed: Canonical run events now support explicit planning, source-expansion, and synthesis milestones with validated progress metadata, the client reducer synthesizes those stages for live runs, and timeline/preview rendering shows richer research progress without regressing simpler run traces.
+
 Task:
 Extend run event contracts and UI state handling to represent richer research progress beyond generic tool-call events.
 
@@ -166,6 +168,8 @@ Do not end this section until it has been thoroughly tested.
 
 ## Section 8: Unify Retrieval Policy Controls At Run Level
 
+✓ Completed: Added a normalized run-level `retrievalPolicy` contract shared across frontend and backend run APIs, merged that policy into downstream search/fetch controls, and enforced the same domain-scope and freshness constraints across quick, agentic, and deep-research execution paths with expanded integration/runtime/tool coverage.
+
 Task:
 Promote retrieval policy inputs such as domain scope and freshness into a run-level control surface shared across all three modes.
 
@@ -184,7 +188,7 @@ How to Test:
 Success looks like run-level policy inputs being applied consistently to retrieval behavior regardless of execution mode. We know this section is working when domain scope and freshness constraints show up in downstream search/fetch behavior without mode-specific drift.
 
 Completion Note:
-Do not end this section until it has been thoroughly tested.
+Completed with `npm run test -- src/tests/search-controls.integration.test.ts`, `npm run test -- src/tests/fetch-controls.integration.test.ts`, `npm run typecheck`, `npm run test`, `npm run build`, and `pytest backend/tests/api/test_agent_run_route.py backend/tests/agent/test_runtime.py backend/tests/tools/test_web_search_tool.py backend/tests/tools/test_web_crawl_tool.py -q`.
 
 ## Section 9: Add Source-Aware Answer Contracts
 
