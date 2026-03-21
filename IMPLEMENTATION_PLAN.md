@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 4
+Current Section: 5
 
 ## Section 1: Define Search Mode Contract
 
@@ -70,6 +70,8 @@ Completion Note:
 Do not end this section until it has been thoroughly tested.
 
 ## Section 4: Implement Quick Search Execution
+
+✓ Completed: `quick` now bypasses the autonomous agent loop, performs exactly one normalized `web_search` pass, synthesizes a sourced answer from validated search results, and maps malformed/provider failures into stable runtime errors with backend tests covering the single-search path.
 
 Task:
 Add a constrained `quick` execution path that performs one normalized web search and synthesizes a sourced answer without autonomous follow-up loops.
