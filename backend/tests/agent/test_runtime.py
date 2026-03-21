@@ -79,6 +79,7 @@ class CapturingAgentFactory:
     captured_profile: AgentRuntimeProfile | None = None
     captured_tools: tuple[Any, ...] | None = None
     captured_retrieval_policy: AgentRunRetrievalPolicy | None = None
+    captured_system_prompt: str | None = None
     agent: StubAgent | None = None
 
     def __call__(
@@ -86,10 +87,12 @@ class CapturingAgentFactory:
         profile: AgentRuntimeProfile,
         tools: tuple[Any, ...],
         retrieval_policy: AgentRunRetrievalPolicy,
+        system_prompt: str,
     ) -> StubAgent:
         self.captured_profile = profile
         self.captured_tools = tools
         self.captured_retrieval_policy = retrieval_policy
+        self.captured_system_prompt = system_prompt
         self.agent = StubAgent(raw_result=self.raw_result)
         return self.agent
 
@@ -276,6 +279,8 @@ def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
     assert f"at most {profile.max_tool_steps} tool calls total" in prompt
     assert f"no more than {profile.max_search_results} results per call" in prompt
     assert str(profile.max_crawl_chars) in prompt
+    assert "Use web_search to shortlist likely-answering sources before crawling" in prompt
+    assert "always include an objective" in prompt
 
 
 def test_system_prompt_includes_effective_retrieval_policy_details() -> None:
@@ -301,6 +306,22 @@ def test_system_prompt_includes_effective_retrieval_policy_details() -> None:
     assert "include domains=['openai.com']" in prompt
     assert "fetch fresh=True" in prompt
     assert "fetch max_age_ms=21600000" in prompt
+
+
+def test_system_prompt_accepts_prompt_specific_retrieval_brief() -> None:
+    profile = get_runtime_profile("deep_research")
+    prompt = build_system_prompt(
+        profile,
+        retrieval_brief=(
+            "Retrieval strategy:\n"
+            "- Answer objective: Compare two API launches\n"
+            "- Crawl plan: every web_crawl call must include an objective"
+        ),
+    )
+
+    assert "Retrieval strategy:" in prompt
+    assert "Compare two API launches" in prompt
+    assert "every web_crawl call must include an objective" in prompt
 
 
 def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
@@ -541,6 +562,10 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert tuple(tool.name for tool in factory.captured_tools) == CANONICAL_TOOL_NAMES
     assert factory.captured_tools != (web_search, web_crawl)
     assert factory.captured_retrieval_policy == AgentRunRetrievalPolicy()
+    assert factory.captured_system_prompt is not None
+    assert "Retrieval strategy:" in factory.captured_system_prompt
+    assert "Answer objective: investigate a topic" in factory.captured_system_prompt
+    assert "every web_crawl call must include an objective" in factory.captured_system_prompt
     assert factory.agent is not None
     assert factory.agent.captured_config == expected_runtime_config("deep_research")
 
@@ -568,6 +593,13 @@ def test_run_agent_once_passes_inferred_retrieval_policy_into_agent_factory_and_
 
     assert result.status == "completed"
     assert factory.captured_retrieval_policy == expected_policy
+    assert factory.captured_system_prompt is not None
+    assert "stay within openai.com" in factory.captured_system_prompt
+    assert "prefer week-fresh sources" in factory.captured_system_prompt
+    assert (
+        "Answer objective: Use official docs only to find the latest OpenAI Responses API update."
+        in factory.captured_system_prompt
+    )
     assert factory.agent is not None
     assert factory.agent.captured_config == expected_runtime_config_with_policy(
         expected_policy,

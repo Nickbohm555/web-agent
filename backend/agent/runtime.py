@@ -133,6 +133,7 @@ class AgentFactory(Protocol):
         profile: AgentRuntimeProfile,
         tools: tuple[Any, ...],
         retrieval_policy: AgentRunRetrievalPolicy,
+        system_prompt: str,
     ) -> AgentExecutor:
         ...
 
@@ -257,7 +258,12 @@ def run_agent_once(
                 retrieval_policy=effective_policy,
                 runtime_dependencies=dependencies,
             )
-        agent = _resolve_agent(dependencies, profile, effective_policy)
+        agent = _resolve_agent(
+            dependencies,
+            profile,
+            effective_policy,
+            prompt,
+        )
         raw_result = agent.invoke(
             _build_inputs(prompt),
             _build_runtime_config(profile, effective_policy),
@@ -325,6 +331,7 @@ def _resolve_agent(
     runtime_dependencies: RuntimeDependencies,
     profile: AgentRuntimeProfile,
     retrieval_policy: AgentRunRetrievalPolicy,
+    prompt: str,
 ) -> AgentExecutor:
     if runtime_dependencies.agent is not None:
         return runtime_dependencies.agent
@@ -334,7 +341,21 @@ def _resolve_agent(
 
     tools = _get_tools_for_profile(profile, retrieval_policy)
     _assert_canonical_tool_names(tools)
-    return runtime_dependencies.agent_factory(profile, tools, retrieval_policy)
+    system_prompt = build_system_prompt(
+        profile,
+        retrieval_policy,
+        _build_retrieval_brief(
+            prompt=prompt,
+            profile=profile,
+            retrieval_policy=retrieval_policy,
+        ),
+    )
+    return runtime_dependencies.agent_factory(
+        profile,
+        tools,
+        retrieval_policy,
+        system_prompt,
+    )
 
 
 def _run_quick_mode(
@@ -388,6 +409,7 @@ def _build_default_agent(
     profile: AgentRuntimeProfile,
     tools: tuple[Any, ...],
     retrieval_policy: AgentRunRetrievalPolicy,
+    system_prompt: str,
 ) -> AgentExecutor:
     try:
         from langchain_openai import ChatOpenAI
@@ -406,7 +428,7 @@ def _build_default_agent(
     return agent_factory(
         model=model,
         tools=tools,
-        prompt=build_system_prompt(profile, retrieval_policy),
+        prompt=system_prompt,
     )
 
 
@@ -564,6 +586,82 @@ def _build_runtime_config(
         },
         "retrieval_policy": retrieval_policy.model_dump(),
     }
+
+
+def _build_retrieval_brief(
+    *,
+    prompt: str,
+    profile: AgentRuntimeProfile,
+    retrieval_policy: AgentRunRetrievalPolicy,
+) -> str:
+    normalized_prompt = " ".join(prompt.strip().split())
+    if not normalized_prompt:
+        return ""
+
+    return (
+        "Retrieval strategy:\n"
+        f"- Answer objective: {normalized_prompt}\n"
+        f"- Search plan: {_build_search_plan(retrieval_policy)}\n"
+        f"- Crawl plan: {_build_crawl_plan(profile)}\n"
+        f"- Source plan: {_build_source_plan(retrieval_policy)}\n"
+        f"- Mode plan: {_build_mode_plan(profile)}"
+    )
+
+
+def _build_search_plan(retrieval_policy: AgentRunRetrievalPolicy) -> str:
+    scope_terms: list[str] = []
+    if retrieval_policy.search.freshness != "any":
+        scope_terms.append(f"prefer {retrieval_policy.search.freshness}-fresh sources")
+    if retrieval_policy.search.include_domains:
+        scope_terms.append(
+            "stay within "
+            + ", ".join(retrieval_policy.search.include_domains)
+        )
+    if retrieval_policy.search.exclude_domains:
+        scope_terms.append(
+            "avoid "
+            + ", ".join(retrieval_policy.search.exclude_domains)
+        )
+    if not scope_terms:
+        return (
+            "start with narrow web_search queries that restate the exact fact or comparison"
+            " you need, then use result excerpts to decide whether a page is worth opening"
+        )
+    return (
+        "start with narrow web_search queries that restate the exact fact or comparison"
+        f" you need and {'; '.join(scope_terms)}"
+    )
+
+
+def _build_crawl_plan(profile: AgentRuntimeProfile) -> str:
+    if profile.name == "deep_research":
+        return (
+            "crawl only high-value pages, and every web_crawl call must include an objective"
+            " tied to the claim, section, or comparison you need to verify"
+        )
+    return (
+        "crawl only pages whose search excerpts look promising, and every web_crawl call"
+        " must include an objective describing the exact evidence needed from that page"
+    )
+
+
+def _build_source_plan(retrieval_policy: AgentRunRetrievalPolicy) -> str:
+    if retrieval_policy.search.include_domains:
+        return (
+            "keep source selection inside the allowed domains and do not broaden scope unless"
+            " the user asks"
+        )
+    if retrieval_policy.search.exclude_domains:
+        return "exclude blocked domains while favoring sources that directly answer the prompt"
+    return "favor sources that directly answer the prompt over broad background reading"
+
+
+def _build_mode_plan(profile: AgentRuntimeProfile) -> str:
+    if profile.name == "agentic":
+        return "use a small number of decisive searches and only enough crawls to answer accurately"
+    if profile.name == "deep_research":
+        return "compare multiple promising sources, validate conflicts, and use objectives that separate sub-questions"
+    return "optimize for one decisive search pass"
 
 
 def _extract_final_answer(

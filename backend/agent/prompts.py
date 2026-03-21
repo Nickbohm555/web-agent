@@ -14,6 +14,9 @@ Do not keep calling tools once you have enough evidence to answer the user's pro
 If a tool fails, either recover with the other available tool when appropriate or stop and explain the limitation.
 Do not expose provider internals or raw tool payload details unless they are directly relevant.
 Translate clear prompt intent like official-docs-only, latest filings, and recent coverage into concrete source and freshness constraints, and keep those constraints stable unless the user explicitly broadens them.
+Use web_search to shortlist likely-answering sources before crawling unless the user already gave you a specific page to inspect.
+Treat search excerpts as a triage layer; do not crawl results that do not appear useful.
+When you call web_crawl, always include an objective that states the exact fact, section, or claim you need from that page.
 """.strip()
 
 PROFILE_PROMPT_APPENDICES: dict[str, str] = {
@@ -26,6 +29,7 @@ PROFILE_PROMPT_APPENDICES: dict[str, str] = {
 def build_system_prompt(
     profile: AgentRuntimeProfile,
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
+    retrieval_brief: str | None = None,
 ) -> str:
     appendix = PROFILE_PROMPT_APPENDICES[profile.name]
     bounded_guidance = (
@@ -41,7 +45,8 @@ def build_system_prompt(
         f"fetch fresh={policy.fetch.fresh}; "
         f"fetch max_age_ms={policy.fetch.max_age_ms}."
     )
+    strategy_guidance = f"\n{retrieval_brief}" if retrieval_brief else ""
     return (
         f"{BASE_SYSTEM_PROMPT}\n\nMode guidance: {appendix}\n"
-        f"{bounded_guidance}\n{policy_guidance}"
+        f"{bounded_guidance}\n{policy_guidance}{strategy_guidance}"
     )
