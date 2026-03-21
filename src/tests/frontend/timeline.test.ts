@@ -244,6 +244,7 @@ describe("timeline helpers", () => {
     const segments = segmentStructuredAnswer(
       {
         text: "Alpha leads while Beta remains relevant.",
+        basis: [],
         citations: [
           {
             source_id: "alpha-report",

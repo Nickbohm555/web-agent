@@ -280,6 +280,7 @@ describe("run state reducer", () => {
           finalAnswer: "Provider A had fewer outages.",
           structuredAnswer: {
             text: "Provider A had fewer outages.",
+            basis: [],
             citations: [
               {
                 source_id: "provider-status",
@@ -346,6 +347,7 @@ describe("run state reducer", () => {
     expect(state.runEvents[5]?.tool_output).toEqual({
       answer: {
         text: "Provider A had fewer outages.",
+        basis: [],
         citations: [
           {
             source_id: "provider-status",

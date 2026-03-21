@@ -435,6 +435,7 @@ describe("run stream client", () => {
       finalAnswer: "Alpha remains ahead of Beta.",
       structuredAnswer: {
         text: "Alpha remains ahead of Beta.",
+        basis: [],
         citations: [
           {
             source_id: "alpha-report",

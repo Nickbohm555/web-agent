@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 6
+Current Section: 7
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -153,6 +153,7 @@ Success looks like answer payloads preserving per-claim or per-item evidence ref
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: ✓ Added optional per-claim and per-list-item `basis` evidence to structured answers, validated basis citations against the safe source registry, preserved basis data through frontend contracts and run-history truncation, and verified with `npm install`, `npm run typecheck`, `npm run test`, `npm run build`, `pytest backend/tests/agent/test_runtime.py -q`, and `npm run test -- src/tests/frontend-api/routes.contracts.test.ts`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.

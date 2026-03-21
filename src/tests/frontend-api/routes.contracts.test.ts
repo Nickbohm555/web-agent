@@ -327,6 +327,34 @@ describe("frontend API route contracts", () => {
               end_index: 19,
             },
           ],
+          basis: [
+            {
+              kind: "claim",
+              text: "Answer with",
+              citations: [
+                {
+                  source_id: "source-example",
+                  title: "Example source",
+                  url: "https://example.com/source",
+                  start_index: 0,
+                  end_index: 6,
+                },
+              ],
+            },
+            {
+              kind: "list_item",
+              text: "sources.",
+              citations: [
+                {
+                  source_id: "source-example",
+                  title: "Example source",
+                  url: "https://example.com/source",
+                  start_index: 0,
+                  end_index: 8,
+                },
+              ],
+            },
+          ],
         },
         sources: [
           {
@@ -355,6 +383,34 @@ describe("frontend API route contracts", () => {
               url: "https://example.com/source",
               start_index: 12,
               end_index: 19,
+            },
+          ],
+          basis: [
+            {
+              kind: "claim",
+              text: "Answer with",
+              citations: [
+                {
+                  source_id: "source-example",
+                  title: "Example source",
+                  url: "https://example.com/source",
+                  start_index: 0,
+                  end_index: 6,
+                },
+              ],
+            },
+            {
+              kind: "list_item",
+              text: "sources.",
+              citations: [
+                {
+                  source_id: "source-example",
+                  title: "Example source",
+                  url: "https://example.com/source",
+                  start_index: 0,
+                  end_index: 8,
+                },
+              ],
             },
           ],
         },

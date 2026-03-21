@@ -231,10 +231,19 @@ export const StructuredAnswerCitationSchema = z
     },
   );
 
+export const StructuredAnswerBasisSchema = z
+  .object({
+    kind: z.enum(["claim", "list_item"]),
+    text: z.string().trim().min(1),
+    citations: z.array(StructuredAnswerCitationSchema).default([]),
+  })
+  .strict();
+
 export const StructuredAnswerSchema = z
   .object({
     text: z.string().trim().min(1),
     citations: z.array(StructuredAnswerCitationSchema).default([]),
+    basis: z.array(StructuredAnswerBasisSchema).default([]),
   })
   .strict();
 
@@ -477,6 +486,7 @@ export type RunRetrievalPolicy = z.output<typeof NormalizedRunRetrievalPolicySch
 export type RunStartResponse = z.output<typeof RunStartResponseSchema>;
 export type RunSource = z.output<typeof RunSourceSchema>;
 export type StructuredAnswerCitation = z.output<typeof StructuredAnswerCitationSchema>;
+export type StructuredAnswerBasis = z.output<typeof StructuredAnswerBasisSchema>;
 export type StructuredAnswer = z.output<typeof StructuredAnswerSchema>;
 export type BackendAgentRunSuccessResponse = z.output<typeof BackendAgentRunSuccessResponseSchema>;
 export type CanonicalRunEvent = RunEvent;

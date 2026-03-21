@@ -163,11 +163,46 @@ class AgentAnswerCitation(BaseModel):
         return self
 
 
+class AgentAnswerBasis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["claim", "list_item"]
+    text: str = Field(min_length=1)
+    citations: list[AgentAnswerCitation] = Field(default_factory=list)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("basis text must not be empty")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_citations(self) -> "AgentAnswerBasis":
+        text_length = len(self.text)
+        ordered_citations = sorted(
+            self.citations,
+            key=lambda citation: (citation.start_index, citation.end_index, citation.source_id),
+        )
+        previous_end = 0
+
+        for citation in ordered_citations:
+            if citation.end_index > text_length:
+                raise ValueError("citation end_index must not exceed answer text length")
+            if citation.start_index < previous_end:
+                raise ValueError("citation spans must not overlap")
+            previous_end = citation.end_index
+
+        return self
+
+
 class AgentStructuredAnswer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1)
     citations: list[AgentAnswerCitation] = Field(default_factory=list)
+    basis: list[AgentAnswerBasis] = Field(default_factory=list)
 
     @field_validator("text")
     @classmethod

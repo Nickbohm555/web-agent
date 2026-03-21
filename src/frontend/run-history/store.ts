@@ -533,6 +533,7 @@ function truncateCitationAwareCompletionEvent(
     nextEvent = createCitationAwareCompletionEvent(event, {
       text: truncatedText,
       citations: [],
+      basis: [],
     }, []);
   }
 
@@ -596,6 +597,15 @@ function truncateStructuredAnswer(
         availableSourceIds.has(citation.source_id)
       );
     }),
+    basis: answer.basis.map((basisItem) => ({
+      ...basisItem,
+      citations: basisItem.citations.filter((citation) => {
+        return (
+          citation.end_index <= basisItem.text.length &&
+          availableSourceIds.has(citation.source_id)
+        );
+      }),
+    })),
   };
 }
 
@@ -606,6 +616,11 @@ function filterSourcesForAnswer(
   const referencedSourceIds = new Set(
     answer.citations.map((citation) => citation.source_id),
   );
+  for (const basisItem of answer.basis) {
+    for (const citation of basisItem.citations) {
+      referencedSourceIds.add(citation.source_id);
+    }
+  }
 
   if (referencedSourceIds.size === 0) {
     return sources;

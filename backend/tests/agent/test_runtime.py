@@ -667,7 +667,99 @@ def test_run_agent_once_preserves_explicit_structured_final_answer_citations() -
                 "end_index": 31,
             },
         ],
+        "basis": [],
     }
+
+
+def test_run_agent_once_preserves_granular_claim_basis_references() -> None:
+    agent = StubAgent(
+        raw_result={
+            "final_answer": {
+                "text": "Claim one. Claim two.",
+                "citations": [
+                    {
+                        "source_id": "https-example-com-a",
+                        "start_index": 0,
+                        "end_index": 9,
+                    },
+                ],
+                "basis": [
+                    {
+                        "kind": "claim",
+                        "text": "Claim one.",
+                        "citations": [
+                            {
+                                "source_id": "https-example-com-a",
+                                "start_index": 0,
+                                "end_index": 9,
+                            }
+                        ],
+                    },
+                    {
+                        "kind": "list_item",
+                        "text": "Claim two.",
+                        "citations": [
+                            {
+                                "url": "https://example.com/b",
+                                "title": "Source B",
+                                "start_index": 0,
+                                "end_index": 9,
+                            }
+                        ],
+                    },
+                ],
+            },
+            "sources": [
+                {
+                    "source_id": "https-example-com-a",
+                    "title": "Source A",
+                    "url": "https://example.com/a",
+                    "snippet": "A snippet.",
+                },
+                {
+                    "title": "Source B",
+                    "url": "https://example.com/b",
+                    "snippet": "B snippet.",
+                },
+            ],
+        }
+    )
+
+    result = run_agent_once(
+        "investigate claim basis",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.final_answer is not None
+    assert result.final_answer.model_dump(mode="json")["basis"] == [
+        {
+            "kind": "claim",
+            "text": "Claim one.",
+            "citations": [
+                {
+                    "source_id": "https-example-com-a",
+                    "title": "Source A",
+                    "url": "https://example.com/a",
+                    "start_index": 0,
+                    "end_index": 9,
+                }
+            ],
+        },
+        {
+            "kind": "list_item",
+            "text": "Claim two.",
+            "citations": [
+                {
+                    "source_id": "https-example-com-b",
+                    "title": "Source B",
+                    "url": "https://example.com/b",
+                    "start_index": 0,
+                    "end_index": 9,
+                }
+            ],
+        },
+    ]
 
 
 def test_run_agent_once_rejects_citations_that_bypass_safe_source_registry() -> None:
@@ -696,6 +788,47 @@ def test_run_agent_once_rejects_citations_that_bypass_safe_source_registry() -> 
 
     result = run_agent_once(
         "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "invalid_prompt"
+    assert result.error.message == "citation must reference a policy-cleared source"
+
+
+def test_run_agent_once_rejects_unsafe_granular_claim_basis_references() -> None:
+    agent = StubAgent(
+        raw_result={
+            "final_answer": {
+                "text": "Claim one.",
+                "basis": [
+                    {
+                        "kind": "claim",
+                        "text": "Claim one.",
+                        "citations": [
+                            {
+                                "title": "Unsafe Source",
+                                "url": "javascript:alert(1)",
+                                "start_index": 0,
+                                "end_index": 6,
+                            }
+                        ],
+                    }
+                ],
+            },
+            "sources": [
+                {
+                    "title": "Unsafe Source",
+                    "url": "javascript:alert(1)",
+                    "snippet": "Should never become clickable.",
+                }
+            ],
+        }
+    )
+
+    result = run_agent_once(
+        "investigate claim basis",
         runtime_dependencies=RuntimeDependencies(agent=agent),
     )
 

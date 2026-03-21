@@ -18,6 +18,7 @@ from backend.agent.quick_search import (
     synthesize_quick_answer,
 )
 from backend.agent.types import (
+    AgentAnswerBasis,
     AgentAnswerCitation,
     AgentRunError,
     AgentRunMode,
@@ -927,7 +928,31 @@ def _validate_structured_answer(
     citations = answer_payload.get("citations")
     if isinstance(citations, list):
         answer_payload["citations"] = _validate_citations(citations, source_lookup)
+
+    basis = answer_payload.get("basis")
+    if isinstance(basis, list):
+        answer_payload["basis"] = _validate_basis_items(basis, source_lookup)
+
     return AgentStructuredAnswer.model_validate(answer_payload)
+
+
+def _validate_basis_items(
+    basis_payload: list[Any],
+    source_lookup: dict[str, AgentSourceReference],
+) -> list[AgentAnswerBasis]:
+    basis_items: list[AgentAnswerBasis] = []
+    for entry in basis_payload:
+        if not isinstance(entry, dict):
+            basis_items.append(AgentAnswerBasis.model_validate(entry))
+            continue
+
+        hydrated_entry = dict(entry)
+        citations = hydrated_entry.get("citations")
+        if isinstance(citations, list):
+            hydrated_entry["citations"] = _validate_citations(citations, source_lookup)
+        basis_items.append(AgentAnswerBasis.model_validate(hydrated_entry))
+
+    return basis_items
 
 
 def _validate_citations(

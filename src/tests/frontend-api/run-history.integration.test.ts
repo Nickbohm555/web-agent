@@ -276,6 +276,7 @@ describe("run history API", () => {
                 "Alpha remains ahead of Beta in the latest benchmark results while Gamma trails. ".repeat(
                   4,
                 ),
+              basis: [],
               citations: [
                 {
                   source_id: "alpha-report",
