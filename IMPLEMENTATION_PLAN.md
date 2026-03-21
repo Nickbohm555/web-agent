@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 2
+Current Section: 3
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -27,7 +27,7 @@ Completed: Added optional `objective` request support, added contract-valid exce
 Commit Note:
 Commit and push this section atomically once its tests pass.
 
-## Section 2: Add Passage Chunking And Objective Scoring To Crawl Extraction
+## Section 2: Add Passage Chunking And Objective Scoring To Crawl Extraction ✓
 
 Task:
 Implement passage segmentation and objective-based excerpt selection so crawl results can return the most relevant page segments instead of only raw full-page content.
@@ -48,6 +48,7 @@ Success looks like long-page crawl responses surfacing concise, relevant excerpt
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: Added passage segmentation with duplicate suppression, objective-aware lexical scoring with long-page cosine reranking, and lead-passage fallback excerpts, then verified with `pytest backend/tests/tools/test_web_crawl_tool.py -q`, `pytest backend/tests/crawler/test_extractor.py -q`, `pytest backend/tests/crawler/test_http_worker.py -q`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.

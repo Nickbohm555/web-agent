@@ -78,19 +78,19 @@ def run_web_crawl(
         extraction_result = extract_content(
             body=fetch_result.body,
             content_type=fetch_result.content_type,
-        )
-        return WebCrawlSuccess(
-            url=validated_input.url,
-            final_url=fetch_result.final_url,
-            text=extraction_result.text,
-            markdown=extraction_result.markdown,
             objective=validated_input.objective,
-            excerpts=[],
+        )
+        return _build_crawl_success_payload(
+            validated_input=validated_input,
+            final_url=fetch_result.final_url,
+            extraction_text=extraction_result.text,
+            extraction_markdown=extraction_result.markdown,
+            excerpts=extraction_result.excerpts,
             status_code=fetch_result.status_code,
             content_type=fetch_result.content_type,
             fallback_reason=extraction_result.fallback_reason,
             meta=fetch_result.meta,
-        ).model_dump(mode="json")
+        )
     except ValidationError as exc:
         return _build_crawl_error_payload(
             operation_start=operation_start,
@@ -137,17 +137,42 @@ def _build_fetch_failure_success(
     fetch_result: HttpFetchFailure,
 ) -> dict[str, Any]:
     extraction_result = extraction_result_from_fetch_failure(fetch_result)
-    return WebCrawlSuccess(
-        url=validated_input.url,
+    return _build_crawl_success_payload(
+        validated_input=validated_input,
         final_url=fetch_result.final_url or validated_input.url,
-        text=extraction_result.text,
-        markdown=extraction_result.markdown,
-        objective=validated_input.objective,
-        excerpts=[],
+        extraction_text=extraction_result.text,
+        extraction_markdown=extraction_result.markdown,
+        excerpts=extraction_result.excerpts,
         status_code=fetch_result.status_code or 200,
         content_type=fetch_result.content_type or "application/octet-stream",
         fallback_reason=extraction_result.fallback_reason,
         meta=fetch_result.meta,
+    )
+
+
+def _build_crawl_success_payload(
+    *,
+    validated_input: WebCrawlInput,
+    final_url: Any,
+    extraction_text: str,
+    extraction_markdown: str,
+    excerpts: Any,
+    status_code: int,
+    content_type: str,
+    fallback_reason: str | None,
+    meta: Any,
+) -> dict[str, Any]:
+    return WebCrawlSuccess(
+        url=validated_input.url,
+        final_url=final_url,
+        text=extraction_text,
+        markdown=extraction_markdown,
+        objective=validated_input.objective,
+        excerpts=excerpts,
+        status_code=status_code,
+        content_type=content_type,
+        fallback_reason=fallback_reason,
+        meta=meta,
     ).model_dump(mode="json")
 
 

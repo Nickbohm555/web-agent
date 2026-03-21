@@ -44,8 +44,25 @@ def test_web_crawl_tool_accepts_objective_and_preserves_contract(monkeypatch) ->
     result = WebCrawlSuccess.model_validate(payload)
 
     assert result.objective == "Find the sections about agent systems"
-    assert result.excerpts == []
+    assert result.excerpts
+    assert "agent systems" in result.excerpts[0].text.lower()
     assert "agent systems" in result.text.lower()
+
+
+def test_web_crawl_tool_uses_lead_excerpt_when_objective_has_no_clear_match(monkeypatch) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+
+    payload = web_crawl.invoke(
+        {
+            "url": "https://example.com/article",
+            "objective": "Find the unrelated pricing calculator details",
+        }
+    )
+    result = WebCrawlSuccess.model_validate(payload)
+
+    assert result.excerpts
+    assert "consistent retrieval contracts" in result.excerpts[0].text.lower()
 
 
 def test_run_web_crawl_preserves_redirect_final_url() -> None:

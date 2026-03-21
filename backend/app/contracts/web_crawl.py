@@ -11,6 +11,16 @@ CrawlFallbackReason = Literal["network-error", "low-content-quality", "unsupport
 ExtractionState = Literal["ok", "low-content-quality", "unsupported-content-type", "network-error"]
 
 
+def _strip_text(value: str) -> str:
+    return value.strip()
+
+
+def _strip_optional_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    return _strip_text(value)
+
+
 class WebCrawlInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -27,9 +37,9 @@ class WebCrawlInput(BaseModel):
     @field_validator("objective")
     @classmethod
     def normalize_objective(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
+        normalized = _strip_optional_text(value)
+        if normalized is None:
             return None
-        normalized = value.strip()
         if not normalized:
             raise ValueError("objective must not be empty")
         return normalized
@@ -44,7 +54,7 @@ class WebCrawlExcerpt(BaseModel):
     @field_validator("text", "markdown")
     @classmethod
     def normalize_output(cls, value: str) -> str:
-        return value.strip()
+        return _strip_text(value)
 
 
 class WebCrawlSuccess(BaseModel):
@@ -64,9 +74,7 @@ class WebCrawlSuccess(BaseModel):
     @field_validator("text", "markdown", "content_type", "objective")
     @classmethod
     def normalize_text(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        return value.strip()
+        return _strip_optional_text(value)
 
     def to_source_record(self) -> dict[str, str]:
         snippet_source = self.excerpts[0].text if self.excerpts else self.text
@@ -95,12 +103,13 @@ class ExtractionResult(BaseModel):
     state: ExtractionState
     text: str
     markdown: str
+    excerpts: list[WebCrawlExcerpt] = Field(default_factory=list)
     fallback_reason: Optional[CrawlFallbackReason] = None
 
     @field_validator("text", "markdown")
     @classmethod
     def normalize_output(cls, value: str) -> str:
-        return value.strip()
+        return _strip_text(value)
 
 
 def _derive_source_title(url: str) -> str:
