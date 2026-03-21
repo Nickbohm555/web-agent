@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 11
+Current Section: 12
 
 ## Section 1: Define Search Mode Contract
 
@@ -241,6 +241,8 @@ Completed with `npm run test -- src/tests/frontend-api/observability-correlation
 
 ## Section 11: Add Mode Selection To The Frontend
 
+✓ Completed: Added an explicit frontend mode picker for quick search, agentic search, and deep research; stored the selected mode in client state; sent it through the run-start request; surfaced the current mode in run status copy; and hardened deep-research history timing coverage during full-suite validation.
+
 Task:
 Update the UI so users can explicitly choose between quick search, agentic search, and deep research before starting a run.
 
@@ -258,6 +260,7 @@ How to Test:
 Success looks like users being able to choose a mode in the UI and seeing that choice reflected in state and run behavior without ambiguity. We know this section is working when state tests capture the chosen mode and the timeline/history remain coherent after runs start from the updated interface.
 
 Completion Note:
+Completed with `npm run test -- src/tests/frontend/state.test.ts`, `npm run test -- src/tests/frontend/timeline.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build`.
 Do not end this section until it has been thoroughly tested.
 
 ## Section 12: Lock Down End-To-End Mode Coverage
