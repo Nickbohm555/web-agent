@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 5
+Current Section: 6
 
 ## Section 1: Define Search Mode Contract
 
@@ -93,6 +93,8 @@ Completion Note:
 Do not end this section until it has been thoroughly tested.
 
 ## Section 5: Implement Agentic Search Execution
+
+✓ Completed: `agentic` now builds profile-bound `web_search` and `web_crawl` wrappers with explicit search-result, crawl-content, and tool-step budgets, feeds those limits into runtime config and prompt guidance, and preserves stable failure mapping through runtime and tool coverage.
 
 Task:
 Add a configurable `agentic` execution path that uses bounded reasoning over `web_search` and `web_crawl`.
