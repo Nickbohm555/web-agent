@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDurationMs, toTimelineRows } from "../../frontend/client/timeline.js";
+import {
+  formatDurationMs,
+  toRunEventTimelineRows,
+  toTimelineRows,
+} from "../../frontend/client/timeline.js";
 import type { ToolCallRecord } from "../../frontend/client/state.js";
+import { createEmptyRunEventSafety, type CanonicalRunEvent } from "../../frontend/contracts.js";
 
 describe("timeline helpers", () => {
   it("projects deterministic timeline rows even when records are unordered", () => {
@@ -125,6 +130,55 @@ describe("timeline helpers", () => {
     expect(formatDurationMs(12_400)).toBe("12 s");
     expect(formatDurationMs(null)).toBe("Pending");
   });
+
+  it("renders research progress rows alongside simpler canonical events", () => {
+    const rows = toRunEventTimelineRows([
+      createRunEvent({
+        event_seq: 0,
+        event_type: "run_started",
+      }),
+      createRunEvent({
+        event_seq: 1,
+        event_type: "research_planning_started",
+        progress: {
+          stage: "planning",
+          message: "Building the research plan.",
+        },
+      }),
+      createRunEvent({
+        event_seq: 2,
+        event_type: "tool_call_started",
+        tool_name: "web_search",
+        tool_call_id: "tool-1",
+        tool_input: {
+          preview: "sources",
+        },
+      }),
+      createRunEvent({
+        event_seq: 3,
+        event_type: "research_synthesis_started",
+        progress: {
+          stage: "synthesis",
+          message: "Combining evidence.",
+          completed: 2,
+          total: 3,
+        },
+      }),
+    ]);
+
+    expect(rows.map((row) => row.eventTypeLabel)).toEqual([
+      "Run started",
+      "Planning",
+      "Tool started",
+      "Synthesis",
+    ]);
+    expect(rows.map((row) => row.summary)).toEqual([
+      null,
+      "Building the research plan.",
+      "web_search",
+      "Combining evidence. (2/3)",
+    ]);
+  });
 });
 
 function createToolCall(
@@ -143,4 +197,16 @@ function createToolCall(
     sortTimestamp: overrides.sortTimestamp ?? 0,
     updatedAt: overrides.updatedAt ?? overrides.sortTimestamp ?? 0,
   };
+}
+
+function createRunEvent(
+  overrides: Partial<CanonicalRunEvent> &
+    Pick<CanonicalRunEvent, "event_seq" | "event_type">,
+): CanonicalRunEvent {
+  return {
+    run_id: "run-123",
+    ts: "2026-03-17T12:00:00.000Z",
+    safety: createEmptyRunEventSafety(),
+    ...overrides,
+  } as CanonicalRunEvent;
 }

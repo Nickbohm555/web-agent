@@ -212,6 +212,71 @@ describe("run state reducer", () => {
     expect(state.activeRunId).toBe("run-123");
     expect(state.toolCalls).toEqual([]);
   });
+
+  it("adds research progress milestones around live run events", () => {
+    const state = applyActions([
+      { type: "prompt_updated", prompt: "Investigate provider reliability" },
+      { type: "run_requested" },
+      {
+        type: "run_started",
+        response: {
+          runId: "run-123",
+          status: "queued",
+        },
+      },
+      {
+        type: "tool_call_received",
+        event: {
+          runId: "run-123",
+          toolCallId: "tool-1",
+          toolName: "web_search",
+          status: "started",
+          startedAt: 100,
+          inputPreview: "provider reliability",
+        },
+      },
+      {
+        type: "run_completed",
+        event: {
+          runId: "run-123",
+          finalAnswer: "Provider A had fewer outages.",
+          completedAt: 300,
+          durationMs: 200,
+        },
+      },
+    ]);
+
+    expect(state.runEvents.map((event) => event.event_type)).toEqual([
+      "run_started",
+      "research_planning_started",
+      "research_sources_expanded",
+      "tool_call_started",
+      "research_synthesis_started",
+      "final_answer_generated",
+      "run_completed",
+    ]);
+    expect(state.runEvents[1]).toMatchObject({
+      event_type: "research_planning_started",
+      progress: {
+        stage: "planning",
+      },
+    });
+    expect(state.runEvents[2]).toMatchObject({
+      event_type: "research_sources_expanded",
+      progress: {
+        stage: "source_expansion",
+        completed: 1,
+      },
+    });
+    expect(state.runEvents[4]).toMatchObject({
+      event_type: "research_synthesis_started",
+      progress: {
+        stage: "synthesis",
+        completed: 0,
+        total: 1,
+      },
+    });
+  });
 });
 
 function applyActions(actions: RunAction[]) {

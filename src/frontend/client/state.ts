@@ -1,5 +1,6 @@
 import type { RunStartResponse } from "./api-client.js";
 import {
+  type CanonicalRunProgress,
   type CanonicalRunEvent,
   type RunCompleteEvent,
   type RunErrorEvent,
@@ -103,14 +104,28 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         finalAnswer: null,
         completedAt: null,
         toolCalls: [],
-        ...appendRunEvent(state, {
-          run_id: action.response.runId,
-          event_type: "run_started",
-          ts: new Date().toISOString(),
-          tool_input: {
-            prompt: state.prompt,
+        ...appendRunEvents(state, [
+          {
+            run_id: action.response.runId,
+            event_type: "run_started",
+            ts: new Date().toISOString(),
+            tool_input: {
+              prompt: state.prompt,
+            },
           },
-        }),
+          createResearchProgressEvent(
+            action.response.runId,
+            "research_planning_started",
+            new Date().toISOString(),
+            {
+              stage: "planning",
+              message: "Building an initial research plan and selecting retrieval paths.",
+            },
+            {
+              prompt: state.prompt,
+            },
+          ),
+        ]),
       };
     case "run_failed":
       if (
@@ -165,11 +180,46 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         return state;
       }
 
+      const sourceExpansionEvent = hasRunEventType(
+        state.runEvents,
+        "research_sources_expanded",
+      )
+        ? []
+        : [
+            createResearchProgressEvent(
+              action.event.runId,
+              "research_sources_expanded",
+              new Date(
+                action.event.startedAt ??
+                  action.event.endedAt ??
+                  Date.now(),
+              ).toISOString(),
+              {
+                stage: "source_expansion",
+                message: `Expanding sources with ${formatToolLabel(action.event.toolName)}.`,
+                completed: countDistinctToolCalls(state.toolCalls, action.event.toolCallId),
+              },
+              action.event.status === "started"
+                ? undefined
+                : {
+                    tool: action.event.toolName,
+                    preview:
+                      action.event.outputPreview ??
+                      action.event.inputPreview ??
+                      action.event.error ??
+                      "Research source update recorded.",
+                  },
+            ),
+          ];
+
       return {
         ...state,
         phase: "running",
         toolCalls: mergeToolCall(state.toolCalls, action.event),
-        ...appendRunEvent(state, createCanonicalToolEvent(action.event)),
+        ...appendRunEvents(state, [
+          ...sourceExpansionEvent,
+          createCanonicalToolEvent(action.event),
+        ]),
       };
     case "run_completed":
       if (!isActiveRunEvent(state, action.event.runId) || isTerminalPhase(state.phase)) {
@@ -183,6 +233,21 @@ export function reduceRunState(state: RunState, action: RunAction): RunState {
         completedAt: action.event.completedAt,
         error: null,
         ...appendRunEvents(state, [
+          createResearchProgressEvent(
+            action.event.runId,
+            "research_synthesis_started",
+            new Date(action.event.completedAt).toISOString(),
+            {
+              stage: "synthesis",
+              message: "Synthesizing collected evidence into the final answer.",
+              completed: state.toolCalls.filter((toolCall) => toolCall.status === "completed").length,
+              total: state.toolCalls.length,
+            },
+            {
+              toolCalls: state.toolCalls.length,
+              completedToolCalls: state.toolCalls.filter((toolCall) => toolCall.status === "completed").length,
+            },
+          ),
           {
             run_id: action.event.runId,
             event_type: "final_answer_generated",
@@ -261,7 +326,7 @@ function appendRunEvents(
     ...event,
     event_seq: nextEventSeq++,
     safety: event.safety ?? createEmptyEventSafety(),
-  }));
+  })) as CanonicalRunEvent[];
   const runEvents = [...state.runEvents, ...appended].sort(compareRunEvents);
   const selectedEvent = runEvents[runEvents.length - 1] ?? null;
 
@@ -322,12 +387,61 @@ function createCanonicalToolEvent(
   }
 }
 
+function createResearchProgressEvent(
+  runId: string,
+  eventType:
+    | "research_planning_started"
+    | "research_sources_expanded"
+    | "research_synthesis_started",
+  timestamp: string,
+  progress: CanonicalRunProgress,
+  payload?: CanonicalRunEvent["tool_input"] | CanonicalRunEvent["tool_output"],
+): Omit<CanonicalRunEvent, "event_seq" | "safety"> {
+  if (eventType === "research_planning_started") {
+    return {
+      run_id: runId,
+      event_type: eventType,
+      ts: timestamp,
+      progress,
+      tool_input: payload,
+    };
+  }
+
+  return {
+    run_id: runId,
+    event_type: eventType,
+    ts: timestamp,
+    progress,
+    tool_output: payload,
+  };
+}
+
 function compareRunEvents(left: CanonicalRunEvent, right: CanonicalRunEvent): number {
   if (left.run_id !== right.run_id) {
     return left.run_id.localeCompare(right.run_id);
   }
 
   return left.event_seq - right.event_seq;
+}
+
+function hasRunEventType(
+  events: CanonicalRunEvent[],
+  eventType: CanonicalRunEvent["event_type"],
+): boolean {
+  return events.some((event) => event.event_type === eventType);
+}
+
+function countDistinctToolCalls(toolCalls: ToolCallRecord[], nextToolCallId: string): number {
+  return new Set([...toolCalls.map((toolCall) => toolCall.toolCallId), nextToolCallId]).size;
+}
+
+function formatToolLabel(toolName: ToolCallEvent["toolName"]): string {
+  switch (toolName) {
+    case "web_search":
+      return "web search";
+    case "web_crawl":
+      return "web crawl";
+  }
 }
 
 function createEmptyEventSafety(): CanonicalRunEvent["safety"] {

@@ -105,6 +105,35 @@ describe("run event contracts", () => {
     expect(event.safety.error_output.redaction.paths).toEqual(["token"]);
   });
 
+  it("parses research progress events with explicit stage metadata", () => {
+    const event = parseRunEvent({
+      run_id: "run-123",
+      event_seq: 4,
+      event_type: "research_sources_expanded",
+      ts: "2026-03-17T12:00:01.500Z",
+      progress: {
+        stage: "source_expansion",
+        message: "Collecting additional sources from search.",
+        completed: 2,
+        total: 4,
+      },
+      tool_output: {
+        sourceCount: 4,
+      },
+      safety: createEmptyRunEventSafety(),
+    });
+
+    expect(event.progress).toEqual({
+      stage: "source_expansion",
+      message: "Collecting additional sources from search.",
+      completed: 2,
+      total: 4,
+    });
+    expect(event.tool_output).toEqual({
+      sourceCount: 4,
+    });
+  });
+
   it("rejects malformed events that omit correlation fields", () => {
     expect(() =>
       parseRunEvent({
@@ -114,6 +143,22 @@ describe("run event contracts", () => {
         safety: createEmptyRunEventSafety(),
       })
     ).toThrow();
+  });
+
+  it("rejects research progress events with mismatched stage metadata", () => {
+    expect(() =>
+      parseRunEvent({
+        run_id: "run-123",
+        event_seq: 6,
+        event_type: "research_synthesis_started",
+        ts: "2026-03-17T12:00:03.000Z",
+        progress: {
+          stage: "planning",
+          message: "Wrong stage",
+        },
+        safety: createEmptyRunEventSafety(),
+      })
+    ).toThrow(/synthesis stage/i);
   });
 
   it("rejects events that leak raw secrets into payloads", () => {

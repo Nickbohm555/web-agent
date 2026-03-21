@@ -13,6 +13,8 @@ import {
   type RunEventJson,
   type RunEventPayloadSafety,
   type RunEventPayloadSignal,
+  type RunProgress,
+  type RunProgressStage,
   type RunEventSafety,
   type RunEventToolName as CanonicalRunEventToolNameType,
   type RunEventType,
@@ -349,6 +351,8 @@ export type CanonicalRunEventJson = RunEventJson;
 export type CanonicalRunEventPayloadSignal = RunEventPayloadSignal;
 export type CanonicalRunEventPayloadSafety = RunEventPayloadSafety;
 export type CanonicalRunEventSafety = RunEventSafety;
+export type CanonicalRunProgressStage = RunProgressStage;
+export type CanonicalRunProgress = RunProgress;
 export type RunHistoryEventTruncation = z.output<typeof RunHistoryEventTruncationSchema>;
 export type RunHistoryRetentionMetadata = z.output<typeof RunHistoryRetentionMetadataSchema>;
 export type RunHistoryRunSummary = z.output<typeof RunHistoryRunSummarySchema>;

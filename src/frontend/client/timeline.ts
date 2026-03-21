@@ -26,6 +26,7 @@ export interface RunEventTimelineRow {
   eventTypeLabel: string;
   toolName: CanonicalRunEvent["tool_name"] | null;
   timestampLabel: string;
+  summary: string | null;
   safetyIndicators: string[];
 }
 
@@ -73,6 +74,7 @@ export function toRunEventTimelineRows(events: CanonicalRunEvent[]): RunEventTim
       eventTypeLabel: formatRunEventTypeLabel(event.event_type),
       toolName: event.tool_name ?? null,
       timestampLabel: formatEventTimestamp(event.ts),
+      summary: formatRunEventSummary(event),
       safetyIndicators: collectSafetyIndicators(event),
     }));
 }
@@ -120,6 +122,12 @@ function formatRunEventTypeLabel(eventType: CanonicalRunEvent["event_type"]): st
   switch (eventType) {
     case "run_started":
       return "Run started";
+    case "research_planning_started":
+      return "Planning";
+    case "research_sources_expanded":
+      return "Source expansion";
+    case "research_synthesis_started":
+      return "Synthesis";
     case "tool_call_started":
       return "Tool started";
     case "tool_call_succeeded":
@@ -133,6 +141,28 @@ function formatRunEventTypeLabel(eventType: CanonicalRunEvent["event_type"]): st
     case "run_failed":
       return "Run failed";
   }
+}
+
+function formatRunEventSummary(event: CanonicalRunEvent): string | null {
+  if ("progress" in event && event.progress !== undefined) {
+    const counts =
+      event.progress.completed === undefined
+        ? null
+        : `${event.progress.completed}/${event.progress.total ?? event.progress.completed}`;
+    return counts === null
+      ? event.progress.message
+      : `${event.progress.message} (${counts})`;
+  }
+
+  if ("tool_name" in event && event.tool_name !== undefined) {
+    return event.tool_name;
+  }
+
+  if ("final_answer" in event && event.final_answer !== undefined) {
+    return "Final answer ready";
+  }
+
+  return null;
 }
 
 function formatEventTimestamp(timestamp: string): string {

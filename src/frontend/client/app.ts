@@ -304,7 +304,10 @@ function renderTimeline() {
 
       const meta = document.createElement("p");
       meta.className = "timeline-meta";
-      meta.textContent = `#${row.eventSeq} at ${row.timestampLabel}`;
+      meta.textContent =
+        row.summary === null
+          ? `#${row.eventSeq} at ${row.timestampLabel}`
+          : `#${row.eventSeq} at ${row.timestampLabel} · ${row.summary}`;
       primary.append(eventType, meta);
 
       const badges = document.createElement("div");
@@ -351,9 +354,7 @@ function renderInspector() {
     return;
   }
 
-  inspectorHeader.textContent = selectedEvent.tool_name
-    ? `${selectedEvent.event_type} / ${selectedEvent.tool_name}`
-    : selectedEvent.event_type;
+  inspectorHeader.textContent = formatInspectorHeader(selectedEvent);
   inspectorMeta.textContent = `run_id ${selectedEvent.run_id} · event_seq ${selectedEvent.event_seq} · ${selectedEvent.ts}`;
 
   renderPayloadSlot(
@@ -714,6 +715,37 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     {
       run_id: "preview-run",
       event_seq: 1,
+      event_type: "research_planning_started",
+      ts: "2026-03-17T12:00:00.500Z",
+      progress: {
+        stage: "planning",
+        message: "Sketching the retrieval plan and selecting initial source paths.",
+      },
+      tool_input: {
+        prompt: "Compare retrieval SDKs and highlight reliability risks.",
+      },
+      safety: createEmptyRunEventSafety(),
+    },
+    {
+      run_id: "preview-run",
+      event_seq: 2,
+      event_type: "research_sources_expanded",
+      ts: "2026-03-17T12:00:00.800Z",
+      progress: {
+        stage: "source_expansion",
+        message: "Collecting broad coverage from search before targeted crawling.",
+        completed: 1,
+        total: 2,
+      },
+      tool_output: {
+        strategy: "search-first",
+        sourceCount: 2,
+      },
+      safety: createEmptyRunEventSafety(),
+    },
+    {
+      run_id: "preview-run",
+      event_seq: 3,
       event_type: "tool_call_started",
       ts: "2026-03-17T12:00:01.000Z",
       tool_name: "web_search",
@@ -741,7 +773,7 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 2,
+      event_seq: 4,
       event_type: "tool_call_succeeded",
       ts: "2026-03-17T12:00:02.000Z",
       tool_name: "web_search",
@@ -775,7 +807,7 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 3,
+      event_seq: 5,
       event_type: "tool_call_failed",
       ts: "2026-03-17T12:00:03.000Z",
       tool_name: "web_crawl",
@@ -817,7 +849,24 @@ function createPreviewEvents(): CanonicalRunEvent[] {
     },
     {
       run_id: "preview-run",
-      event_seq: 4,
+      event_seq: 6,
+      event_type: "research_synthesis_started",
+      ts: "2026-03-17T12:00:03.500Z",
+      progress: {
+        stage: "synthesis",
+        message: "Combining retrieved evidence into a concise answer.",
+        completed: 2,
+        total: 2,
+      },
+      tool_output: {
+        sourcesConsidered: 2,
+        conflictingClaims: 0,
+      },
+      safety: createEmptyRunEventSafety(),
+    },
+    {
+      run_id: "preview-run",
+      event_seq: 7,
       event_type: "final_answer_generated",
       ts: "2026-03-17T12:00:04.000Z",
       final_answer:
@@ -825,4 +874,19 @@ function createPreviewEvents(): CanonicalRunEvent[] {
       safety: createEmptyRunEventSafety(),
     },
   ]);
+}
+
+function formatInspectorHeader(event: CanonicalRunEvent): string {
+  switch (event.event_type) {
+    case "research_planning_started":
+      return "planning";
+    case "research_sources_expanded":
+      return "source expansion";
+    case "research_synthesis_started":
+      return "synthesis";
+    default:
+      return event.tool_name
+        ? `${event.event_type} / ${event.tool_name}`
+        : event.event_type;
+  }
 }

@@ -16,6 +16,9 @@ export const RunEventTimestampSchema = z.string().datetime({ offset: true });
 
 export const RunEventTypeSchema = z.enum([
   "run_started",
+  "research_planning_started",
+  "research_sources_expanded",
+  "research_synthesis_started",
   "tool_call_started",
   "tool_call_succeeded",
   "tool_call_failed",
@@ -61,11 +64,34 @@ export const RunEventSafetySchema = z
   })
   .strict();
 
-export const RunEventSchema = z
+export const RunProgressStageSchema = z.enum([
+  "planning",
+  "source_expansion",
+  "synthesis",
+]);
+
+export const RunProgressSchema = z
+  .object({
+    stage: RunProgressStageSchema,
+    message: z.string().trim().min(1),
+    completed: z.number().int().nonnegative().optional(),
+    total: z.number().int().positive().optional(),
+  })
+  .strict()
+  .superRefine((progress, ctx) => {
+    if (progress.completed !== undefined && progress.total !== undefined && progress.completed > progress.total) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Progress completed cannot exceed total.",
+        path: ["completed"],
+      });
+    }
+  });
+
+const RunEventBaseSchema = z
   .object({
     run_id: RunEventIdSchema,
     event_seq: RunEventSequenceSchema,
-    event_type: RunEventTypeSchema,
     ts: RunEventTimestampSchema,
     tool_name: RunEventToolNameSchema.optional(),
     tool_call_id: z.string().trim().min(1).optional(),
@@ -73,9 +99,90 @@ export const RunEventSchema = z
     tool_output: RunEventJsonSchema.optional(),
     error_output: RunEventJsonSchema.optional(),
     final_answer: z.string().optional(),
+    progress: RunProgressSchema.optional(),
     safety: RunEventSafetySchema,
   })
-  .strict()
+  .strict();
+
+const RunStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("run_started"),
+  tool_input: RunEventJsonSchema.optional(),
+});
+
+const ResearchPlanningStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("research_planning_started"),
+  progress: RunProgressSchema.refine((progress) => progress.stage === "planning", {
+    message: "Planning progress events must use the planning stage.",
+  }),
+  tool_input: RunEventJsonSchema.optional(),
+});
+
+const ResearchSourcesExpandedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("research_sources_expanded"),
+  progress: RunProgressSchema.refine((progress) => progress.stage === "source_expansion", {
+    message: "Source expansion progress events must use the source_expansion stage.",
+  }),
+  tool_output: RunEventJsonSchema.optional(),
+});
+
+const ResearchSynthesisStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("research_synthesis_started"),
+  progress: RunProgressSchema.refine((progress) => progress.stage === "synthesis", {
+    message: "Synthesis progress events must use the synthesis stage.",
+  }),
+  tool_output: RunEventJsonSchema.optional(),
+});
+
+const ToolCallStartedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("tool_call_started"),
+  tool_name: RunEventToolNameSchema,
+  tool_call_id: z.string().trim().min(1),
+  tool_input: RunEventJsonSchema.optional(),
+});
+
+const ToolCallSucceededEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("tool_call_succeeded"),
+  tool_name: RunEventToolNameSchema,
+  tool_call_id: z.string().trim().min(1),
+  tool_output: RunEventJsonSchema.optional(),
+});
+
+const ToolCallFailedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("tool_call_failed"),
+  tool_name: RunEventToolNameSchema,
+  tool_call_id: z.string().trim().min(1),
+  tool_input: RunEventJsonSchema.optional(),
+  error_output: RunEventJsonSchema.optional(),
+});
+
+const FinalAnswerGeneratedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("final_answer_generated"),
+  final_answer: z.string(),
+});
+
+const RunCompletedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("run_completed"),
+  final_answer: z.string(),
+});
+
+const RunFailedEventSchema = RunEventBaseSchema.extend({
+  event_type: z.literal("run_failed"),
+  error_output: RunEventJsonSchema.optional(),
+});
+
+export const RunEventSchema = z
+  .discriminatedUnion("event_type", [
+    RunStartedEventSchema,
+    ResearchPlanningStartedEventSchema,
+    ResearchSourcesExpandedEventSchema,
+    ResearchSynthesisStartedEventSchema,
+    ToolCallStartedEventSchema,
+    ToolCallSucceededEventSchema,
+    ToolCallFailedEventSchema,
+    FinalAnswerGeneratedEventSchema,
+    RunCompletedEventSchema,
+    RunFailedEventSchema,
+  ])
   .superRefine((event, ctx) => {
     validatePayloadSafety(event.tool_input, event.safety.tool_input, "tool_input", ctx);
     validatePayloadSafety(event.tool_output, event.safety.tool_output, "tool_output", ctx);
@@ -89,6 +196,8 @@ export type RunEventToolName = z.output<typeof RunEventToolNameSchema>;
 export type RunEventPayloadSignal = z.output<typeof RunEventPayloadSignalSchema>;
 export type RunEventPayloadSafety = z.output<typeof RunEventPayloadSafetySchema>;
 export type RunEventSafety = z.output<typeof RunEventSafetySchema>;
+export type RunProgressStage = z.output<typeof RunProgressStageSchema>;
+export type RunProgress = z.output<typeof RunProgressSchema>;
 export type RunEvent = z.output<typeof RunEventSchema>;
 
 export function parseRunEvent(input: unknown): RunEvent {
