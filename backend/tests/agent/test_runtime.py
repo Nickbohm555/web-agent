@@ -81,6 +81,18 @@ class ProviderAPIError(RuntimeError):
     pass
 
 
+@dataclass
+class StubQuickSearchRunner:
+    payload: dict[str, Any]
+    captured_query: str | None = None
+    captured_max_results: int | None = None
+
+    def __call__(self, *, query: str, max_results: int = 5) -> dict[str, Any]:
+        self.captured_query = query
+        self.captured_max_results = max_results
+        return self.payload
+
+
 def test_run_agent_once_returns_normalized_result_without_provider_payload_leakage() -> None:
     agent = StubAgent(
         raw_result={
@@ -162,17 +174,117 @@ def test_run_agent_once_maps_recursion_limit_failures() -> None:
     assert agent.captured_config == expected_runtime_config()
 
 
-def test_run_agent_once_passes_selected_mode_into_runtime_config() -> None:
+def test_run_agent_once_passes_selected_mode_into_runtime_config_for_agentic_modes() -> None:
     agent = StubAgent(raw_result={"output": "Fast answer."})
 
     result = run_agent_once(
         "find one source and summarize",
-        "quick",
+        "agentic",
         runtime_dependencies=RuntimeDependencies(agent=agent),
     )
 
     assert result.status == "completed"
-    assert agent.captured_config == expected_runtime_config("quick")
+    assert agent.captured_config == expected_runtime_config("agentic")
+
+
+def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
+    search_runner = StubQuickSearchRunner(
+        payload={
+            "query": "latest agent news",
+            "results": [
+                {
+                    "title": "Example One",
+                    "url": "https://example.com/one",
+                    "snippet": "First summary",
+                    "rank": {"position": 1, "provider_position": 1},
+                },
+                {
+                    "title": "Example Two",
+                    "url": "https://example.com/two",
+                    "snippet": "Second summary",
+                    "rank": {"position": 2, "provider_position": 2},
+                },
+            ],
+            "metadata": {"result_count": 2, "provider": "serper"},
+            "meta": {
+                "operation": "web_search",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12, "provider_ms": 8},
+            },
+        }
+    )
+    agent = RaisingStubAgent(RuntimeError("quick mode should not invoke the agent"))
+
+    result = run_agent_once(
+        "latest agent news",
+        "quick",
+        runtime_dependencies=RuntimeDependencies(
+            agent=agent,
+            quick_search_runner=search_runner,
+        ),
+    )
+
+    assert result.status == "completed"
+    assert result.tool_call_count == 1
+    assert "Example One: First summary." in result.final_answer
+    assert "Sources:" in result.final_answer
+    assert "https://example.com/one" in result.final_answer
+    assert search_runner.captured_query == "latest agent news"
+    assert search_runner.captured_max_results == 5
+    assert agent.captured_inputs is None
+
+
+def test_run_agent_once_maps_quick_search_provider_failures() -> None:
+    search_runner = StubQuickSearchRunner(
+        payload={
+            "error": {
+                "kind": "provider_unavailable",
+                "message": "Temporary upstream failure",
+                "retryable": True,
+                "status_code": 503,
+                "attempt_number": 3,
+                "operation": "web_search",
+                "timings": {"total_ms": 120, "provider_ms": 100},
+            },
+            "meta": {
+                "operation": "web_search",
+                "attempts": 3,
+                "retries": 2,
+                "duration_ms": 120,
+                "timings": {"total_ms": 120, "provider_ms": 100},
+            },
+        }
+    )
+
+    result = run_agent_once(
+        "latest agent news",
+        "quick",
+        runtime_dependencies=RuntimeDependencies(quick_search_runner=search_runner),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "provider_failure"
+    assert result.error.message == "quick search provider request failed"
+    assert result.error.retryable is True
+
+
+def test_run_agent_once_rejects_invalid_quick_search_payloads() -> None:
+    search_runner = StubQuickSearchRunner(payload={"query": "agents", "results": "bad-payload"})
+
+    result = run_agent_once(
+        "latest agent news",
+        "quick",
+        runtime_dependencies=RuntimeDependencies(quick_search_runner=search_runner),
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.category == "tool_failure"
+    assert result.error.message == "quick search returned invalid payload"
+    assert result.error.retryable is False
 
 
 @pytest.mark.parametrize(

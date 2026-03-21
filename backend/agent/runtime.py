@@ -6,12 +6,20 @@ from typing import Any, Callable, Protocol
 from uuid import uuid4
 
 from backend.agent.prompts import build_system_prompt
+from backend.agent.quick_search import (
+    DEFAULT_QUICK_SEARCH_MAX_RESULTS,
+    QuickSearchRunner,
+    run_quick_search,
+    synthesize_quick_answer,
+)
 from backend.agent.types import (
     AgentRunError,
     AgentRunMode,
     AgentRunResult,
     AgentRuntimeProfile,
 )
+from backend.app.contracts.tool_errors import ToolErrorEnvelope
+from backend.app.contracts.web_search import WebSearchResponse
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
 
@@ -56,6 +64,7 @@ class AgentFactory(Protocol):
 class RuntimeDependencies:
     agent: AgentExecutor | None = None
     agent_factory: AgentFactory | None = None
+    quick_search_runner: QuickSearchRunner | None = None
 
 
 def run_agent_once(
@@ -78,6 +87,13 @@ def run_agent_once(
     try:
         profile = get_runtime_profile(mode)
         dependencies = runtime_dependencies or build_runtime_dependencies()
+        if profile.name == "quick":
+            return _run_quick_mode(
+                prompt=prompt,
+                run_id=run_id,
+                started_at=started_at,
+                runtime_dependencies=dependencies,
+            )
         agent = _resolve_agent(dependencies, profile)
         raw_result = agent.invoke(
             _build_inputs(prompt),
@@ -95,9 +111,11 @@ def run_agent_once(
 
 
 def build_runtime_dependencies() -> RuntimeDependencies:
-    tools = _get_canonical_tools()
-    _assert_canonical_tool_names(tools)
-    return RuntimeDependencies(agent_factory=_build_default_agent)
+    _assert_canonical_tool_names(_get_canonical_tools())
+    return RuntimeDependencies(
+        agent_factory=_build_default_agent,
+        quick_search_runner=run_quick_search,
+    )
 
 
 def get_runtime_profile(mode: AgentRunMode) -> AgentRuntimeProfile:
@@ -130,6 +148,48 @@ def _resolve_agent(
     tools = _get_canonical_tools()
     _assert_canonical_tool_names(tools)
     return runtime_dependencies.agent_factory(profile, tools)
+
+
+def _run_quick_mode(
+    *,
+    prompt: str,
+    run_id: str,
+    started_at: float,
+    runtime_dependencies: RuntimeDependencies,
+) -> AgentRunResult:
+    payload = (runtime_dependencies.quick_search_runner or run_quick_search)(
+        query=prompt,
+        max_results=DEFAULT_QUICK_SEARCH_MAX_RESULTS,
+    )
+
+    error = _coerce_tool_error(payload)
+    if error is not None:
+        return _failed_result(
+            run_id=run_id,
+            started_at=started_at,
+            category=_map_quick_search_error_category(error.error.kind),
+            message=_map_quick_search_error_message(error.error.kind),
+            retryable=error.error.retryable,
+        )
+
+    try:
+        response = WebSearchResponse.model_validate(payload)
+    except Exception:
+        return _failed_result(
+            run_id=run_id,
+            started_at=started_at,
+            category="tool_failure",
+            message="quick search returned invalid payload",
+            retryable=False,
+        )
+
+    return AgentRunResult(
+        run_id=run_id,
+        status="completed",
+        final_answer=synthesize_quick_answer(response),
+        tool_call_count=1,
+        elapsed_ms=_elapsed_ms(started_at),
+    )
 
 
 def _build_default_agent(profile: AgentRuntimeProfile, tools: tuple[Any, ...]) -> AgentExecutor:
@@ -257,6 +317,32 @@ def _normalize_content_value(content: Any) -> str:
         return "\n".join(parts).strip()
 
     return ""
+
+
+def _coerce_tool_error(payload: Any) -> ToolErrorEnvelope | None:
+    if not isinstance(payload, dict) or "error" not in payload:
+        return None
+    return ToolErrorEnvelope.model_validate(payload)
+
+
+def _map_quick_search_error_category(kind: str) -> str:
+    if kind in {"provider_unavailable", "provider_timeout", "rate_limited"}:
+        return "provider_failure"
+    if kind == "timeout":
+        return "timeout"
+    if kind == "invalid_request":
+        return "invalid_prompt"
+    return "tool_failure"
+
+
+def _map_quick_search_error_message(kind: str) -> str:
+    if kind in {"provider_unavailable", "provider_timeout", "rate_limited"}:
+        return "quick search provider request failed"
+    if kind == "timeout":
+        return "quick search timed out"
+    if kind == "invalid_request":
+        return "prompt is invalid for quick search"
+    return "quick search failed"
 
 
 def _map_runtime_failure(*, exc: Exception, run_id: str, started_at: float) -> AgentRunResult:
