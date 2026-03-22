@@ -1,3 +1,4 @@
+from .http_fetch import HttpFetchFailure, HttpFetchSuccess
 from .tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
 from .web_crawl import (
     CrawlFallbackReason,
@@ -23,6 +24,8 @@ __all__ = [
     "CrawlFallbackReason",
     "ExtractionResult",
     "ExtractionState",
+    "HttpFetchFailure",
+    "HttpFetchSuccess",
     "SearchMetadata",
     "SearchRank",
     "ToolError",

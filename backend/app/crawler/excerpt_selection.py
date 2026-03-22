@@ -4,7 +4,7 @@ import math
 import re
 from collections import Counter
 
-from backend.app.contracts.web_crawl import WebCrawlExcerpt
+from backend.app.schemas.web_crawl import WebCrawlExcerpt
 
 MIN_PASSAGE_CHARS = 40
 LEXICAL_PREFILTER_LIMIT = 6

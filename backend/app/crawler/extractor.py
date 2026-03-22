@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from backend.app.contracts.web_crawl import ExtractionResult
+from backend.app.schemas.web_crawl import ExtractionResult
 from backend.app.crawler.content_types import is_supported_content_type
 from backend.app.crawler.excerpt_selection import select_objective_excerpts
-from backend.app.crawler.http_models import HttpFetchFailure
+from backend.app.schemas.http_fetch import HttpFetchFailure
 
 import trafilatura
 

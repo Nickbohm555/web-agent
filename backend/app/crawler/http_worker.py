@@ -4,11 +4,11 @@ from time import perf_counter
 
 import httpx
 
-from backend.app.contracts.tool_errors import ToolError, ToolMeta, ToolTimings
+from backend.app.schemas.http_fetch import HttpFetchFailure, HttpFetchSuccess
+from backend.app.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.core.retry import execute_with_retry
 from backend.app.crawler.content_types import SUPPORTED_CONTENT_TYPES
 from backend.app.crawler.http_errors import HttpFetchError, RetryableHttpFetchError
-from backend.app.crawler.http_models import HttpFetchFailure, HttpFetchSuccess
 from backend.app.crawler.http_response import (
     normalized_content_type,
     raise_for_status,
