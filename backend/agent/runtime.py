@@ -22,8 +22,11 @@ from backend.agent.types import (
     AgentAnswerCitation,
     AgentRunError,
     AgentRunMode,
+    AgentRetrievalFreshness,
     AgentRunResult,
+    AgentRunRetrievalFetchPolicy,
     AgentRunRetrievalPolicy,
+    AgentRunRetrievalSearchPolicy,
     AgentSourceReference,
     AgentStructuredAnswer,
     AgentRuntimeProfile,
@@ -121,6 +124,7 @@ FETCH_MAX_AGE_BY_FRESHNESS = {
     "month": 24 * 60 * 60 * 1000,
     "year": 24 * 60 * 60 * 1000,
 }
+DEFAULT_FETCH_MAX_AGE_MS = FETCH_MAX_AGE_BY_FRESHNESS["any"]
 
 
 class AgentExecutor(Protocol):
@@ -133,7 +137,6 @@ class AgentFactory(Protocol):
         self,
         profile: AgentRuntimeProfile,
         tools: tuple[Any, ...],
-        retrieval_policy: AgentRunRetrievalPolicy,
         system_prompt: str,
     ) -> AgentExecutor:
         ...
@@ -354,7 +357,6 @@ def _resolve_agent(
     return runtime_dependencies.agent_factory(
         profile,
         tools,
-        retrieval_policy,
         system_prompt,
     )
 
@@ -409,7 +411,6 @@ def _run_quick_mode(
 def _build_default_agent(
     profile: AgentRuntimeProfile,
     tools: tuple[Any, ...],
-    retrieval_policy: AgentRunRetrievalPolicy,
     system_prompt: str,
 ) -> AgentExecutor:
     try:
@@ -467,31 +468,14 @@ def _resolve_effective_retrieval_policy(
 
     return AgentRunRetrievalPolicy.model_validate(
         {
-            "search": {
-                "country": retrieval_policy.search.country or inferred_policy.search.country,
-                "language": retrieval_policy.search.language or inferred_policy.search.language,
-                "freshness": (
-                    retrieval_policy.search.freshness
-                    if retrieval_policy.search.freshness != "any"
-                    else inferred_policy.search.freshness
-                ),
-                "include_domains": (
-                    retrieval_policy.search.include_domains
-                    or inferred_policy.search.include_domains
-                ),
-                "exclude_domains": (
-                    retrieval_policy.search.exclude_domains
-                    or inferred_policy.search.exclude_domains
-                ),
-            },
-            "fetch": {
-                "max_age_ms": (
-                    retrieval_policy.fetch.max_age_ms
-                    if retrieval_policy.fetch.max_age_ms != 300_000
-                    else inferred_policy.fetch.max_age_ms
-                ),
-                "fresh": retrieval_policy.fetch.fresh or inferred_policy.fetch.fresh,
-            },
+            "search": _merge_search_policy(
+                explicit_policy=retrieval_policy.search,
+                inferred_policy=inferred_policy.search,
+            ),
+            "fetch": _merge_fetch_policy(
+                explicit_policy=retrieval_policy.fetch,
+                inferred_policy=inferred_policy.fetch,
+            ),
         }
     )
 
@@ -514,7 +498,44 @@ def _infer_retrieval_policy_from_prompt(prompt: str) -> AgentRunRetrievalPolicy:
     )
 
 
-def _infer_prompt_freshness(prompt: str) -> str:
+def _merge_search_policy(
+    *,
+    explicit_policy: AgentRunRetrievalSearchPolicy,
+    inferred_policy: AgentRunRetrievalSearchPolicy,
+) -> dict[str, Any]:
+    return {
+        "country": explicit_policy.country or inferred_policy.country,
+        "language": explicit_policy.language or inferred_policy.language,
+        "freshness": (
+            explicit_policy.freshness
+            if explicit_policy.freshness != "any"
+            else inferred_policy.freshness
+        ),
+        "include_domains": (
+            explicit_policy.include_domains or inferred_policy.include_domains
+        ),
+        "exclude_domains": (
+            explicit_policy.exclude_domains or inferred_policy.exclude_domains
+        ),
+    }
+
+
+def _merge_fetch_policy(
+    *,
+    explicit_policy: AgentRunRetrievalFetchPolicy,
+    inferred_policy: AgentRunRetrievalFetchPolicy,
+) -> dict[str, Any]:
+    return {
+        "max_age_ms": (
+            explicit_policy.max_age_ms
+            if explicit_policy.max_age_ms != DEFAULT_FETCH_MAX_AGE_MS
+            else inferred_policy.max_age_ms
+        ),
+        "fresh": explicit_policy.fresh or inferred_policy.fresh,
+    }
+
+
+def _infer_prompt_freshness(prompt: str) -> AgentRetrievalFreshness:
     if not prompt:
         return "any"
     if TODAY_PATTERN.search(prompt):
@@ -532,6 +553,7 @@ def _infer_prompt_include_domains(prompt: str) -> list[str]:
     if not prompt:
         return []
 
+    has_sec_filing_hint = bool(SEC_FILING_PATTERN.search(prompt))
     explicit_domains = DOMAIN_PATTERN.findall(prompt)
     hinted_domains = [
         domain
@@ -540,16 +562,16 @@ def _infer_prompt_include_domains(prompt: str) -> list[str]:
         for domain in domains
     ]
     should_scope_to_official_sources = bool(
-        OFFICIAL_SOURCE_PATTERN.search(prompt) or SEC_FILING_PATTERN.search(prompt)
+        OFFICIAL_SOURCE_PATTERN.search(prompt) or has_sec_filing_hint
     )
     if not should_scope_to_official_sources and not explicit_domains:
         return []
 
-    inferred_domains = (
-        ["sec.gov", *explicit_domains, *hinted_domains]
-        if SEC_FILING_PATTERN.search(prompt)
-        else [*explicit_domains, *hinted_domains]
-    )
+    inferred_domains = [
+        *(["sec.gov"] if has_sec_filing_hint else []),
+        *explicit_domains,
+        *hinted_domains,
+    ]
     normalized_domains = AgentRunRetrievalPolicy.model_validate(
         {"search": {"include_domains": inferred_domains}}
     ).search.include_domains
@@ -612,16 +634,16 @@ def _build_retrieval_brief(
 def _build_search_plan(retrieval_policy: AgentRunRetrievalPolicy) -> str:
     scope_terms: list[str] = []
     if retrieval_policy.search.freshness != "any":
-        scope_terms.append(f"prefer {retrieval_policy.search.freshness}-fresh sources")
+        scope_terms.append(
+            f"prefer {retrieval_policy.search.freshness}-fresh sources"
+        )
     if retrieval_policy.search.include_domains:
         scope_terms.append(
-            "stay within "
-            + ", ".join(retrieval_policy.search.include_domains)
+            "stay within " + ", ".join(retrieval_policy.search.include_domains)
         )
     if retrieval_policy.search.exclude_domains:
         scope_terms.append(
-            "avoid "
-            + ", ".join(retrieval_policy.search.exclude_domains)
+            "avoid " + ", ".join(retrieval_policy.search.exclude_domains)
         )
     if not scope_terms:
         return (

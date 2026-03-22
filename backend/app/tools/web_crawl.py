@@ -5,9 +5,16 @@ from typing import Any, Callable
 
 from langchain_core.tools import tool
 from pydantic import ValidationError
+from pydantic.networks import HttpUrl
 
 from backend.agent.types import AgentRunRetrievalPolicy
-from backend.app.contracts.web_crawl import WebCrawlError, WebCrawlInput, WebCrawlSuccess
+from backend.app.contracts.tool_errors import ToolMeta
+from backend.app.contracts.web_crawl import (
+    ExtractionResult,
+    WebCrawlError,
+    WebCrawlInput,
+    WebCrawlSuccess,
+)
 from backend.app.crawler.extractor import extract_content, extraction_result_from_fetch_failure
 from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchWorker
 from backend.app.tools._tool_utils import (
@@ -83,12 +90,9 @@ def run_web_crawl(
         return _build_crawl_success_payload(
             validated_input=validated_input,
             final_url=fetch_result.final_url,
-            extraction_text=extraction_result.text,
-            extraction_markdown=extraction_result.markdown,
-            excerpts=extraction_result.excerpts,
+            extraction_result=extraction_result,
             status_code=fetch_result.status_code,
             content_type=fetch_result.content_type,
-            fallback_reason=extraction_result.fallback_reason,
             meta=fetch_result.meta,
         )
     except ValidationError as exc:
@@ -140,12 +144,9 @@ def _build_fetch_failure_success(
     return _build_crawl_success_payload(
         validated_input=validated_input,
         final_url=fetch_result.final_url or validated_input.url,
-        extraction_text=extraction_result.text,
-        extraction_markdown=extraction_result.markdown,
-        excerpts=extraction_result.excerpts,
+        extraction_result=extraction_result,
         status_code=fetch_result.status_code or 200,
         content_type=fetch_result.content_type or "application/octet-stream",
-        fallback_reason=extraction_result.fallback_reason,
         meta=fetch_result.meta,
     )
 
@@ -153,25 +154,22 @@ def _build_fetch_failure_success(
 def _build_crawl_success_payload(
     *,
     validated_input: WebCrawlInput,
-    final_url: Any,
-    extraction_text: str,
-    extraction_markdown: str,
-    excerpts: Any,
+    final_url: HttpUrl | str,
+    extraction_result: ExtractionResult,
     status_code: int,
     content_type: str,
-    fallback_reason: str | None,
-    meta: Any,
+    meta: ToolMeta,
 ) -> dict[str, Any]:
     return WebCrawlSuccess(
         url=validated_input.url,
         final_url=final_url,
-        text=extraction_text,
-        markdown=extraction_markdown,
+        text=extraction_result.text,
+        markdown=extraction_result.markdown,
         objective=validated_input.objective,
-        excerpts=excerpts,
+        excerpts=extraction_result.excerpts,
         status_code=status_code,
         content_type=content_type,
-        fallback_reason=fallback_reason,
+        fallback_reason=extraction_result.fallback_reason,
         meta=meta,
     ).model_dump(mode="json")
 
