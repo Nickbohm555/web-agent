@@ -8,7 +8,7 @@ import {
   type RunHistoryRetentionMetadata,
   type RunHistoryRunSnapshot,
   type RunHistoryRunSummary,
-} from "../contracts.js";
+} from "./browser-contracts.js";
 import { resolveRunAnswer, segmentStructuredAnswer } from "./answer-rendering.js";
 import {
   createRun,
@@ -16,7 +16,7 @@ import {
   type RunStreamSubscription,
 } from "./api-client.js";
 import { initialRunState, reduceRunState, type RunState } from "./state.js";
-import type { RunMode } from "../contracts.js";
+import type { RunMode } from "./browser-contracts.js";
 import { toRunEventTimelineRows } from "./timeline.js";
 
 interface SelectedRunView {

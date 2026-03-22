@@ -9,7 +9,7 @@ import {
   type ToolCallEvent,
   type RunMode,
   createRunEventKey,
-} from "../contracts.js";
+} from "./browser-contracts.js";
 
 export type RunPhase = "idle" | "starting" | "running" | "completed" | "failed";
 type DraftRunEvent = Omit<CanonicalRunEvent, "event_seq" | "safety">;

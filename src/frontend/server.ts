@@ -2,7 +2,8 @@ import express, {
   type Application,
   Router,
 } from "express";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -22,7 +23,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "../..");
 const publicDir = path.join(projectRoot, "public");
 const publicIndexPath = path.join(publicDir, "index.html");
-const clientSourceDir = path.join(projectRoot, "src", "frontend", "client");
+const srcDir = path.join(projectRoot, "src");
+const frontendSourceDir = path.join(srcDir, "frontend");
 
 function createApiRouter(): Router {
   const router = Router();
@@ -59,10 +61,9 @@ export function createFrontendServerApp(): Application {
       options,
     );
   });
-  app.get("/client/:moduleName.js", async (req, res, next) => {
-    const sourcePath = path.join(clientSourceDir, `${req.params.moduleName}.ts`);
-
-    if (!sourcePath.startsWith(clientSourceDir)) {
+  app.get(/^\/(?<modulePath>.+)\.js$/, async (req, res, next) => {
+    const sourcePath = await resolveBrowserModuleSourcePath(req.path);
+    if (sourcePath === null) {
       next();
       return;
     }
@@ -96,6 +97,42 @@ export function createFrontendServerApp(): Application {
   });
 
   return app;
+}
+
+async function resolveBrowserModuleSourcePath(requestPath: string): Promise<string | null> {
+  const match = /^\/(?<modulePath>.+)\.js$/.exec(requestPath);
+  const modulePath = match?.groups?.modulePath;
+  if (modulePath === undefined) {
+    return null;
+  }
+
+  const normalizedModulePath = path.posix.normalize(modulePath);
+  if (
+    normalizedModulePath.length === 0 ||
+    normalizedModulePath.startsWith("../") ||
+    normalizedModulePath.includes("/../")
+  ) {
+    return null;
+  }
+
+  const candidateRelativePath = normalizedModulePath.replace(/^\/+/, "") + ".ts";
+  const candidateRoots = [frontendSourceDir, srcDir];
+
+  for (const root of candidateRoots) {
+    const candidatePath = path.resolve(root, candidateRelativePath);
+    if (!candidatePath.startsWith(root + path.sep)) {
+      continue;
+    }
+
+    try {
+      await access(candidatePath, fsConstants.R_OK);
+      return candidatePath;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
 
 export async function startFrontendServer(port = DEFAULT_PORT) {

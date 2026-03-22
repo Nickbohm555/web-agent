@@ -2,7 +2,7 @@ import {
   createRunEventKey,
   type CanonicalRunEvent,
   type CanonicalRunEventPayloadSafety,
-} from "../contracts.js";
+} from "./browser-contracts.js";
 import type { ToolCallRecord } from "./state.js";
 
 export interface TimelineRow {

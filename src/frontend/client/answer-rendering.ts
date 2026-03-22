@@ -1,11 +1,11 @@
 import {
-  RunSourceSchema,
-  StructuredAnswerSchema,
+  parseRunSourceListOrNull,
+  parseStructuredAnswerOrNull,
   type CanonicalRunEvent,
   type RunSource,
   type StructuredAnswer,
   type StructuredAnswerCitation,
-} from "../contracts.js";
+} from "./browser-contracts.js";
 
 export interface AnswerTextSegment {
   kind: "text";
@@ -43,16 +43,16 @@ export function resolveRunAnswer(
 
     const record = payload as Record<string, unknown>;
     if (structuredAnswer === null) {
-      const parsedAnswer = StructuredAnswerSchema.safeParse(record.answer);
-      if (parsedAnswer.success) {
-        structuredAnswer = parsedAnswer.data;
+      const parsedAnswer = parseStructuredAnswerOrNull(record.answer);
+      if (parsedAnswer !== null) {
+        structuredAnswer = parsedAnswer;
       }
     }
 
     if (sources.length === 0) {
-      const parsedSources = RunSourceSchema.array().safeParse(record.sources);
-      if (parsedSources.success) {
-        sources = parsedSources.data;
+      const parsedSources = parseRunSourceListOrNull(record.sources);
+      if (parsedSources !== null) {
+        sources = parsedSources;
       }
     }
 

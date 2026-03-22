@@ -8,7 +8,7 @@ import {
   type RunStateEvent,
   type RunStreamEvent,
   type ToolCallEvent,
-} from "../contracts.js";
+} from "./browser-contracts.js";
 
 export interface RunStartRequest {
   prompt: string;
