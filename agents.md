@@ -8,8 +8,8 @@
 5. Prefer explicit Pydantic request/response models for backend contracts and tool return values instead of raw `dict[str, Any]` payloads whenever the shape is known.
 6. For backend functions in `backend/app/tools/**`, include a concise docstring with a short description of what the function does plus one example input and one example output whenever the function shape is stable enough to document.
 7. When building documentation with flowcharts or diagrams, prefer a decision-tree style flow that starts from the shared entrypoint and then branches by mode, route, feature flag, provider, or runtime decision. For each branch, show the differing inputs, config, downstream calls, and final outputs so implementation differences are obvious.
-8. Mermaid diagrams must be kept parser-safe and easy to render: prefer short plain-text node labels, avoid JSON-like braces or other dense structured literals inside nodes, and verify substantial Mermaid changes by rendering or parsing the diagram before you stop.
-9. A documentation flowchart is failing if the viewer shows raw Mermaid source such as `flowchart TD` in a fenced code block instead of a rendered graph. When that happens, simplify the Mermaid block immediately: shorter labels, fewer inline details, and move branch-specific inputs into normal markdown sections below the diagram.
+8. Use a diagram format that the target renderer actually supports. If the local markdown preview does not render Mermaid, do not ship Mermaid for that document. Switch to a plain text tree, ASCII flowchart, or markdown structure that renders reliably in the user’s environment.
+9. A documentation flowchart is failing if the viewer shows raw Mermaid source such as `flowchart TD` in a fenced code block instead of a rendered graph. When that happens, treat it as broken, replace it with a renderer-compatible format immediately, and move branch-specific inputs into normal markdown sections below the diagram.
 
 ## App Build + Debug Instructions (Operational)
 

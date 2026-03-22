@@ -30,41 +30,36 @@ This file shows the live runtime split from one incoming prompt to the final res
 
 ## Decision Tree
 
-```mermaid
-flowchart TD
-    A[Prompt] --> B[POST /api/runs]
-    B --> C[POST /api/agent/run]
-    C --> D[run_agent_once]
-    D --> E[resolve retrieval policy]
-    E --> F{mode}
-
-    F -->|quick| G[quick profile]
-    G --> H[run_quick_search]
-    H --> I[run_web_search]
-    I --> J[quick answer]
-    J --> Z[success response]
-
-    F -->|agentic| K[agentic profile]
-    K --> L[build agent and config]
-    L --> M{tool call}
-    M -->|search| N[web_search]
-    M -->|crawl| O[web_crawl]
-    N --> P[search response]
-    O --> Q[crawl response]
-    P --> R[final answer and sources]
-    Q --> R
-    R --> Z
-
-    F -->|deep_research| S[deep research profile]
-    S --> T[build agent and config]
-    T --> U{tool call}
-    U -->|search| V[web_search]
-    U -->|crawl| W[web_crawl]
-    V --> X[search response]
-    W --> Y[crawl response]
-    X --> AA[final answer and sources]
-    Y --> AA
-    AA --> Z
+```text
+Prompt
+└── POST /api/runs
+    └── POST /api/agent/run
+        └── run_agent_once
+            └── resolve retrieval policy
+                ├── quick
+                │   └── quick profile
+                │       └── run_quick_search
+                │           └── run_web_search
+                │               └── quick answer
+                │                   └── success response
+                ├── agentic
+                │   └── agentic profile
+                │       └── build agent and config
+                │           ├── web_search
+                │           │   └── search response
+                │           └── web_crawl
+                │               └── crawl response
+                │                   └── final answer and sources
+                │                       └── success response
+                └── deep_research
+                    └── deep research profile
+                        └── build agent and config
+                            ├── web_search
+                            │   └── search response
+                            └── web_crawl
+                                └── crawl response
+                                    └── final answer and sources
+                                        └── success response
 ```
 
 ## Branch Inputs
