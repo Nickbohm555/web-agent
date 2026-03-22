@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import AgentRunErrorResponse
-from backend.api.routes.run_execution import (
+from backend.api.services.agent_run import (
     AgentRuntimeRunner,
     execute_agent_run_request,
 )

@@ -15,9 +15,10 @@ def execute_agent_run_request(
     run_agent_once: AgentRuntimeRunner,
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    result = _run_agent_once_from_request(
-        run_agent_once=run_agent_once,
-        payload=payload,
+    result = run_agent_once(
+        payload.prompt,
+        payload.mode,
+        payload.retrieval_policy,
     )
 
     if result.status == "failed":
@@ -28,15 +29,3 @@ def execute_agent_run_request(
         )
 
     return AgentRunSuccessResponse.from_run_result(result)
-
-
-def _run_agent_once_from_request(
-    *,
-    run_agent_once: AgentRuntimeRunner,
-    payload: AgentRunRequest,
-) -> AgentRunResult:
-    return run_agent_once(
-        payload.prompt,
-        payload.mode,
-        payload.retrieval_policy,
-    )
