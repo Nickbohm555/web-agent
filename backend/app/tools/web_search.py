@@ -56,11 +56,7 @@ def build_web_search_tool(
 
     @tool("web_search", args_schema=WebSearchInput)
     def bounded_web_search(query: str, max_results: int = 5) -> WebSearchToolResult:
-        """Search the web and return typed results.
-
-        Example input: `{"query": "agent systems", "max_results": 3}`
-        Example output: `WebSearchResponse(query="agent systems", results=[...], ...)`
-        """
+        """Search the web, apply retrieval-policy domain scoping, and return typed search results or a typed error."""
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         search_policy = effective_policy.search
         domain_scope = domain_scope_kwargs(search_policy)

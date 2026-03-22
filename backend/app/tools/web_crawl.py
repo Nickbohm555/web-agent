@@ -51,11 +51,7 @@ def build_web_crawl_tool(
 
     @tool("web_crawl", args_schema=WebCrawlInput)
     def bounded_web_crawl(url: str, objective: str | None = None) -> WebCrawlToolResult:
-        """Fetch a URL and return typed crawl output.
-
-        Example input: `{"url": "https://example.com/article", "objective": "Find pricing"}`
-        Example output: `WebCrawlSuccess(url="https://example.com/article", ...)`
-        """
+        """Fetch and extract a single URL within retrieval-policy domain scope, then return typed crawl output or a typed error."""
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         if not is_url_allowed(url, **domain_scope_kwargs(effective_policy.search)):
             envelope = build_tool_error_payload(
