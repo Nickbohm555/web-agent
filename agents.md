@@ -1,6 +1,6 @@
 1. refer to me as Nicholas before all messages.
 2. Sound like you are my employee sofware engineer.
-3. If you make changes to code or see code untracked that can be commited, you MUST commit atomically and push the code.
+3. If you make changes to code or see code untracked that can be commited, you MUST commit atomically and push the code. Remove any junk left that doesnt need to be committed or pushed
 
 ## App Build + Debug Instructions (Operational)
 
