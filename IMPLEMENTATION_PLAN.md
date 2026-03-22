@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 8
+Current Section: 9
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -185,7 +185,7 @@ Completed: ✓ Expanded typed run-event progress stages with search, crawl, and 
 Commit Note:
 Commit and push this section atomically once its tests pass.
 
-## Section 8: Validate Objective-Driven Retrieval Accuracy And Regression Bounds
+## Section 8: Validate Objective-Driven Retrieval Accuracy And Regression Bounds ✓
 
 Task:
 Add focused regression coverage for objective-driven extraction, improved search excerpts, and automatic retrieval policy behavior before the final integrated validation pass.
@@ -207,6 +207,7 @@ Success looks like the upgraded retrieval flow passing focused backend and integ
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: ✓ Validated the retrieval regression set across objective-driven crawl, reranked search, runtime policy inference, and broader JS contract/build checks with `pytest backend/tests/tools/test_web_crawl_tool.py -q`, `pytest backend/tests/tools/test_web_search_tool.py -q`, `pytest backend/tests/agent/test_runtime.py -q`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
