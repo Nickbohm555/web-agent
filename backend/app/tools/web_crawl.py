@@ -8,8 +8,8 @@ from pydantic import ValidationError
 from pydantic.networks import HttpUrl
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
-from backend.app.schemas.tool_errors import ToolMeta
-from backend.app.schemas.web_crawl import (
+from backend.app.tools.schemas.tool_errors import ToolMeta
+from backend.app.tools.schemas.web_crawl import (
     ExtractionResult,
     WebCrawlError,
     WebCrawlInput,

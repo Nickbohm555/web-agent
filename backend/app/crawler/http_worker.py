@@ -4,8 +4,6 @@ from time import perf_counter
 
 import httpx
 
-from backend.app.schemas.http_fetch import HttpFetchFailure, HttpFetchSuccess
-from backend.app.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.core.retry import execute_with_retry
 from backend.app.crawler.content_types import SUPPORTED_CONTENT_TYPES
 from backend.app.crawler.http_errors import HttpFetchError, RetryableHttpFetchError
@@ -15,6 +13,8 @@ from backend.app.crawler.http_response import (
     read_body,
     validate_content_type,
 )
+from backend.app.crawler.schemas import HttpFetchFailure, HttpFetchSuccess
+from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 
 DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 DEFAULT_MAX_RESPONSE_BYTES = 1_000_000

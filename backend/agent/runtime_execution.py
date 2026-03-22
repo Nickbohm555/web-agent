@@ -38,7 +38,7 @@ from backend.agent.schemas import (
     AgentRunRetrievalPolicy,
     AgentRuntimeProfile,
 )
-from backend.app.schemas.web_search import WebSearchResponse
+from backend.app.tools.schemas.web_search import WebSearchResponse
 from backend.app.tools.web_crawl import build_web_crawl_tool, web_crawl
 from backend.app.tools.web_search import build_web_search_tool, web_search
 

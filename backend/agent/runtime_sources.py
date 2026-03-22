@@ -14,8 +14,8 @@ from backend.agent.schemas import (
     AgentSourceReference,
     AgentStructuredAnswer,
 )
-from backend.app.schemas.web_crawl import WebCrawlSuccess
-from backend.app.schemas.web_search import WebSearchResponse
+from backend.app.tools.schemas.web_crawl import WebCrawlSuccess
+from backend.app.tools.schemas.web_search import WebSearchResponse
 
 
 @dataclass

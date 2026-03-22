@@ -7,8 +7,8 @@ from typing import Any
 
 import httpx
 
-from backend.app.schemas.tool_errors import ToolMeta, ToolTimings
-from backend.app.schemas.web_search import SearchMetadata, SearchRank, WebSearchResponse, WebSearchResult
+from backend.app.tools.schemas.tool_errors import ToolMeta, ToolTimings
+from backend.app.tools.schemas.web_search import SearchMetadata, SearchRank, WebSearchResponse, WebSearchResult
 from backend.app.core.retry import execute_with_retry
 
 SERPER_SEARCH_URL = "https://google.serper.dev/search"

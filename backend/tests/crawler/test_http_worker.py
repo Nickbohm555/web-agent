@@ -2,7 +2,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from backend.app.schemas.web_crawl import (
+from backend.app.tools.schemas.web_crawl import (
     WebCrawlError,
     WebCrawlExcerpt,
     WebCrawlInput,

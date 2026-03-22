@@ -9,7 +9,7 @@ from backend.agent.runtime_constants import (
     QUICK_SEARCH_ERROR_MESSAGE_BY_KIND,
 )
 from backend.agent.schemas import AgentRunError, AgentRunResult
-from backend.app.schemas.tool_errors import ToolErrorEnvelope
+from backend.app.tools.schemas.tool_errors import ToolErrorEnvelope
 
 
 def coerce_tool_error(payload: object) -> ToolErrorEnvelope | None:

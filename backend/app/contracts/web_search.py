@@ -1,4 +1,4 @@
-from backend.app.schemas.web_search import (
+from backend.app.tools.schemas.web_search import (
     SearchMetadata,
     SearchRank,
     WebSearchError,

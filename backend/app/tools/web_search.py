@@ -12,7 +12,7 @@ from backend.agent.schemas import (
     AgentRunRetrievalSearchPolicy,
 )
 from backend.app.config import get_settings
-from backend.app.schemas.web_search import (
+from backend.app.tools.schemas.web_search import (
     SearchRank,
     WebSearchError,
     WebSearchInput,

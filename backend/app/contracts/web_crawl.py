@@ -1,4 +1,4 @@
-from backend.app.schemas.web_crawl import (
+from backend.app.tools.schemas.web_crawl import (
     CrawlFallbackReason,
     ExtractionResult,
     ExtractionState,

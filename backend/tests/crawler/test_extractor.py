@@ -1,4 +1,4 @@
-from backend.app.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
+from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.crawler.extractor import (
     MIN_EXTRACTED_TEXT_CHARS,
     extract_content,

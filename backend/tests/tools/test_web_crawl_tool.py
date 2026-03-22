@@ -3,8 +3,8 @@ import importlib
 import httpx
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
-from backend.app.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
-from backend.app.schemas.web_crawl import WebCrawlError, WebCrawlSuccess
+from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
+from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.tools.web_crawl import (
     build_web_crawl_action_record,
