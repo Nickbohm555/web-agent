@@ -58,7 +58,7 @@ flowchart TD
     J1 --> J2[profile<br/>model=gpt-4.1-mini<br/>execution_mode=bounded_agent_loop<br/>recursion_limit=12<br/>max_tool_steps=6<br/>max_search_results=4<br/>max_crawl_chars=4000]
     J2 --> J3[build_system_prompt plus retrieval brief]
     J3 --> J4[build_runtime_config]
-    J4 --> J5[agent.invoke inputs<br/>messages=[{role:user, content:prompt}]<br/>config.run_mode=agentic<br/>config.execution_mode=bounded_agent_loop<br/>config.tool_limits={steps:6, search:4, crawl:4000}<br/>config.retrieval_policy=effective policy]
+    J4 --> J5[agent.invoke inputs<br/>messages user prompt<br/>run_mode agentic<br/>execution_mode bounded_agent_loop<br/>tool_limits steps 6 search 4 crawl 4000<br/>retrieval_policy effective policy]
     J5 --> J6[Agent may call web_search or web_crawl]
     J6 --> Z
 
@@ -66,7 +66,7 @@ flowchart TD
     K1 --> K2[profile<br/>model=gpt-4.1<br/>execution_mode=background_research<br/>recursion_limit=24<br/>max_tool_steps=16<br/>max_search_results=8<br/>max_crawl_chars=12000]
     K2 --> K3[build_system_prompt plus retrieval brief]
     K3 --> K4[build_runtime_config]
-    K4 --> K5[agent.invoke inputs<br/>messages=[{role:user, content:prompt}]<br/>config.run_mode=deep_research<br/>config.execution_mode=background_research<br/>config.tool_limits={steps:16, search:8, crawl:12000}<br/>config.retrieval_policy=effective policy]
+    K4 --> K5[agent.invoke inputs<br/>messages user prompt<br/>run_mode deep_research<br/>execution_mode background_research<br/>tool_limits steps 16 search 8 crawl 12000<br/>retrieval_policy effective policy]
     K5 --> K6[Agent may call web_search or web_crawl]
     K6 --> Z
 
@@ -76,22 +76,22 @@ flowchart TD
     K6 --> T
 
     S --> S1[LangChain tool name web_search]
-    S1 --> S2[input schema WebSearchInput<br/>{ query: string, max_results: 1..10 }]
+    S1 --> S2[input schema WebSearchInput<br/>query string<br/>max_results 1 to 10]
     S2 --> S3[tool wrapper applies caps and domain scope]
     S3 --> S4[run_web_search inputs<br/>query=possibly scoped query<br/>max_results=min(requested, profile cap)<br/>freshness=policy.search.freshness]
     S4 --> S5[SerperClient.search inputs<br/>query<br/>max_results<br/>freshness]
-    S5 --> S6[WebSearchResponse<br/>{ query, results[], metadata, meta }]
+    S5 --> S6[WebSearchResponse<br/>query results metadata meta]
 
     T --> T1[LangChain tool name web_crawl]
-    T1 --> T2[input schema WebCrawlInput<br/>{ url: http/https URL, objective?: string }]
+    T1 --> T2[input schema WebCrawlInput<br/>url http or https<br/>objective optional string]
     T2 --> T3[tool wrapper rejects URLs outside policy search domain scope]
     T3 --> T4[run_web_crawl inputs<br/>url<br/>objective]
     T4 --> T5[HttpFetchWorker.fetch input<br/>url]
     T5 --> T6[extract_content inputs<br/>body<br/>content_type<br/>objective]
-    T6 --> T7[WebCrawlSuccess<br/>{ url, final_url, text, markdown, objective, excerpts[], status_code, content_type, fallback_reason, meta }]
+    T6 --> T7[WebCrawlSuccess<br/>url final_url text markdown objective excerpts<br/>status_code content_type fallback_reason meta]
 
     Z --> Z1[extract_final_answer plus extract_sources]
-    Z1 --> Z2[HTTP response AgentRunSuccessResponse<br/>{ run_id, status, final_answer, sources, tool_call_count, elapsed_ms, metadata }]
+    Z1 --> Z2[HTTP response AgentRunSuccessResponse<br/>run_id status final_answer sources tool_call_count elapsed_ms metadata]
 ```
 
 ## Branch Inputs
