@@ -1,68 +1,23 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from time import perf_counter
 
 import httpx
 
-from backend.app.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
+from backend.app.contracts.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.core.retry import execute_with_retry
+from backend.app.crawler.content_types import SUPPORTED_CONTENT_TYPES
+from backend.app.crawler.http_errors import HttpFetchError, RetryableHttpFetchError
+from backend.app.crawler.http_models import HttpFetchFailure, HttpFetchSuccess
+from backend.app.crawler.http_response import (
+    normalized_content_type,
+    raise_for_status,
+    read_body,
+    validate_content_type,
+)
 
 DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 DEFAULT_MAX_RESPONSE_BYTES = 1_000_000
-SUPPORTED_CONTENT_TYPES = ("text/html", "application/xhtml+xml")
-
-
-@dataclass(frozen=True)
-class HttpFetchSuccess:
-    url: str
-    final_url: str
-    status_code: int
-    content_type: str
-    body: str
-    meta: ToolMeta
-
-
-@dataclass(frozen=True)
-class HttpFetchFailure:
-    url: str
-    final_url: str | None
-    status_code: int | None
-    content_type: str | None
-    error: ToolError
-    meta: ToolMeta
-
-
-class HttpFetchError(Exception):
-    def __init__(
-        self,
-        *,
-        kind: str,
-        message: str,
-        retryable: bool,
-        status_code: int | None = None,
-        attempt_number: int | None = None,
-        final_url: str | None = None,
-        content_type: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.kind = kind
-        self.message = message
-        self.retryable = retryable
-        self.status_code = status_code
-        self.attempt_number = attempt_number
-        self.final_url = final_url
-        self.content_type = content_type
-
-
-class RetryableHttpFetchError(HttpFetchError):
-    def __init__(self, **kwargs: object) -> None:
-        super().__init__(retryable=True, **kwargs)
-
-
-class NonRetryableHttpFetchError(HttpFetchError):
-    def __init__(self, **kwargs: object) -> None:
-        super().__init__(retryable=False, **kwargs)
 
 
 class HttpFetchWorker:
@@ -90,8 +45,8 @@ class HttpFetchWorker:
                     attempt_number=attempt_number,
                 ) from exc
 
-            self._raise_for_status(response, attempt_number=attempt_number)
-            self._validate_content_type(response, attempt_number=attempt_number)
+            raise_for_status(response, attempt_number=attempt_number)
+            validate_content_type(response, attempt_number=attempt_number)
             return response
 
         try:
@@ -107,7 +62,7 @@ class HttpFetchWorker:
                 url=url,
                 final_url=str(response.url),
                 status_code=response.status_code,
-                content_type=_normalized_content_type(response),
+                content_type=normalized_content_type(response),
                 body=body,
                 meta=ToolMeta(
                     operation="web_crawl",
@@ -151,70 +106,8 @@ class HttpFetchWorker:
         with httpx.Client(follow_redirects=True) as client:
             return client.get(url, timeout=self._timeout)
 
-    def _raise_for_status(self, response: httpx.Response, *, attempt_number: int) -> None:
-        status_code = response.status_code
-        if status_code == 429 or status_code >= 500:
-            raise RetryableHttpFetchError(
-                kind="http_error",
-                message="origin returned a retryable HTTP status",
-                status_code=status_code,
-                attempt_number=attempt_number,
-                final_url=str(response.url),
-                content_type=_normalized_content_type(response),
-            )
-        if 400 <= status_code < 500:
-            raise NonRetryableHttpFetchError(
-                kind="http_error",
-                message="origin returned a terminal HTTP status",
-                status_code=status_code,
-                attempt_number=attempt_number,
-                final_url=str(response.url),
-                content_type=_normalized_content_type(response),
-            )
-
-    def _validate_content_type(self, response: httpx.Response, *, attempt_number: int) -> None:
-        content_type = _normalized_content_type(response)
-        if not any(content_type.startswith(value) for value in SUPPORTED_CONTENT_TYPES):
-            raise NonRetryableHttpFetchError(
-                kind="unsupported_content_type",
-                message="origin returned an unsupported content type",
-                status_code=response.status_code,
-                attempt_number=attempt_number,
-                final_url=str(response.url),
-                content_type=content_type or None,
-            )
-
     def _read_body(self, response: httpx.Response) -> str:
-        declared_length = response.headers.get("content-length")
-        if declared_length is not None:
-            try:
-                if int(declared_length) > self._max_response_bytes:
-                    raise NonRetryableHttpFetchError(
-                        kind="response_too_large",
-                        message="response exceeded the maximum allowed size",
-                        status_code=response.status_code,
-                        attempt_number=1,
-                        final_url=str(response.url),
-                        content_type=_normalized_content_type(response) or None,
-                    )
-            except ValueError:
-                pass
-
-        body = response.text
-        if len(body.encode(response.encoding or "utf-8", errors="ignore")) > self._max_response_bytes:
-            raise NonRetryableHttpFetchError(
-                kind="response_too_large",
-                message="response exceeded the maximum allowed size",
-                status_code=response.status_code,
-                attempt_number=1,
-                final_url=str(response.url),
-                content_type=_normalized_content_type(response) or None,
-            )
-        return body
-
-
-def _normalized_content_type(response: httpx.Response) -> str:
-    return response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        return read_body(response, max_response_bytes=self._max_response_bytes)
 
 
 def _elapsed_ms(start: float) -> int:

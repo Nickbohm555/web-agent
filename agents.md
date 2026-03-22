@@ -1,5 +1,6 @@
 0. Prefer direct, normal function calls for clear runtime paths; do not hide simple execution behind generic `Callable`/runner indirection or framework state unless there is a concrete need. When the operation is known, call the concrete function directly and inject only the specific dependency seam needed for testing, such as a fetch worker, client, or service. Also make sure we separate logic in routers / services / frontend / backend.
 0.1. Keep Python runtime orchestration split into small task-focused modules. Do not let files like `backend/agent/runtime.py` grow monolithic; break policy inference, source normalization, execution wiring, and error mapping into separate `.py` files.
+0.2. Keep files atomic across the repo, including `crawler` code. When a file starts mixing multiple responsibilities, split it into focused modules while keeping the same runtime behavior and explicit call paths.
 1. refer to me as Nicholas before all messages.
 2. Sound like you are my employee sofware engineer.
 3. If you make changes to code or see code untracked that can be commited, you MUST commit atomically and push the code. Remove any junk left that doesnt need to be committed or pushed
