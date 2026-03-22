@@ -32,66 +32,39 @@ This file shows the live runtime split from one incoming prompt to the final res
 
 ```mermaid
 flowchart TD
-    A[Prompt submitted from browser] --> B[POST /api/runs<br/>src/frontend/routes/runs.ts]
-    B --> C[Proxy to backend executor]
-    C --> D[POST /api/agent/run<br/>backend/api/routes/agent_run.py]
-    D --> E[execute_agent_run_request(payload)]
-    E --> F[run_agent_once(prompt, mode, retrieval_policy)]
-    F --> G[resolve_effective_retrieval_policy(prompt, retrieval_policy)]
-    G --> H{mode}
+    A[Prompt] --> B[POST /api/runs]
+    B --> C[POST /api/agent/run]
+    C --> D[run_agent_once]
+    D --> E[resolve retrieval policy]
+    E --> F{mode}
 
-    H -->|quick| I[Quick search branch]
-    H -->|agentic| J[Agentic branch]
-    H -->|deep_research| K[Deep research branch]
+    F -->|quick| G[quick profile]
+    G --> H[run_quick_search]
+    H --> I[run_web_search]
+    I --> J[quick answer]
+    J --> Z[success response]
 
-    I --> I1[get_runtime_profile quick]
-    I1 --> I2[profile<br/>model=gpt-4.1-mini<br/>execution_mode=single_pass<br/>recursion_limit=4<br/>max_tool_steps=1<br/>max_search_results=5<br/>max_crawl_chars=0]
-    I2 --> I3[run_quick_mode]
-    I3 --> I4[run_quick_search inputs<br/>query=prompt<br/>max_results=5<br/>freshness=policy.search.freshness<br/>include_domains=policy.search.include_domains<br/>exclude_domains=policy.search.exclude_domains]
-    I4 --> I5[run_web_search inputs<br/>query=scoped prompt with site terms if needed<br/>max_results=5<br/>freshness=policy.search.freshness]
-    I5 --> I6[Serper search]
-    I6 --> I7[WebSearchResponse]
-    I7 --> I8[synthesize_quick_answer]
-    I8 --> Z[AgentRunSuccessResponse]
+    F -->|agentic| K[agentic profile]
+    K --> L[build agent and config]
+    L --> M{tool call}
+    M -->|search| N[web_search]
+    M -->|crawl| O[web_crawl]
+    N --> P[search response]
+    O --> Q[crawl response]
+    P --> R[final answer and sources]
+    Q --> R
+    R --> Z
 
-    J --> J1[get_runtime_profile agentic]
-    J1 --> J2[profile<br/>model=gpt-4.1-mini<br/>execution_mode=bounded_agent_loop<br/>recursion_limit=12<br/>max_tool_steps=6<br/>max_search_results=4<br/>max_crawl_chars=4000]
-    J2 --> J3[build_system_prompt plus retrieval brief]
-    J3 --> J4[build_runtime_config]
-    J4 --> J5[agent.invoke inputs<br/>messages user prompt<br/>run_mode agentic<br/>execution_mode bounded_agent_loop<br/>tool_limits steps 6 search 4 crawl 4000<br/>retrieval_policy effective policy]
-    J5 --> J6[Agent may call web_search or web_crawl]
-    J6 --> Z
-
-    K --> K1[get_runtime_profile deep_research]
-    K1 --> K2[profile<br/>model=gpt-4.1<br/>execution_mode=background_research<br/>recursion_limit=24<br/>max_tool_steps=16<br/>max_search_results=8<br/>max_crawl_chars=12000]
-    K2 --> K3[build_system_prompt plus retrieval brief]
-    K3 --> K4[build_runtime_config]
-    K4 --> K5[agent.invoke inputs<br/>messages user prompt<br/>run_mode deep_research<br/>execution_mode background_research<br/>tool_limits steps 16 search 8 crawl 12000<br/>retrieval_policy effective policy]
-    K5 --> K6[Agent may call web_search or web_crawl]
-    K6 --> Z
-
-    J6 --> S[web_search tool]
-    K6 --> S
-    J6 --> T[web_crawl tool]
-    K6 --> T
-
-    S --> S1[LangChain tool name web_search]
-    S1 --> S2[input schema WebSearchInput<br/>query string<br/>max_results 1 to 10]
-    S2 --> S3[tool wrapper applies caps and domain scope]
-    S3 --> S4[run_web_search inputs<br/>query=possibly scoped query<br/>max_results=min(requested, profile cap)<br/>freshness=policy.search.freshness]
-    S4 --> S5[SerperClient.search inputs<br/>query<br/>max_results<br/>freshness]
-    S5 --> S6[WebSearchResponse<br/>query results metadata meta]
-
-    T --> T1[LangChain tool name web_crawl]
-    T1 --> T2[input schema WebCrawlInput<br/>url http or https<br/>objective optional string]
-    T2 --> T3[tool wrapper rejects URLs outside policy search domain scope]
-    T3 --> T4[run_web_crawl inputs<br/>url<br/>objective]
-    T4 --> T5[HttpFetchWorker.fetch input<br/>url]
-    T5 --> T6[extract_content inputs<br/>body<br/>content_type<br/>objective]
-    T6 --> T7[WebCrawlSuccess<br/>url final_url text markdown objective excerpts<br/>status_code content_type fallback_reason meta]
-
-    Z --> Z1[extract_final_answer plus extract_sources]
-    Z1 --> Z2[HTTP response AgentRunSuccessResponse<br/>run_id status final_answer sources tool_call_count elapsed_ms metadata]
+    F -->|deep_research| S[deep research profile]
+    S --> T[build agent and config]
+    T --> U{tool call}
+    U -->|search| V[web_search]
+    U -->|crawl| W[web_crawl]
+    V --> X[search response]
+    W --> Y[crawl response]
+    X --> AA[final answer and sources]
+    Y --> AA
+    AA --> Z
 ```
 
 ## Branch Inputs
@@ -377,6 +350,52 @@ All three branches normalize back into the same backend response shape:
   }
 }
 ```
+
+## Implemented Features
+
+These are the feature areas from [`clone.md`](/Users/nickbohm/Desktop/Tinkering/web-agent/clone.md) that are implemented in this repo today and where they appear in the runtime tree above.
+
+### 1. Search API Natural-Language Web Search With Agent-Facing Excerpts
+
+- Implemented here as `web_search` plus quick-mode single-pass search.
+- Runtime path: `run_quick_mode -> run_quick_search -> run_web_search` and agent tool path `web_search -> run_web_search`.
+- Current repo behavior includes query-aware reranking, tighter excerpts, normalized result metadata, and shared source extraction.
+
+### 2. Extract API Objective-Driven Page Extraction
+
+- Implemented here as `web_crawl`.
+- Runtime path: `web_crawl -> run_web_crawl -> HttpFetchWorker.fetch -> extract_content`.
+- Current repo behavior includes optional `objective` input, excerpt selection for long pages, normalized markdown/text output, and fallback handling for low-quality or unsupported content.
+
+### 3. Source Policy Domain And Freshness Controls
+
+- Implemented here as `retrieval_policy` on the shared run request contract.
+- Runtime path: `AgentRunRequest.retrieval_policy -> resolve_effective_retrieval_policy -> tool wrappers and quick search inputs`.
+- Current repo behavior includes include/exclude domain controls, freshness controls, and prompt-driven policy inference for official-source and recency intent.
+
+### 4. Multi-Mode Grounded Run Profiles
+
+- Implemented here as the shared `quick`, `agentic`, and `deep_research` modes.
+- Runtime path: `run_agent_once -> resolve_effective_retrieval_policy -> get_runtime_profile -> mode branch`.
+- Current repo behavior keeps one browser/backend contract while switching model, execution mode, tool budgets, and background-research depth by profile.
+
+### 5. Citation-Rich Structured Answers And Source Lists
+
+- Implemented here in the final backend response contract and frontend completion handling.
+- Runtime path: `extract_final_answer plus extract_sources -> AgentRunSuccessResponse`.
+- Current repo behavior returns structured answer content, normalized `sources`, and frontend-renderable citation data instead of only a flat answer string.
+
+### 6. Granular Basis Verification
+
+- Implemented here in the structured answer payload.
+- Runtime path: final answer assembly after agent execution, before `AgentRunSuccessResponse`.
+- Current repo behavior supports optional per-claim and per-list-item `basis` evidence references validated against the safe source registry.
+
+### 7. Streaming Retrieval Transparency And Run History
+
+- Implemented here in the browser route and client state layers around the same runtime.
+- Runtime path: `src/frontend/routes/runs.ts` emits run events that the client and stored history replay consume.
+- Current repo behavior streams typed search/crawl/verification milestones, preserves them in run history, and rehydrates them in the frontend timeline.
 
 ## Source Files
 
