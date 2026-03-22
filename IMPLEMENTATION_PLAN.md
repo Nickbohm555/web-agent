@@ -1,5 +1,5 @@
 # Implementation Plan
-Current Section: 9
+Current Section: 10
 
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
@@ -235,6 +235,7 @@ Success looks like the retrieval stack passing both focused accuracy-oriented te
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
+Completed: ✓ Aligned backend agent-run route regressions with the shipped structured-answer `basis` contract, added explicit basis preservation coverage, and verified with `npm install`, `npm run typecheck`, `npm run test`, `npm run build`, and `pytest backend/tests -q`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.

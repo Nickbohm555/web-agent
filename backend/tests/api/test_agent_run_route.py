@@ -116,6 +116,7 @@ def test_run_success_contract_normalizes_required_response_fields() -> None:
         "final_answer": {
             "text": "One source summary.",
             "citations": [],
+            "basis": [],
         },
         "sources": [
             {
@@ -178,6 +179,7 @@ def test_run_success_contract_preserves_structured_citations() -> None:
                     "end_index": 5,
                 }
             ],
+            "basis": [],
         },
         "sources": [
             {
@@ -194,6 +196,68 @@ def test_run_success_contract_preserves_structured_citations() -> None:
             "elapsed_ms": 33,
         },
     }
+
+
+def test_run_success_contract_preserves_granular_basis_items() -> None:
+    result = AgentRunResult(
+        run_id="run-789",
+        status="completed",
+        final_answer={
+            "text": "Alpha leads. Beta follows.",
+            "citations": [
+                {
+                    "source_id": "alpha-report",
+                    "title": "Alpha report",
+                    "url": "https://example.com/alpha",
+                    "start_index": 0,
+                    "end_index": 12,
+                }
+            ],
+            "basis": [
+                {
+                    "kind": "claim",
+                    "text": "Alpha leads.",
+                    "citations": [
+                        {
+                            "source_id": "alpha-report",
+                            "title": "Alpha report",
+                            "url": "https://example.com/alpha",
+                            "start_index": 0,
+                            "end_index": 12,
+                        }
+                    ],
+                }
+            ],
+        },
+        sources=[
+            {
+                "source_id": "alpha-report",
+                "title": "Alpha report",
+                "url": "https://example.com/alpha",
+                "snippet": "Alpha evidence.",
+            }
+        ],
+        tool_call_count=1,
+        elapsed_ms=34,
+    )
+
+    payload = AgentRunSuccessResponse.from_run_result(result)
+
+    assert payload.model_dump(mode="json")["final_answer"]["basis"] == [
+        {
+            "kind": "claim",
+            "text": "Alpha leads.",
+            "citations": [
+                {
+                    "source_id": "alpha-report",
+                    "title": "Alpha report",
+                    "url": "https://example.com/alpha",
+                    "start_index": 0,
+                    "end_index": 12,
+                }
+            ],
+        }
+    ]
 
 
 @pytest.mark.parametrize(
@@ -293,6 +357,7 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
         "final_answer": {
             "text": f"{mode} source summary.",
             "citations": [],
+            "basis": [],
         },
         "sources": [
             {
