@@ -4,8 +4,7 @@ import math
 import re
 from collections import Counter
 
-from backend.app.contracts.web_crawl import ExtractionResult
-from backend.app.contracts.web_crawl import WebCrawlExcerpt
+from backend.app.contracts.web_crawl import ExtractionResult, WebCrawlExcerpt
 from backend.app.crawler.http_worker import HttpFetchFailure, SUPPORTED_CONTENT_TYPES
 
 import trafilatura
@@ -39,6 +38,7 @@ STOPWORDS = {
 }
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 MARKDOWN_PREFIX_PATTERN = re.compile(r"^\s{0,3}(?:[#>*-]+|\d+\.)\s*")
+PASSAGE_BREAK_PATTERN = re.compile(r"\n\s*\n")
 
 
 def extract_content(
@@ -49,55 +49,46 @@ def extract_content(
 ) -> ExtractionResult:
     normalized_content_type = (content_type or "").strip().lower()
     if not _is_supported_content_type(normalized_content_type):
-        return ExtractionResult(
+        return _build_empty_extraction_result(
             state="unsupported-content-type",
-            text="",
-            markdown="",
-            excerpts=[],
             fallback_reason="unsupported-content-type",
         )
 
     markdown = _extract_output(body=body, output_format="markdown")
     text = _extract_output(body=body, output_format="txt")
+    full_markdown = markdown or text
     if len(text) < MIN_EXTRACTED_TEXT_CHARS:
         return ExtractionResult(
             state="low-content-quality",
             text=text,
-            markdown=markdown,
+            markdown=full_markdown,
             excerpts=[],
             fallback_reason="low-content-quality",
         )
 
     excerpts = _select_objective_excerpts(
         text=text,
-        markdown=markdown or text,
+        markdown=full_markdown,
         objective=objective,
     )
     return ExtractionResult(
         state="ok",
         text=text,
-        markdown=markdown or text,
+        markdown=full_markdown,
         excerpts=excerpts,
         fallback_reason=None,
     )
 
 
 def extraction_result_from_fetch_failure(failure: HttpFetchFailure) -> ExtractionResult:
-    if failure.error.kind == "unsupported_content_type":
-        return ExtractionResult(
-            state="unsupported-content-type",
-            text="",
-            markdown="",
-            excerpts=[],
-            fallback_reason="unsupported-content-type",
-        )
-
-    return ExtractionResult(
-        state="network-error",
-        text="",
-        markdown="",
-        excerpts=[],
-        fallback_reason="network-error",
+    fallback_reason = (
+        "unsupported-content-type"
+        if failure.error.kind == "unsupported_content_type"
+        else "network-error"
+    )
+    return _build_empty_extraction_result(
+        state=fallback_reason,
+        fallback_reason=fallback_reason,
     )
 
 
@@ -141,7 +132,7 @@ def _select_objective_excerpts(
 
 
 def _segment_passages(*, markdown: str, text: str) -> list[WebCrawlExcerpt]:
-    blocks = re.split(r"\n\s*\n", markdown)
+    blocks = PASSAGE_BREAK_PATTERN.split(markdown)
     passages: list[WebCrawlExcerpt] = []
     seen_texts: set[str] = set()
 
@@ -251,3 +242,17 @@ def _tokenize(value: str) -> list[str]:
 
 def _normalize_whitespace(value: str) -> str:
     return " ".join(value.split()).strip()
+
+
+def _build_empty_extraction_result(
+    *,
+    state: str,
+    fallback_reason: str,
+) -> ExtractionResult:
+    return ExtractionResult(
+        state=state,
+        text="",
+        markdown="",
+        excerpts=[],
+        fallback_reason=fallback_reason,
+    )

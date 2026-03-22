@@ -93,6 +93,8 @@ export interface ResolvedRunRetrievalPolicy {
   fetch: Pick<ResolvedFetchControls, "maxAgeMs" | "fresh">;
 }
 
+type RetrievalFreshness = z.output<typeof RetrievalFreshnessSchema>;
+
 const ResolvedRunRetrievalPolicySchema = z.object({
   search: z.object({
     country: z.string().trim().min(1),
@@ -134,7 +136,7 @@ const WEEK_PATTERN =
 const MONTH_PATTERN = /\b(this month|past month|last month)\b/i;
 const YEAR_PATTERN = /\b(this year|past year|last year)\b/i;
 const DOMAIN_PATTERN = /\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi;
-const FETCH_MAX_AGE_BY_FRESHNESS: Record<z.output<typeof RetrievalFreshnessSchema>, number> = {
+const FETCH_MAX_AGE_BY_FRESHNESS: Record<RetrievalFreshness, number> = {
   any: FETCH_MAX_AGE_DEFAULT_MS,
   day: 60 * 60 * 1000,
   week: 6 * 60 * 60 * 1000,
@@ -177,23 +179,12 @@ export function resolveRunRetrievalPolicy(
   input?: unknown,
   prompt?: string,
 ): ResolvedRunRetrievalPolicy {
-  const inferred = inferRunRetrievalPolicy(prompt);
   const resolvedInput = ResolvedRunRetrievalPolicySchema.safeParse(input);
   if (resolvedInput.success) {
-    return {
-      search: {
-        country: resolvedInput.data.search.country.toUpperCase(),
-        language: resolvedInput.data.search.language.toLowerCase(),
-        freshness: resolvedInput.data.search.freshness,
-        domainScope: resolveDomainScope(resolvedInput.data.search.domainScope),
-      },
-      fetch: {
-        maxAgeMs: resolvedInput.data.fetch.maxAgeMs,
-        fresh: resolvedInput.data.fetch.fresh,
-      },
-    };
+    return normalizeResolvedRunRetrievalPolicy(resolvedInput.data);
   }
 
+  const inferred = inferRunRetrievalPolicy(prompt);
   const parsed = RunRetrievalPolicyInputSchema.parse(input ?? {});
   const search = resolveSearchControls({
     country: parsed.country ?? inferred.search.country,
@@ -243,9 +234,26 @@ export function inferRunRetrievalPolicy(prompt?: string): ResolvedRunRetrievalPo
   };
 }
 
+function normalizeResolvedRunRetrievalPolicy(
+  policy: z.output<typeof ResolvedRunRetrievalPolicySchema>,
+): ResolvedRunRetrievalPolicy {
+  return {
+    search: {
+      country: policy.search.country.toUpperCase(),
+      language: policy.search.language.toLowerCase(),
+      freshness: policy.search.freshness,
+      domainScope: resolveDomainScope(policy.search.domainScope),
+    },
+    fetch: {
+      maxAgeMs: policy.fetch.maxAgeMs,
+      fresh: policy.fetch.fresh,
+    },
+  };
+}
+
 function inferPromptFreshness(
   prompt: string,
-): z.output<typeof RetrievalFreshnessSchema> {
+): RetrievalFreshness {
   if (!prompt) {
     return "any";
   }
@@ -274,14 +282,15 @@ function inferPromptIncludeDomains(prompt: string): string[] {
   const hintedDomains = PROMPT_DOMAIN_HINTS.flatMap((hint) =>
     hint.pattern.test(prompt) ? hint.domains : [],
   );
+  const hasSecFilingHint = SEC_FILING_PATTERN.test(prompt);
   const shouldScopeToOfficialSources =
-    OFFICIAL_SOURCE_PATTERN.test(prompt) || SEC_FILING_PATTERN.test(prompt);
+    OFFICIAL_SOURCE_PATTERN.test(prompt) || hasSecFilingHint;
 
   if (!shouldScopeToOfficialSources && explicitDomains.length === 0) {
     return [];
   }
 
-  const domains = SEC_FILING_PATTERN.test(prompt)
+  const domains = hasSecFilingHint
     ? ["sec.gov", ...explicitDomains, ...hintedDomains]
     : [...explicitDomains, ...hintedDomains];
 
