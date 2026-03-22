@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
-from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
+from backend.api.schemas import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import AgentRunErrorResponse
 from backend.api.services.agent_run import execute_agent_run_request
 

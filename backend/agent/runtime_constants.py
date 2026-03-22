@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from backend.agent.quick_search import DEFAULT_QUICK_SEARCH_MAX_RESULTS
-from backend.agent.types import AgentRunMode, AgentRuntimeProfile
+from backend.agent.schemas import AgentRunMode, AgentRuntimeProfile
 
 
 CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")

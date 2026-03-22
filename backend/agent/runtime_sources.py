@@ -8,14 +8,14 @@ from urllib.parse import urlsplit, urlunsplit
 from pydantic import ValidationError
 
 from backend.agent.runtime_constants import CANONICAL_TOOL_NAMES
-from backend.agent.types import (
+from backend.agent.schemas import (
     AgentAnswerBasis,
     AgentAnswerCitation,
     AgentSourceReference,
     AgentStructuredAnswer,
 )
-from backend.app.contracts.web_crawl import WebCrawlSuccess
-from backend.app.contracts.web_search import WebSearchResponse
+from backend.app.schemas.web_crawl import WebCrawlSuccess
+from backend.app.schemas.web_search import WebSearchResponse
 
 
 @dataclass

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.agent.types import AgentRunResult
+from backend.agent.schemas import AgentRunResult
 
 
 class AgentRunApiError(BaseModel):

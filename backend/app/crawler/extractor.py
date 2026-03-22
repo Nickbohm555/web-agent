@@ -4,7 +4,7 @@ import math
 import re
 from collections import Counter
 
-from backend.app.contracts.web_crawl import ExtractionResult, WebCrawlExcerpt
+from backend.app.schemas.web_crawl import ExtractionResult, WebCrawlExcerpt
 from backend.app.crawler.http_worker import HttpFetchFailure, SUPPORTED_CONTENT_TYPES
 
 import trafilatura

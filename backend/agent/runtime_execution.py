@@ -32,13 +32,13 @@ from backend.agent.runtime_sources import (
     extract_search_sources,
     extract_sources,
 )
-from backend.agent.types import (
+from backend.agent.schemas import (
     AgentRunMode,
     AgentRunResult,
     AgentRunRetrievalPolicy,
     AgentRuntimeProfile,
 )
-from backend.app.contracts.web_search import WebSearchResponse
+from backend.app.schemas.web_search import WebSearchResponse
 from backend.app.tools.web_crawl import build_web_crawl_tool, web_crawl
 from backend.app.tools.web_search import build_web_search_tool, web_search
 

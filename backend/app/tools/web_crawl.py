@@ -7,9 +7,9 @@ from langchain_core.tools import tool
 from pydantic import ValidationError
 from pydantic.networks import HttpUrl
 
-from backend.agent.types import AgentRunRetrievalPolicy
-from backend.app.contracts.tool_errors import ToolMeta
-from backend.app.contracts.web_crawl import (
+from backend.agent.schemas import AgentRunRetrievalPolicy
+from backend.app.schemas.tool_errors import ToolMeta
+from backend.app.schemas.web_crawl import (
     ExtractionResult,
     WebCrawlError,
     WebCrawlInput,

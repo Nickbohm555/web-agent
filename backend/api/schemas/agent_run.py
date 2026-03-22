@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from backend.agent.types import (
+from backend.agent.schemas import (
     AgentStructuredAnswer,
     AgentRunMode,
     AgentRunResult,

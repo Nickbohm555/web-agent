@@ -2,9 +2,9 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from backend.app.contracts.tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
-from backend.agent.types import AgentRunRetrievalPolicy
-from backend.app.contracts.web_search import (
+from backend.app.schemas.tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
+from backend.agent.schemas import AgentRunRetrievalPolicy
+from backend.app.schemas.web_search import (
     SearchMetadata,
     SearchRank,
     WebSearchError,

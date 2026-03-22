@@ -17,8 +17,8 @@ from backend.agent.runtime import (
     get_runtime_profile,
     run_agent_once,
 )
-from backend.agent.types import AgentRunMode, AgentRunResult, AgentRuntimeProfile
-from backend.agent.types import AgentRunRetrievalPolicy
+from backend.agent.schemas import AgentRunMode, AgentRunResult, AgentRuntimeProfile
+from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
 

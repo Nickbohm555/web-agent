@@ -6,8 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from backend.agent.types import AgentRunError, AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
-from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
+from backend.agent.schemas import AgentRunError, AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
+from backend.api.schemas import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import map_runtime_failure
 from backend.api.services import agent_run as agent_run_service
 from backend.app.config import get_settings

@@ -5,7 +5,7 @@ from time import perf_counter
 
 import httpx
 
-from backend.app.contracts.tool_errors import ToolError, ToolMeta, ToolTimings
+from backend.app.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.core.retry import execute_with_retry
 
 DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
@@ -219,4 +219,3 @@ def _normalized_content_type(response: httpx.Response) -> str:
 
 def _elapsed_ms(start: float) -> int:
     return int((perf_counter() - start) * 1000)
-

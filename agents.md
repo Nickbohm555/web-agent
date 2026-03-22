@@ -6,6 +6,7 @@
 
 4. after you make frontend changes, be sure to refresh the docker container for frontend. same for backend. if we make project.toml or dockerfile changes then we have to make the container from scratch.
 5. Prefer explicit Pydantic request/response models for backend contracts and tool return values instead of raw `dict[str, Any]` payloads whenever the shape is known.
+5.1. Put Pydantic models in a `schemas` module/package, not `contracts`, `contractors`, or generic `types` files. When creating or moving backend request/response or tool payload models, standardize on `schemas`.
 6. For backend functions in `backend/app/tools/**`, include a concise docstring with a short description of what the function does plus one example input and one example output whenever the function shape is stable enough to document.
 6.1. For any user-facing LangChain or framework tool entrypoint declared with `@tool(...)` or similar tool registration, make the docstring/tool description explicitly match the real runtime behavior, limits, policy filters, and output shape. These user-facing tool descriptions do not need the example input/output convention.
 7. When building documentation with flowcharts or diagrams, prefer a decision-tree style flow that starts from the shared entrypoint and then branches by mode, route, feature flag, provider, or runtime decision. For each branch, show the differing inputs, config, downstream calls, and final outputs so implementation differences are obvious.

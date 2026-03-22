@@ -5,8 +5,8 @@ from urllib.parse import urlparse
 
 from pydantic import ValidationError
 
-from backend.agent.types import AgentRunRetrievalSearchPolicy
-from backend.app.contracts.tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
+from backend.agent.schemas import AgentRunRetrievalSearchPolicy
+from backend.app.schemas.tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
 
 
 def validation_error_message(exc: ValidationError) -> str:

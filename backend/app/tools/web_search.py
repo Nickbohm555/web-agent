@@ -7,12 +7,12 @@ from typing import Any, Callable
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from backend.agent.types import (
+from backend.agent.schemas import (
     AgentRunRetrievalPolicy,
     AgentRunRetrievalSearchPolicy,
 )
 from backend.app.config import get_settings
-from backend.app.contracts.web_search import (
+from backend.app.schemas.web_search import (
     SearchRank,
     WebSearchError,
     WebSearchInput,

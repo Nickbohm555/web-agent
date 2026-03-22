@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from backend.app.contracts.web_search import WebSearchResponse
+from backend.app.schemas.web_search import WebSearchResponse
 from backend.app.tools.web_search import run_web_search
 
 DEFAULT_QUICK_SEARCH_MAX_RESULTS = 5

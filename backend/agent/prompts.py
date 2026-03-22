@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.agent.types import AgentRunRetrievalPolicy, AgentRuntimeProfile
+from backend.agent.schemas import AgentRunRetrievalPolicy, AgentRuntimeProfile
 
 BASE_SYSTEM_PROMPT = """
 You are a web research agent.
