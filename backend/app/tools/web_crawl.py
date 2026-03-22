@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from time import perf_counter
-from typing import Any, Callable
+from typing import Any
 
 from langchain_core.tools import tool
 from pydantic import ValidationError
@@ -40,7 +40,7 @@ def build_web_crawl_tool(
     *,
     max_content_chars: int = 6000,
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
-    crawl_runner: Callable[..., WebCrawlToolResult] | None = None,
+    fetch_worker: HttpFetchWorker | None = None,
 ):
     """Build the bounded LangChain crawl tool.
 
@@ -48,7 +48,6 @@ def build_web_crawl_tool(
     Example output: `StructuredTool(name="web_crawl", ...)`
     """
     bounded_limit = max(0, max_content_chars)
-    runner = crawl_runner or run_web_crawl
 
     @tool("web_crawl", args_schema=WebCrawlInput)
     def bounded_web_crawl(url: str, objective: str | None = None) -> WebCrawlToolResult:
@@ -67,7 +66,11 @@ def build_web_crawl_tool(
                 operation="web_crawl",
             )
             return WebCrawlError(error=envelope.error, meta=envelope.meta)
-        payload = runner(url=url, objective=objective)
+        payload = run_web_crawl(
+            url=url,
+            objective=objective,
+            fetch_worker=fetch_worker,
+        )
         return _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
 
     return bounded_web_crawl
