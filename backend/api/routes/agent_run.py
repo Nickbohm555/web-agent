@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
-from backend.agent.types import AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import AgentRunErrorResponse
 from backend.api.services.agent_run import execute_agent_run_request
@@ -30,23 +27,13 @@ async def run_agent(
     response: Response,
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    run_agent_once = _get_run_agent_once(request)
-    route_response = execute_agent_run_request(run_agent_once, payload)
+    route_response = execute_agent_run_request(request, payload)
     if isinstance(route_response, JSONResponse):
         _set_route_headers(route_response)
         return route_response
 
     _set_route_headers(response)
     return route_response
-
-
-def _get_run_agent_once(
-    request: Request,
-) -> Callable[[str, AgentRunMode, AgentRunRetrievalPolicy], AgentRunResult]:
-    run_agent_once = getattr(request.app.state, "run_agent_once", None)
-    if run_agent_once is None:
-        raise RuntimeError("agent runtime is not configured")
-    return run_agent_once
 
 
 def _set_route_headers(response: Response) -> None:
