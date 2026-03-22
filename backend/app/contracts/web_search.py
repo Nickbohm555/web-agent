@@ -1,8 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
-from .tool_errors import ToolMeta
+from .tool_errors import ToolErrorEnvelope, ToolMeta
 
 
 class WebSearchInput(BaseModel):
@@ -83,3 +83,10 @@ class WebSearchResponse(BaseModel):
         if self.metadata.result_count != len(self.results):
             raise ValueError("metadata.result_count must match results length")
         return self
+
+
+class WebSearchError(ToolErrorEnvelope):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+WebSearchToolResult = Union[WebSearchResponse, WebSearchError]

@@ -1215,9 +1215,10 @@ def _normalize_content_value(content: Any) -> str:
 
 
 def _coerce_tool_error(payload: Any) -> ToolErrorEnvelope | None:
-    if not isinstance(payload, dict) or "error" not in payload:
+    try:
+        return ToolErrorEnvelope.model_validate(payload)
+    except Exception:
         return None
-    return ToolErrorEnvelope.model_validate(payload)
 
 
 def _get_quick_search_runner(runtime_dependencies: RuntimeDependencies) -> QuickSearchRunner:

@@ -54,24 +54,23 @@ def build_tool_action_error_record(
     action_type: str,
     subject_key: str,
     subject_value: str,
-    payload: dict[str, Any],
+    payload: Any,
 ) -> dict[str, Any] | None:
-    error = payload.get("error")
-    if not isinstance(error, dict):
+    try:
+        envelope = ToolErrorEnvelope.model_validate(payload)
+    except ValidationError:
         return None
 
     action_record: dict[str, Any] = {
         "action_type": action_type,
         subject_key: subject_value,
-        "error_kind": error.get("kind"),
-        "message": error.get("message"),
-        "retryable": error.get("retryable"),
+        "error_kind": envelope.error.kind,
+        "message": envelope.error.message,
+        "retryable": envelope.error.retryable,
     }
-    meta = payload.get("meta")
-    if isinstance(meta, dict):
-        action_record["attempts"] = meta.get("attempts")
-    if error.get("status_code") is not None:
-        action_record["status_code"] = error.get("status_code")
+    action_record["attempts"] = envelope.meta.attempts
+    if envelope.error.status_code is not None:
+        action_record["status_code"] = envelope.error.status_code
     return action_record
 
 

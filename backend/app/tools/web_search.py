@@ -12,7 +12,14 @@ from backend.agent.types import (
     AgentRunRetrievalSearchPolicy,
 )
 from backend.app.config import get_settings
-from backend.app.contracts.web_search import SearchRank, WebSearchInput, WebSearchResponse, WebSearchResult
+from backend.app.contracts.web_search import (
+    SearchRank,
+    WebSearchError,
+    WebSearchInput,
+    WebSearchResponse,
+    WebSearchResult,
+    WebSearchToolResult,
+)
 from backend.app.providers.serper_client import SerperClient, SerperClientError
 from backend.app.tools._tool_utils import (
     build_tool_action_error_record,
@@ -32,13 +39,13 @@ def build_web_search_tool(
     *,
     max_results_cap: int = 5,
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
-    search_runner: Callable[..., dict[str, Any]] | None = None,
+    search_runner: Callable[..., WebSearchToolResult] | None = None,
 ):
     bounded_cap = max(1, min(max_results_cap, 10))
     runner = search_runner or run_web_search
 
     @tool("web_search", args_schema=WebSearchInput)
-    def bounded_web_search(query: str, max_results: int = 5) -> dict[str, Any]:
+    def bounded_web_search(query: str, max_results: int = 5) -> WebSearchToolResult:
         """Search the web and return normalized results or a structured error envelope."""
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         search_policy = effective_policy.search
@@ -59,7 +66,7 @@ def run_web_search(
     max_results: int = 5,
     freshness: str = "any",
     client: SerperClient | None = None,
-) -> dict[str, Any]:
+) -> WebSearchToolResult:
     operation_start = perf_counter()
     try:
         validated_input = WebSearchInput(query=query, max_results=max_results)
@@ -73,7 +80,7 @@ def run_web_search(
             query=validated_input.query,
             response=validated_response,
         )
-        return optimized_response.model_dump(mode="json")
+        return optimized_response
     except ValidationError as exc:
         return _build_search_error_payload(
             operation_start=operation_start,
@@ -118,8 +125,8 @@ def _build_search_error_payload(
     status_code: int | None = None,
     attempt_number: int = 1,
     provider_ms: int | None = None,
-) -> dict[str, Any]:
-    return build_tool_error_payload(
+) -> WebSearchError:
+    return WebSearchError.model_validate(build_tool_error_payload(
         kind=kind,
         message=message,
         retryable=retryable,
@@ -128,7 +135,7 @@ def _build_search_error_payload(
         status_code=status_code,
         attempt_number=attempt_number,
         provider_ms=provider_ms,
-    )
+    ))
 
 
 def _apply_domain_scope_to_query(
@@ -146,9 +153,9 @@ def _apply_domain_scope_to_query(
 
 
 def _filter_search_payload_by_domain_scope(
-    payload: dict[str, Any],
+    payload: WebSearchToolResult,
     domain_scope: dict[str, list[str]],
-) -> dict[str, Any]:
+) -> WebSearchToolResult:
     if not has_domain_scope(**domain_scope):
         return payload
 
@@ -163,13 +170,13 @@ def _filter_search_payload_by_domain_scope(
         if is_url_allowed(str(result.url), **domain_scope)
     ]
 
-    return _with_updated_results(response, filtered_results).model_dump(mode="json")
+    return _with_updated_results(response, filtered_results)
 
 
 def build_web_search_action_record(
     *,
     query: str,
-    payload: dict[str, Any],
+    payload: Any,
     preview_limit: int = 3,
 ) -> dict[str, Any]:
     normalized_query = query.strip()

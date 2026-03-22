@@ -7,6 +7,7 @@ from backend.agent.types import AgentRunRetrievalPolicy
 from backend.app.contracts.web_search import (
     SearchMetadata,
     SearchRank,
+    WebSearchError,
     WebSearchInput,
     WebSearchResponse,
     WebSearchResult,
@@ -124,6 +125,9 @@ def test_build_web_search_action_record_summarizes_error_payload() -> None:
                 "message": "Temporary upstream failure",
                 "retryable": True,
                 "status_code": 503,
+                "attempt_number": 2,
+                "operation": "web_search",
+                "timings": {"total_ms": 400, "provider_ms": 380},
             },
             "meta": {
                 "operation": "web_search",
@@ -133,6 +137,40 @@ def test_build_web_search_action_record_summarizes_error_payload() -> None:
                 "timings": {"total_ms": 400, "provider_ms": 380},
             },
         },
+    )
+
+    assert record == {
+        "action_type": "search",
+        "query": "agents",
+        "error_kind": "provider_unavailable",
+        "message": "Temporary upstream failure",
+        "retryable": True,
+        "attempts": 2,
+        "status_code": 503,
+    }
+
+
+def test_build_web_search_action_record_accepts_pydantic_error_payload() -> None:
+    record = build_web_search_action_record(
+        query="agents",
+        payload=WebSearchError(
+            error=ToolError(
+                kind="provider_unavailable",
+                message="Temporary upstream failure",
+                retryable=True,
+                status_code=503,
+                attempt_number=2,
+                operation="web_search",
+                timings=ToolTimings(total_ms=400, provider_ms=380),
+            ),
+            meta=ToolMeta(
+                operation="web_search",
+                attempts=2,
+                retries=1,
+                duration_ms=400,
+                timings=ToolTimings(total_ms=400, provider_ms=380),
+            ),
+        ),
     )
 
     assert record == {
@@ -697,7 +735,7 @@ def test_web_search_langchain_tool_is_callable() -> None:
 def test_bounded_web_search_applies_retrieval_policy_to_query_and_results() -> None:
     captured: dict[str, object] = {}
 
-    def runner(*, query: str, max_results: int, freshness: str = "any") -> dict[str, object]:
+    def runner(*, query: str, max_results: int, freshness: str = "any") -> WebSearchResponse:
         captured["query"] = query
         captured["freshness"] = freshness
         captured["max_results"] = max_results
@@ -725,7 +763,7 @@ def test_bounded_web_search_applies_retrieval_policy_to_query_and_results() -> N
                 duration_ms=10,
                 timings=ToolTimings(total_ms=10, provider_ms=8),
             ),
-        ).model_dump(mode="json")
+        )
 
     tool = build_web_search_tool(
         max_results_cap=3,
