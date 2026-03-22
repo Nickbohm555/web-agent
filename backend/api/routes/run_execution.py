@@ -12,10 +12,13 @@ AgentRuntimeRunner = Callable[[str, AgentRunMode, AgentRunRetrievalPolicy], Agen
 
 
 def execute_agent_run_request(
-    runner: AgentRuntimeRunner,
+    run_agent_once: AgentRuntimeRunner,
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    result = runner(payload.prompt, payload.mode, payload.retrieval_policy)
+    result = _run_agent_once_from_request(
+        run_agent_once=run_agent_once,
+        payload=payload,
+    )
 
     if result.status == "failed":
         mapped_error = map_runtime_failure(result)
@@ -25,3 +28,15 @@ def execute_agent_run_request(
         )
 
     return AgentRunSuccessResponse.from_run_result(result)
+
+
+def _run_agent_once_from_request(
+    *,
+    run_agent_once: AgentRuntimeRunner,
+    payload: AgentRunRequest,
+) -> AgentRunResult:
+    return run_agent_once(
+        payload.prompt,
+        payload.mode,
+        payload.retrieval_policy,
+    )

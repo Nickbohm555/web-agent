@@ -30,8 +30,8 @@ async def run_agent(
     response: Response,
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    runner = _get_runtime_runner(request)
-    route_response = execute_agent_run_request(runner, payload)
+    run_agent_once = _get_run_agent_once(request)
+    route_response = execute_agent_run_request(run_agent_once, payload)
     if isinstance(route_response, JSONResponse):
         _set_route_headers(route_response)
         return route_response
@@ -40,11 +40,11 @@ async def run_agent(
     return route_response
 
 
-def _get_runtime_runner(request: Request) -> AgentRuntimeRunner:
-    runner = getattr(request.app.state, "run_agent_once", None)
-    if runner is None:
+def _get_run_agent_once(request: Request) -> AgentRuntimeRunner:
+    run_agent_once = getattr(request.app.state, "run_agent_once", None)
+    if run_agent_once is None:
         raise RuntimeError("agent runtime is not configured")
-    return runner
+    return run_agent_once
 
 
 def _set_route_headers(response: Response) -> None:
