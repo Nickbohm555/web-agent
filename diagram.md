@@ -1,240 +1,394 @@
-# Web Agent Repo Orientation
+# Prompt To Response Decision Tree
 
-## Backend Architecture Summary
+This file shows the live runtime split from one incoming prompt to the final response envelope.
 
-This repo has two active runtime surfaces:
+## Shared Request Contract
 
-- `backend/**`: the Python FastAPI backend that owns the real agent runtime, retrieval-policy inference, canonical tools, provider integration, and crawl/extraction pipeline.
-- `src/frontend/**`: the TypeScript Express server and browser client that own the UI, run creation, SSE streaming, and run-history presentation. This layer can proxy execution to the Python backend through `AGENT_BACKEND_ORIGIN`.
+- Browser entrypoint: `POST /api/runs` in `src/frontend/routes/runs.ts`
+- Backend execution entrypoint: `POST /api/agent/run` in `backend/api/routes/agent_run.py`
+- Request model: `AgentRunRequest` in `backend/api/contracts.py`
 
-The clean mental model is:
+```json
+{
+  "prompt": "string",
+  "mode": "quick | agentic | deep_research",
+  "retrieval_policy": {
+    "search": {
+      "country": "US",
+      "language": "en",
+      "freshness": "any | day | week | month | year",
+      "include_domains": [],
+      "exclude_domains": []
+    },
+    "fetch": {
+      "max_age_ms": 300000,
+      "fresh": false
+    }
+  }
+}
+```
 
-1. The browser starts a run through the frontend server.
-2. The frontend server validates the run request and creates a `runId`.
-3. If configured, the frontend forwards execution to the Python backend.
-4. The Python backend runs `run_agent_once`.
-5. The runtime either performs quick search directly or creates an LLM agent with the canonical tools `web_search` and `web_crawl`.
-6. Tool responses are normalized into stable contracts and folded back into the final answer and source list.
-7. The frontend streams state and results back to the browser over SSE and stores run history.
-
-## Data Flow Diagram
+## Decision Tree
 
 ```mermaid
 flowchart TD
-    A[Browser UI<br/>src/frontend/client/app.ts] --> B[POST /api/runs<br/>src/frontend/routes/runs.ts]
-    B --> C[Validate request + allocate runId<br/>seed run history events]
-    B --> D{AGENT_BACKEND_ORIGIN set?}
+    A[Prompt submitted from browser] --> B[POST /api/runs<br/>src/frontend/routes/runs.ts]
+    B --> C[Proxy to backend executor]
+    C --> D[POST /api/agent/run<br/>backend/api/routes/agent_run.py]
+    D --> E[execute_agent_run_request(payload)]
+    E --> F[run_agent_once(prompt, mode, retrieval_policy)]
+    F --> G[resolve_effective_retrieval_policy(prompt, retrieval_policy)]
+    G --> H{mode}
 
-    D -->|yes| E[HTTP run executor<br/>frontend proxy path]
-    D -->|no| F[Local compatibility executor / event producer]
+    H -->|quick| I[Quick search branch]
+    H -->|agentic| J[Agentic branch]
+    H -->|deep_research| K[Deep research branch]
 
-    E --> G[POST /api/agent/run<br/>backend/api/routes/agent_run.py]
-    G --> H[execute_agent_run_request<br/>backend/api/routes/run_execution.py]
-    H --> I[run_agent_once<br/>backend/agent/runtime.py]
+    I --> I1[get_runtime_profile quick]
+    I1 --> I2[profile<br/>model=gpt-4.1-mini<br/>execution_mode=single_pass<br/>recursion_limit=4<br/>max_tool_steps=1<br/>max_search_results=5<br/>max_crawl_chars=0]
+    I2 --> I3[run_quick_mode]
+    I3 --> I4[run_quick_search inputs<br/>query=prompt<br/>max_results=5<br/>freshness=policy.search.freshness<br/>include_domains=policy.search.include_domains<br/>exclude_domains=policy.search.exclude_domains]
+    I4 --> I5[run_web_search inputs<br/>query=scoped prompt with site terms if needed<br/>max_results=5<br/>freshness=policy.search.freshness]
+    I5 --> I6[Serper search]
+    I6 --> I7[WebSearchResponse]
+    I7 --> I8[synthesize_quick_answer]
+    I8 --> Z[AgentRunSuccessResponse]
 
-    I --> J[Resolve runtime profile<br/>quick / agentic / deep_research]
-    J --> K[Infer + merge retrieval policy<br/>freshness / domains / fetch age]
+    J --> J1[get_runtime_profile agentic]
+    J1 --> J2[profile<br/>model=gpt-4.1-mini<br/>execution_mode=bounded_agent_loop<br/>recursion_limit=12<br/>max_tool_steps=6<br/>max_search_results=4<br/>max_crawl_chars=4000]
+    J2 --> J3[build_system_prompt plus retrieval brief]
+    J3 --> J4[build_runtime_config]
+    J4 --> J5[agent.invoke inputs<br/>messages=[{role:user, content:prompt}]<br/>config.run_mode=agentic<br/>config.execution_mode=bounded_agent_loop<br/>config.tool_limits={steps:6, search:4, crawl:4000}<br/>config.retrieval_policy=effective policy]
+    J5 --> J6[Agent may call web_search or web_crawl]
+    J6 --> Z
 
-    K --> L{Mode}
-    L -->|quick| M[run_quick_search<br/>backend/agent/quick_search.py]
-    L -->|agentic or deep_research| N[Build LLM agent<br/>with canonical tools]
+    K --> K1[get_runtime_profile deep_research]
+    K1 --> K2[profile<br/>model=gpt-4.1<br/>execution_mode=background_research<br/>recursion_limit=24<br/>max_tool_steps=16<br/>max_search_results=8<br/>max_crawl_chars=12000]
+    K2 --> K3[build_system_prompt plus retrieval brief]
+    K3 --> K4[build_runtime_config]
+    K4 --> K5[agent.invoke inputs<br/>messages=[{role:user, content:prompt}]<br/>config.run_mode=deep_research<br/>config.execution_mode=background_research<br/>config.tool_limits={steps:16, search:8, crawl:12000}<br/>config.retrieval_policy=effective policy]
+    K5 --> K6[Agent may call web_search or web_crawl]
+    K6 --> Z
 
-    M --> O[run_web_search]
-    N --> O[web_search tool]
-    N --> P[web_crawl tool]
+    J6 --> S[web_search tool]
+    K6 --> S
+    J6 --> T[web_crawl tool]
+    K6 --> T
 
-    O --> Q[backend/app/tools/web_search.py]
-    Q --> R[SerperClient.search<br/>backend/app/providers/serper_client.py]
-    R --> S[Serper API]
-    S --> R
-    R --> T[Normalize results + tool meta<br/>WebSearchResponse]
+    S --> S1[LangChain tool name web_search]
+    S1 --> S2[input schema WebSearchInput<br/>{ query: string, max_results: 1..10 }]
+    S2 --> S3[tool wrapper applies caps and domain scope]
+    S3 --> S4[run_web_search inputs<br/>query=possibly scoped query<br/>max_results=min(requested, profile cap)<br/>freshness=policy.search.freshness]
+    S4 --> S5[SerperClient.search inputs<br/>query<br/>max_results<br/>freshness]
+    S5 --> S6[WebSearchResponse<br/>{ query, results[], metadata, meta }]
 
-    P --> U[backend/app/tools/web_crawl.py]
-    U --> V[HttpFetchWorker.fetch<br/>backend/app/crawler/http_worker.py]
-    V --> W[Origin URL]
-    W --> V
-    V --> X{Fetch success?}
-    X -->|yes| Y[extract_content<br/>backend/app/crawler/extractor.py]
-    X -->|no| Z[Map to structured crawl error<br/>or fallback success]
-    Y --> AA[Trafilatura text/markdown extraction<br/>objective excerpt scoring]
-    AA --> AB[WebCrawlSuccess]
+    T --> T1[LangChain tool name web_crawl]
+    T1 --> T2[input schema WebCrawlInput<br/>{ url: http/https URL, objective?: string }]
+    T2 --> T3[tool wrapper rejects URLs outside policy search domain scope]
+    T3 --> T4[run_web_crawl inputs<br/>url<br/>objective]
+    T4 --> T5[HttpFetchWorker.fetch input<br/>url]
+    T5 --> T6[extract_content inputs<br/>body<br/>content_type<br/>objective]
+    T6 --> T7[WebCrawlSuccess<br/>{ url, final_url, text, markdown, objective, excerpts[], status_code, content_type, fallback_reason, meta }]
 
-    T --> AC[Agent synthesis / final answer]
-    AB --> AC
-    Z --> AC
-    AC --> AD[AgentRunResult]
-    AD --> AE[SSE stream<br/>GET /api/runs/:runId/events]
-    AE --> AF[Browser timeline + answer rendering]
+    Z --> Z1[extract_final_answer plus extract_sources]
+    Z1 --> Z2[HTTP response AgentRunSuccessResponse<br/>{ run_id, status, final_answer, sources, tool_call_count, elapsed_ms, metadata }]
 ```
 
-## Step-By-Step Data Flow
+## Branch Inputs
 
-### 1. Frontend run orchestration
+### 1. Quick Search
 
-- The browser starts a run with `createRun()` in `src/frontend/client/api-client.ts`.
-- `src/frontend/routes/runs.ts` parses the request, rate-limits `deep_research`, creates a `runId`, and seeds run-history events.
-- `src/frontend/server.ts` wires in `createHttpAgentRunExecutor()` only when `AGENT_BACKEND_ORIGIN` is set. That is the main bridge from the TypeScript surface to the Python backend.
+- Runtime call:
 
-### 2. Backend request boundary
+```python
+run_agent_once(
+    prompt=prompt,
+    mode="quick",
+    retrieval_policy=effective_policy,
+)
+```
 
-- `backend/main.py` constructs the FastAPI app and stores `run_agent_once` on `app.state`.
-- `backend/api/routes/agent_run.py` handles `POST /api/agent/run`.
-- `backend/api/routes/run_execution.py` converts the request contract into a direct `run_agent_once(prompt, mode, retrieval_policy)` call and maps runtime failures into HTTP error payloads.
+- Runtime profile:
 
-### 3. Runtime control plane
+```json
+{
+  "name": "quick",
+  "model": "gpt-4.1-mini",
+  "recursion_limit": 4,
+  "timeout_seconds": 20,
+  "execution_mode": "single_pass",
+  "max_tool_steps": 1,
+  "max_search_results": 5,
+  "max_crawl_chars": 0
+}
+```
 
-- `backend/agent/runtime.py` is the core orchestration layer.
-- It:
-  - validates prompt presence
-  - chooses a runtime profile for `quick`, `agentic`, or `deep_research`
-  - infers retrieval settings from prompt text
-  - merges inferred and explicit policy
-  - either runs quick search or creates an LLM agent with canonical tools
-  - extracts normalized sources and final answer from the agent result
+- Search call shape:
 
-### 4. Search path
+```json
+{
+  "query": "<prompt plus optional site: / -site: terms>",
+  "max_results": 5,
+  "freshness": "<policy.search.freshness>"
+}
+```
 
-- `backend/app/tools/web_search.py` exposes `web_search` as a canonical tool.
-- The tool:
-  - validates `query` and `max_results`
-  - applies include/exclude domain scope to the query
-  - calls `run_web_search`
-  - filters results again against policy scope
-  - emits normalized success or structured tool error payloads
-- `backend/app/providers/serper_client.py` owns the actual provider call, retry loop, freshness mapping, and normalization into `WebSearchResponse`.
+- Response path:
+  `WebSearchResponse -> synthesize_quick_answer() -> AgentRunResult -> AgentRunSuccessResponse`
 
-### 5. Crawl path
+### 2. Agentic Search
 
-- `backend/app/tools/web_crawl.py` exposes `web_crawl` as a canonical tool.
-- It:
-  - validates URL/objective input
-  - enforces retrieval-policy domain scope before fetch
-  - calls `HttpFetchWorker.fetch`
-  - converts fetch failures into structured errors or fallback success payloads
-  - passes successful fetch bodies into `extract_content`
-- `backend/app/crawler/http_worker.py` owns:
-  - outbound HTTP GET
-  - redirect following
-  - retry handling
-  - retryable vs terminal HTTP classification
-  - supported content-type checks
-  - max-response-size enforcement
-- `backend/app/crawler/extractor.py` owns:
-  - `trafilatura` extraction to markdown/text
-  - low-content fallback detection
-  - objective-driven excerpt segmentation and ranking
+- Runtime call:
 
-### 6. Return path to the UI
+```python
+run_agent_once(
+    prompt=prompt,
+    mode="agentic",
+    retrieval_policy=effective_policy,
+)
+```
 
-- The Python backend returns a normalized `AgentRunResult`.
-- The TypeScript layer converts executor output into SSE events on `GET /api/runs/:runId/events`.
-- The browser subscribes via `subscribeToRunEvents()` in `src/frontend/client/api-client.ts`.
-- The UI timeline and answer rendering consume those events and the run-history store.
+- Runtime profile:
 
-## Major Features And How They Are Built
+```json
+{
+  "name": "agentic",
+  "model": "gpt-4.1-mini",
+  "recursion_limit": 12,
+  "timeout_seconds": 45,
+  "execution_mode": "bounded_agent_loop",
+  "max_tool_steps": 6,
+  "max_search_results": 4,
+  "max_crawl_chars": 4000
+}
+```
 
-### 1. Agent execution modes
+- Agent invoke input:
 
-- Main files:
-  - `backend/agent/runtime.py`
-  - `backend/agent/types.py`
-- Entry point:
-  - `run_agent_once`
-- Build pattern:
-  - fixed runtime profiles for `quick`, `agentic`, and `deep_research`
-- Important constraints:
-  - each mode has a bounded timeout, recursion/tool-step budget, and crawl/search budget
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "<prompt>"
+    }
+  ]
+}
+```
 
-### 2. Retrieval-policy inference
+- Agent config input:
 
-- Main files:
-  - `backend/agent/runtime.py`
-  - `backend/agent/types.py`
-- Entry point:
-  - `_resolve_effective_retrieval_policy`
-- Build pattern:
-  - infer freshness and domain hints from prompt text, then merge with explicit request policy
-- Important constraints:
-  - domain scoping and fetch freshness are enforced downstream in tools
+```json
+{
+  "recursion_limit": 12,
+  "run_mode": "agentic",
+  "execution_mode": "bounded_agent_loop",
+  "timeout_seconds": 45,
+  "model": "gpt-4.1-mini",
+  "tool_limits": {
+    "max_tool_steps": 6,
+    "max_search_results": 4,
+    "max_crawl_chars": 4000
+  },
+  "retrieval_policy": "<effective policy>"
+}
+```
 
-### 3. Canonical web search
+### 3. Deep Research
 
-- Main files:
-  - `backend/app/tools/web_search.py`
-  - `backend/app/providers/serper_client.py`
-- Entry point:
-  - `web_search`
-- Build pattern:
-  - tool wrapper over a provider adapter with normalized contracts and retry-aware error envelopes
-- Important constraints:
-  - max result caps, domain scoping, and bounded provider retries
+- Runtime call:
 
-### 4. Canonical web crawl
+```python
+run_agent_once(
+    prompt=prompt,
+    mode="deep_research",
+    retrieval_policy=effective_policy,
+)
+```
 
-- Main files:
-  - `backend/app/tools/web_crawl.py`
-  - `backend/app/crawler/http_worker.py`
-  - `backend/app/crawler/extractor.py`
-- Entry point:
-  - `web_crawl`
-- Build pattern:
-  - HTTP-first fetch, then extraction, then response normalization
-- Important constraints:
-  - allowed domains only, HTML/XHTML only, bounded size/time, structured fallback reasons
+- Runtime profile:
 
-### 5. Objective-driven excerpt extraction
+```json
+{
+  "name": "deep_research",
+  "model": "gpt-4.1",
+  "recursion_limit": 24,
+  "timeout_seconds": 180,
+  "execution_mode": "background_research",
+  "max_tool_steps": 16,
+  "max_search_results": 8,
+  "max_crawl_chars": 12000
+}
+```
 
-- Main files:
-  - `backend/app/crawler/extractor.py`
-  - `backend/app/contracts/web_crawl.py`
-- Entry point:
-  - `extract_content`
-- Build pattern:
-  - text segmentation plus lexical scoring, with cosine rerank for long pages
-- Important constraints:
-  - excerpt count and quality thresholds are bounded and deterministic
+- Agent invoke input:
 
-### 6. Frontend run timeline and history
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "<prompt>"
+    }
+  ]
+}
+```
 
-- Main files:
-  - `src/frontend/routes/runs.ts`
-  - `src/frontend/run-history/store.ts`
-  - `src/frontend/client/timeline.ts`
-  - `src/frontend/client/answer-rendering.ts`
-- Entry point:
-  - `POST /api/runs` and `GET /api/runs/:runId/events`
-- Build pattern:
-  - queue a run, stream lifecycle/tool events over SSE, persist event history in memory
-- Important constraints:
-  - `deep_research` background runs are capped
+- Agent config input:
 
-### 7. Observability and correlation
+```json
+{
+  "recursion_limit": 24,
+  "run_mode": "deep_research",
+  "execution_mode": "background_research",
+  "timeout_seconds": 180,
+  "model": "gpt-4.1",
+  "tool_limits": {
+    "max_tool_steps": 16,
+    "max_search_results": 8,
+    "max_crawl_chars": 12000
+  },
+  "retrieval_policy": "<effective policy>"
+}
+```
 
-- Main files:
-  - `src/core/telemetry/run-context.ts`
-  - `src/core/telemetry/observability-logger.ts`
-  - `src/core/telemetry/call-meta.ts`
-- Entry point:
-  - `withRunContext` wrapping `/api`
-- Build pattern:
-  - stable run-scoped correlation context plus structured event metadata
-- Important constraints:
-  - intended to carry `run_id` and related fields without leaking secrets
+## Tool Input Shapes
 
-## Implemented Vs Planned
+### `web_search`
 
-Implemented now:
+- LangChain tool name: `web_search`
+- Input schema: `WebSearchInput`
 
-- FastAPI backend run endpoint
-- runtime profile selection
-- prompt-driven retrieval-policy inference
-- Serper-backed normalized search
-- HTTP-first crawl and extraction
-- frontend run orchestration, SSE streaming, and run history
+```json
+{
+  "query": "string",
+  "max_results": 1
+}
+```
 
-Planned or only partially represented in `.planning/`:
+- Effective runtime call:
 
-- richer JS-render fallback path
-- richer PDF extraction path
-- deeper background research orchestration
-- larger evaluation/evidence harness around extraction quality
+```json
+{
+  "query": "<query plus optional domain scope terms>",
+  "max_results": "<min(requested, mode cap)>",
+  "freshness": "any | day | week | month | year"
+}
+```
+
+- Success payload:
+
+```json
+{
+  "query": "string",
+  "results": [
+    {
+      "title": "string",
+      "url": "https://example.com",
+      "snippet": "string",
+      "rank": {
+        "position": 1,
+        "provider_position": 1,
+        "rerank_score": 0.98
+      }
+    }
+  ],
+  "metadata": {
+    "result_count": 1,
+    "provider": "serper"
+  },
+  "meta": {
+    "...": "tool telemetry"
+  }
+}
+```
+
+### `web_crawl`
+
+- LangChain tool name: `web_crawl`
+- Input schema: `WebCrawlInput`
+
+```json
+{
+  "url": "https://example.com/page",
+  "objective": "Find the exact evidence needed from this page"
+}
+```
+
+- Effective runtime call:
+
+```json
+{
+  "url": "https://example.com/page",
+  "objective": "optional string"
+}
+```
+
+- Success payload:
+
+```json
+{
+  "url": "https://example.com/page",
+  "final_url": "https://example.com/page",
+  "text": "string",
+  "markdown": "string",
+  "objective": "optional string",
+  "excerpts": [
+    {
+      "text": "string",
+      "markdown": "string"
+    }
+  ],
+  "status_code": 200,
+  "content_type": "text/html",
+  "fallback_reason": null,
+  "meta": {
+    "...": "tool telemetry"
+  }
+}
+```
+
+## Final Response Contract
+
+All three branches normalize back into the same backend response shape:
+
+```json
+{
+  "run_id": "uuid",
+  "status": "completed",
+  "final_answer": {
+    "text": "string",
+    "citations": [],
+    "basis": []
+  },
+  "sources": [
+    {
+      "source_id": "string",
+      "title": "string",
+      "url": "https://example.com",
+      "snippet": "string"
+    }
+  ],
+  "tool_call_count": 0,
+  "elapsed_ms": 0,
+  "metadata": {
+    "tool_call_count": 0,
+    "elapsed_ms": 0
+  }
+}
+```
+
+## Source Files
+
+- `src/frontend/routes/runs.ts`
+- `backend/api/contracts.py`
+- `backend/api/routes/agent_run.py`
+- `backend/api/services/agent_run.py`
+- `backend/agent/runtime_execution.py`
+- `backend/agent/runtime_constants.py`
+- `backend/agent/runtime_policy.py`
+- `backend/agent/quick_search.py`
+- `backend/app/contracts/web_search.py`
+- `backend/app/contracts/web_crawl.py`
+- `backend/app/tools/web_search.py`
+- `backend/app/tools/web_crawl.py`
