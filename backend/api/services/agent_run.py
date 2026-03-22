@@ -8,11 +8,12 @@ from backend.agent.types import AgentRunMode, AgentRunResult, AgentRunRetrievalP
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import map_runtime_failure
 
-AgentRuntimeRunner = Callable[[str, AgentRunMode, AgentRunRetrievalPolicy], AgentRunResult]
-
 
 def execute_agent_run_request(
-    run_agent_once: AgentRuntimeRunner,
+    run_agent_once: Callable[
+        [str, AgentRunMode, AgentRunRetrievalPolicy],
+        AgentRunResult,
+    ],
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
     result = run_agent_once(
