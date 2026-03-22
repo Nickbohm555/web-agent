@@ -23,11 +23,11 @@ router = APIRouter()
     },
 )
 async def run_agent(
-    request: Request,
+    _request: Request,
     response: Response,
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    route_response = execute_agent_run_request(request, payload)
+    route_response = execute_agent_run_request(payload)
     if isinstance(route_response, JSONResponse):
         _set_route_headers(route_response)
         return route_response

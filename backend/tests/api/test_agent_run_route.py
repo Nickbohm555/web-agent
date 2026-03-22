@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from backend.agent.types import AgentRunError, AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import map_runtime_failure
+from backend.api.services import agent_run as agent_run_service
 from backend.app.config import get_settings
 from backend.main import create_app
 
@@ -328,6 +329,7 @@ def test_run_route_rejects_unknown_modes(client: TestClient) -> None:
 @pytest.mark.parametrize("mode", ["quick", "agentic", "deep_research"])
 def test_run_route_returns_stable_success_envelope_for_each_mode(
     client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
     mode: AgentRunMode,
 ) -> None:
     runner = StubRuntimeRunner(
@@ -346,7 +348,7 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
             elapsed_ms=81,
         )
     )
-    client.app.state.run_agent_once = runner
+    monkeypatch.setattr(agent_run_service, "run_agent_once", runner)
 
     response = post_run(client, prompt="  find one source  ", mode=mode)
 
@@ -425,6 +427,7 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
 )
 def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
     mode: AgentRunMode,
     category: str,
     retryable: bool,
@@ -444,7 +447,7 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
             ),
         )
     )
-    client.app.state.run_agent_once = runner
+    monkeypatch.setattr(agent_run_service, "run_agent_once", runner)
 
     response = post_run(client, prompt="find one source", mode=mode)
 
@@ -455,7 +458,10 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     assert runner.calls == [("find one source", mode, AgentRunRetrievalPolicy())]
 
 
-def test_run_route_forwards_retrieval_policy_to_runtime(client: TestClient) -> None:
+def test_run_route_forwards_retrieval_policy_to_runtime(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runner = StubRuntimeRunner(
         AgentRunResult(
             run_id="run-success",
@@ -465,7 +471,7 @@ def test_run_route_forwards_retrieval_policy_to_runtime(client: TestClient) -> N
             elapsed_ms=12,
         )
     )
-    client.app.state.run_agent_once = runner
+    monkeypatch.setattr(agent_run_service, "run_agent_once", runner)
 
     response = client.post(
         RUN_ROUTE_PATH,

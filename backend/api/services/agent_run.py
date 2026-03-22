@@ -1,20 +1,15 @@
 from __future__ import annotations
 
-from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from backend.agent.runtime import run_agent_once
 from backend.api.contracts import AgentRunRequest, AgentRunSuccessResponse
 from backend.api.errors import map_runtime_failure
 
 
 def execute_agent_run_request(
-    request: Request,
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    run_agent_once = getattr(request.app.state, "run_agent_once", None)
-    if run_agent_once is None:
-        raise RuntimeError("agent runtime is not configured")
-
     result = run_agent_once(
         payload.prompt,
         payload.mode,
