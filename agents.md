@@ -6,7 +6,7 @@
 
 4. after you make frontend changes, be sure to refresh the docker container for frontend. same for backend. if we make project.toml or dockerfile changes then we have to make the container from scratch.
 5. Prefer explicit Pydantic request/response models for backend contracts and tool return values instead of raw `dict[str, Any]` payloads whenever the shape is known.
-6. For backend functions in `backend/app/tools/**`, include a concise docstring with one example input and one example output whenever the function shape is stable enough to document.
+6. For backend functions in `backend/app/tools/**`, include a concise docstring with a short description of what the function does plus one example input and one example output whenever the function shape is stable enough to document.
 
 ## App Build + Debug Instructions (Operational)
 

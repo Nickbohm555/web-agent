@@ -14,6 +14,7 @@ from backend.app.contracts.web_crawl import (
     WebCrawlError,
     WebCrawlInput,
     WebCrawlSuccess,
+    WebCrawlToolResult,
 )
 from backend.app.crawler.extractor import extract_content, extraction_result_from_fetch_failure
 from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchWorker
@@ -27,6 +28,11 @@ from backend.app.tools._tool_utils import (
 
 
 def create_http_fetch_worker() -> HttpFetchWorker:
+    """Build the default HTTP fetch worker.
+
+    Example input: `create_http_fetch_worker()`
+    Example output: `HttpFetchWorker(...)`
+    """
     return HttpFetchWorker()
 
 
@@ -34,23 +40,33 @@ def build_web_crawl_tool(
     *,
     max_content_chars: int = 6000,
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
-    crawl_runner: Callable[..., dict[str, Any]] | None = None,
+    crawl_runner: Callable[..., WebCrawlToolResult] | None = None,
 ):
+    """Build the bounded LangChain crawl tool.
+
+    Example input: `build_web_crawl_tool(max_content_chars=4000)`
+    Example output: `StructuredTool(name="web_crawl", ...)`
+    """
     bounded_limit = max(0, max_content_chars)
     runner = crawl_runner or run_web_crawl
 
     @tool("web_crawl", args_schema=WebCrawlInput)
-    def bounded_web_crawl(url: str, objective: str | None = None) -> dict[str, Any]:
-        """Fetch a URL, extract main content, and return a structured result or error envelope."""
+    def bounded_web_crawl(url: str, objective: str | None = None) -> WebCrawlToolResult:
+        """Fetch a URL and return typed crawl output.
+
+        Example input: `{"url": "https://example.com/article", "objective": "Find pricing"}`
+        Example output: `WebCrawlSuccess(url="https://example.com/article", ...)`
+        """
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         if not is_url_allowed(url, **domain_scope_kwargs(effective_policy.search)):
-            return build_tool_error_payload(
+            envelope = build_tool_error_payload(
                 kind="invalid_request",
                 message="url is outside the configured retrieval policy domain scope",
                 retryable=False,
                 total_ms=0,
                 operation="web_crawl",
             )
+            return WebCrawlError(error=envelope.error, meta=envelope.meta)
         payload = runner(url=url, objective=objective)
         return _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
 
@@ -62,7 +78,12 @@ def run_web_crawl(
     url: str,
     objective: str | None = None,
     fetch_worker: HttpFetchWorker | None = None,
-) -> dict[str, Any]:
+) -> WebCrawlToolResult:
+    """Run the crawl pipeline without LangChain wrapping.
+
+    Example input: `run_web_crawl(url="https://example.com/article", objective="Find pricing")`
+    Example output: `WebCrawlSuccess(final_url="https://example.com/article", ...)`
+    """
     operation_start = perf_counter()
     try:
         validated_input = WebCrawlInput(url=url, objective=objective)
@@ -80,7 +101,7 @@ def run_web_crawl(
             return WebCrawlError(
                 error=fetch_result.error,
                 meta=fetch_result.meta,
-            ).model_dump(mode="json")
+            )
 
         extraction_result = extract_content(
             body=fetch_result.body,
@@ -115,6 +136,11 @@ web_crawl = build_web_crawl_tool()
 
 
 def _elapsed_ms(start: float) -> int:
+    """Convert a perf counter start value into elapsed milliseconds.
+
+    Example input: `_elapsed_ms(123.0)`
+    Example output: `17`
+    """
     return int((perf_counter() - start) * 1000)
 
 
@@ -125,21 +151,32 @@ def _build_crawl_error_payload(
     message: str,
     retryable: bool,
     operation: str = "web_crawl",
-) -> dict[str, Any]:
-    return build_tool_error_payload(
+) -> WebCrawlError:
+    """Build a typed crawl error envelope.
+
+    Example input: `_build_crawl_error_payload(operation_start=t0, kind="invalid_request", message="bad url", retryable=False)`
+    Example output: `WebCrawlError(error=ToolError(kind="invalid_request", ...), ...)`
+    """
+    envelope = build_tool_error_payload(
         kind=kind,
         message=message,
         retryable=retryable,
         total_ms=_elapsed_ms(operation_start),
         operation=operation,
     )
+    return WebCrawlError(error=envelope.error, meta=envelope.meta)
 
 
 def _build_fetch_failure_success(
     *,
     validated_input: WebCrawlInput,
     fetch_result: HttpFetchFailure,
-) -> dict[str, Any]:
+) -> WebCrawlSuccess:
+    """Convert a supported fetch failure fallback into typed success output.
+
+    Example input: `_build_fetch_failure_success(validated_input=WebCrawlInput(...), fetch_result=HttpFetchFailure(...))`
+    Example output: `WebCrawlSuccess(fallback_reason="unsupported-content-type", ...)`
+    """
     extraction_result = extraction_result_from_fetch_failure(fetch_result)
     return _build_crawl_success_payload(
         validated_input=validated_input,
@@ -159,7 +196,12 @@ def _build_crawl_success_payload(
     status_code: int,
     content_type: str,
     meta: ToolMeta,
-) -> dict[str, Any]:
+) -> WebCrawlSuccess:
+    """Build typed crawl success output.
+
+    Example input: `_build_crawl_success_payload(validated_input=WebCrawlInput(...), final_url="https://example.com", extraction_result=ExtractionResult(...), status_code=200, content_type="text/html", meta=ToolMeta(...))`
+    Example output: `WebCrawlSuccess(status_code=200, content_type="text/html", ...)`
+    """
     return WebCrawlSuccess(
         url=validated_input.url,
         final_url=final_url,
@@ -171,10 +213,15 @@ def _build_crawl_success_payload(
         content_type=content_type,
         fallback_reason=extraction_result.fallback_reason,
         meta=meta,
-    ).model_dump(mode="json")
+    )
 
 
-def _truncate_crawl_payload(payload: dict[str, Any], *, max_content_chars: int) -> dict[str, Any]:
+def _truncate_crawl_payload(payload: WebCrawlToolResult, *, max_content_chars: int) -> WebCrawlToolResult:
+    """Trim crawl text fields while preserving typed success/error output.
+
+    Example input: `_truncate_crawl_payload(WebCrawlSuccess(text="A"*100, ...), max_content_chars=40)`
+    Example output: `WebCrawlSuccess(text="AAAA...", markdown="AAAA...", ...)`
+    """
     try:
         success = WebCrawlSuccess.model_validate(payload)
     except ValidationError:
@@ -192,15 +239,20 @@ def _truncate_crawl_payload(payload: dict[str, Any], *, max_content_chars: int) 
             "text": truncated_text,
             "markdown": truncated_markdown,
         }
-    ).model_dump(mode="json")
+    )
 
 
 def build_web_crawl_action_record(
     *,
     url: str,
-    payload: dict[str, Any],
+    payload: Any,
     preview_chars: int = 160,
 ) -> dict[str, Any]:
+    """Summarize crawl output for runtime action traces.
+
+    Example input: `build_web_crawl_action_record(url="https://example.com", payload=WebCrawlSuccess(...))`
+    Example output: `{"action_type": "open_page", "url": "https://example.com", ...}`
+    """
     normalized_url = url.strip()
 
     try:

@@ -32,6 +32,11 @@ from backend.app.tools._tool_utils import (
 
 
 def create_serper_client() -> SerperClient:
+    """Build the default Serper client from environment settings.
+
+    Example input: `create_serper_client()`
+    Example output: `SerperClient(api_key="***")`
+    """
     return SerperClient(api_key=get_settings().SERPER_API_KEY)
 
 
@@ -41,12 +46,21 @@ def build_web_search_tool(
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
     search_runner: Callable[..., WebSearchToolResult] | None = None,
 ):
+    """Build the bounded LangChain web-search tool.
+
+    Example input: `build_web_search_tool(max_results_cap=3)`
+    Example output: `StructuredTool(name="web_search", ...)`
+    """
     bounded_cap = max(1, min(max_results_cap, 10))
     runner = search_runner or run_web_search
 
     @tool("web_search", args_schema=WebSearchInput)
     def bounded_web_search(query: str, max_results: int = 5) -> WebSearchToolResult:
-        """Search the web and return normalized results or a structured error envelope."""
+        """Search the web and return typed results.
+
+        Example input: `{"query": "agent systems", "max_results": 3}`
+        Example output: `WebSearchResponse(query="agent systems", results=[...], ...)`
+        """
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         search_policy = effective_policy.search
         domain_scope = domain_scope_kwargs(search_policy)
@@ -67,6 +81,11 @@ def run_web_search(
     freshness: str = "any",
     client: SerperClient | None = None,
 ) -> WebSearchToolResult:
+    """Run the search pipeline without LangChain wrapping.
+
+    Example input: `run_web_search(query="agent systems", max_results=3)`
+    Example output: `WebSearchResponse(query="agent systems", results=[...], ...)`
+    """
     operation_start = perf_counter()
     try:
         validated_input = WebSearchInput(query=query, max_results=max_results)
@@ -112,6 +131,11 @@ web_search = build_web_search_tool()
 
 
 def _elapsed_ms(start: float) -> int:
+    """Convert a perf counter start value into elapsed milliseconds.
+
+    Example input: `_elapsed_ms(123.0)`
+    Example output: `17`
+    """
     return int((perf_counter() - start) * 1000)
 
 
@@ -126,7 +150,12 @@ def _build_search_error_payload(
     attempt_number: int = 1,
     provider_ms: int | None = None,
 ) -> WebSearchError:
-    return WebSearchError.model_validate(build_tool_error_payload(
+    """Build a typed search error envelope.
+
+    Example input: `_build_search_error_payload(operation_start=t0, kind="invalid_request", message="query must not be blank", retryable=False)`
+    Example output: `WebSearchError(error=ToolError(kind="invalid_request", ...), ...)`
+    """
+    envelope = build_tool_error_payload(
         kind=kind,
         message=message,
         retryable=retryable,
@@ -135,13 +164,19 @@ def _build_search_error_payload(
         status_code=status_code,
         attempt_number=attempt_number,
         provider_ms=provider_ms,
-    ))
+    )
+    return WebSearchError(error=envelope.error, meta=envelope.meta)
 
 
 def _apply_domain_scope_to_query(
     query: str,
     search_policy: AgentRunRetrievalSearchPolicy,
 ) -> str:
+    """Apply include/exclude domain scope terms to a search query.
+
+    Example input: `_apply_domain_scope_to_query("agents", policy)`
+    Example output: `"agents site:example.com -site:blocked.com"`
+    """
     include_terms = [f"site:{domain}" for domain in search_policy.include_domains]
     exclude_terms = [f"-site:{domain}" for domain in search_policy.exclude_domains]
     scope_terms = [*include_terms, *exclude_terms]
@@ -156,6 +191,11 @@ def _filter_search_payload_by_domain_scope(
     payload: WebSearchToolResult,
     domain_scope: dict[str, list[str]],
 ) -> WebSearchToolResult:
+    """Filter search results by configured domain scope.
+
+    Example input: `_filter_search_payload_by_domain_scope(WebSearchResponse(...), {"include_domains": ["example.com"], "exclude_domains": ["blocked.com"]})`
+    Example output: `WebSearchResponse(results=[...filtered...], ...)`
+    """
     if not has_domain_scope(**domain_scope):
         return payload
 
@@ -179,6 +219,11 @@ def build_web_search_action_record(
     payload: Any,
     preview_limit: int = 3,
 ) -> dict[str, Any]:
+    """Summarize search output for runtime action traces.
+
+    Example input: `build_web_search_action_record(query="agents", payload=WebSearchResponse(...))`
+    Example output: `{"action_type": "search", "query": "agents", "result_count": 3, ...}`
+    """
     normalized_query = query.strip()
 
     try:
@@ -252,6 +297,11 @@ _MAX_SNIPPET_LENGTH = 280
 
 
 def _optimize_search_response(*, query: str, response: WebSearchResponse) -> WebSearchResponse:
+    """Rerank and rewrite search results for the agent runtime.
+
+    Example input: `_optimize_search_response(query="agent systems", response=WebSearchResponse(...))`
+    Example output: `WebSearchResponse(results=[...reranked...], ...)`
+    """
     ranked = [
         (
             score := _score_result(
@@ -289,6 +339,11 @@ def _with_updated_results(
     response: WebSearchResponse,
     results: list[WebSearchResult],
 ) -> WebSearchResponse:
+    """Return a copy of the response with updated results and count.
+
+    Example input: `_with_updated_results(response, [result])`
+    Example output: `WebSearchResponse(metadata=SearchMetadata(result_count=1, ...), ...)`
+    """
     return response.model_copy(
         update={
             "results": results,
@@ -300,6 +355,11 @@ def _with_updated_results(
 
 
 def _rewrite_result_snippet(*, query: str, result: WebSearchResult, score: float) -> WebSearchResult:
+    """Rewrite a result snippet and persist its rerank score.
+
+    Example input: `_rewrite_result_snippet(query="agent systems", result=result, score=9.5)`
+    Example output: `WebSearchResult(snippet="Focused excerpt", rank=SearchRank(rerank_score=9.5, ...))`
+    """
     optimized_snippet = _select_snippet_excerpt(query=query, result=result)
     return result.model_copy(
         update={
@@ -310,6 +370,11 @@ def _rewrite_result_snippet(*, query: str, result: WebSearchResult, score: float
 
 
 def _score_result(*, query: str, result: WebSearchResult, fallback_position: int) -> float:
+    """Compute a reranking score for a search result.
+
+    Example input: `_score_result(query="agent systems", result=result, fallback_position=2)`
+    Example output: `11.25`
+    """
     normalized_query = query.strip().casefold()
     title = result.title.casefold()
     snippet = result.snippet.casefold()
@@ -346,6 +411,11 @@ def _score_result(*, query: str, result: WebSearchResult, fallback_position: int
 
 
 def _select_snippet_excerpt(*, query: str, result: WebSearchResult) -> str:
+    """Pick the most query-relevant excerpt from a result snippet.
+
+    Example input: `_select_snippet_excerpt(query="pricing", result=result)`
+    Example output: `"Pricing details for teams and enterprise plans."`
+    """
     snippet = result.snippet.strip()
     if not snippet:
         return snippet
@@ -390,6 +460,11 @@ def _select_snippet_excerpt(*, query: str, result: WebSearchResult) -> str:
 
 
 def _score_excerpt_segment(segment: str, query_terms: set[str]) -> float:
+    """Score one snippet segment against normalized query terms.
+
+    Example input: `_score_excerpt_segment("Pricing for teams", {"pricing", "teams"})`
+    Example output: `4.0`
+    """
     normalized = segment.casefold()
     score = 0.0
     for term in query_terms:
@@ -399,6 +474,11 @@ def _score_excerpt_segment(segment: str, query_terms: set[str]) -> float:
 
 
 def _query_terms(query: str) -> set[str]:
+    """Extract normalized search terms minus common stop words.
+
+    Example input: `_query_terms("What is agent systems pricing?")`
+    Example output: `{"agent", "systems", "pricing"}`
+    """
     return {
         token
         for token in _TOKEN_PATTERN.findall(query.casefold())
@@ -407,6 +487,11 @@ def _query_terms(query: str) -> set[str]:
 
 
 def _truncate_text(value: str, limit: int = _MAX_SNIPPET_LENGTH) -> str:
+    """Trim text to the snippet length budget.
+
+    Example input: `_truncate_text("A long sentence", limit=5)`
+    Example output: `"A lo..."`
+    """
     normalized = " ".join(value.split()).strip()
     if len(normalized) <= limit:
         return normalized
@@ -415,6 +500,11 @@ def _truncate_text(value: str, limit: int = _MAX_SNIPPET_LENGTH) -> str:
 
 
 def _join_excerpt_parts(parts: list[str]) -> str:
+    """Join excerpt segments into one readable sentence block.
+
+    Example input: `_join_excerpt_parts(["First sentence", "Follow up"])`
+    Example output: `"First sentence. Follow up"`
+    """
     if not parts:
         return ""
 

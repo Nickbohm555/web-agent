@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from urllib.parse import urlsplit
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
@@ -95,6 +95,9 @@ class WebCrawlSuccess(BaseModel):
 
 class WebCrawlError(ToolErrorEnvelope):
     model_config = ConfigDict(extra="forbid", strict=True)
+
+
+WebCrawlToolResult = Union[WebCrawlSuccess, WebCrawlError]
 
 
 class ExtractionResult(BaseModel):

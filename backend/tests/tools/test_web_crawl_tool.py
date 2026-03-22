@@ -3,6 +3,7 @@ import importlib
 import httpx
 
 from backend.agent.types import AgentRunRetrievalPolicy
+from backend.app.contracts.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.contracts.web_crawl import WebCrawlError, WebCrawlSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.tools.web_crawl import (
@@ -152,6 +153,9 @@ def test_build_web_crawl_action_record_summarizes_error_payload() -> None:
                 "message": "upstream unavailable",
                 "retryable": True,
                 "status_code": 503,
+                "attempt_number": 3,
+                "operation": "web_crawl",
+                "timings": {"total_ms": 100},
             },
             "meta": {
                 "operation": "web_crawl",
@@ -161,6 +165,40 @@ def test_build_web_crawl_action_record_summarizes_error_payload() -> None:
                 "timings": {"total_ms": 100},
             },
         },
+    )
+
+    assert record == {
+        "action_type": "open_page",
+        "url": "https://example.com/article",
+        "error_kind": "http_error",
+        "message": "upstream unavailable",
+        "retryable": True,
+        "attempts": 3,
+        "status_code": 503,
+    }
+
+
+def test_build_web_crawl_action_record_accepts_pydantic_error_payload() -> None:
+    record = build_web_crawl_action_record(
+        url="https://example.com/article",
+        payload=WebCrawlError(
+            error=ToolError(
+                kind="http_error",
+                message="upstream unavailable",
+                retryable=True,
+                status_code=503,
+                attempt_number=3,
+                operation="web_crawl",
+                timings=ToolTimings(total_ms=100),
+            ),
+            meta=ToolMeta(
+                operation="web_crawl",
+                attempts=3,
+                retries=2,
+                duration_ms=100,
+                timings=ToolTimings(total_ms=100),
+            ),
+        ),
     )
 
     assert record == {
