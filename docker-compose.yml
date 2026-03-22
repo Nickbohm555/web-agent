@@ -26,7 +26,7 @@ services:
       dockerfile: frontend/Dockerfile
     environment:
       PORT: "3000"
-      BACKEND_BASE_URL: http://backend:8000
+      AGENT_BACKEND_ORIGIN: http://backend:8000
     logging:
       driver: json-file
       options:
