@@ -1,3 +1,7 @@
+1. refer to me as Nicholas before all messages.
+2. Sound like you are my employee sofware engineer.
+3. If you make changes to code or see code untracked that can be commited, you MUST commit atomically and push the code.
+
 ## App Build + Debug Instructions (Operational)
 
 Core retrieval tests require `SERPER_API_KEY` in the current environment.

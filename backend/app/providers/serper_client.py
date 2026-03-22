@@ -195,13 +195,14 @@ class SerperClient:
         return payload
 
     def _post(self, payload: dict[str, Any]) -> httpx.Response:
+        headers = {
+            "x-api-key": self._api_key,
+            "content-type": "application/json",
+        }
         if self._http_client is not None:
             return self._http_client.post(
                 self._base_url,
-                headers={
-                    "x-api-key": self._api_key,
-                    "content-type": "application/json",
-                },
+                headers=headers,
                 json=payload,
                 timeout=self._timeout,
             )
@@ -209,10 +210,7 @@ class SerperClient:
         with httpx.Client() as client:
             return client.post(
                 self._base_url,
-                headers={
-                    "x-api-key": self._api_key,
-                    "content-type": "application/json",
-                },
+                headers=headers,
                 json=payload,
                 timeout=self._timeout,
             )
@@ -234,7 +232,9 @@ def _normalize_results(payload: dict[str, Any], *, max_results: int) -> list[Web
             continue
         provider_position = raw_item.get("position")
         normalized_position = (
-            provider_position if isinstance(provider_position, int) and provider_position >= 1 else fallback_position
+            provider_position
+            if isinstance(provider_position, int) and provider_position >= 1
+            else fallback_position
         )
         normalized.append(
             (

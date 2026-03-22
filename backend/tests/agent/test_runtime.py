@@ -78,7 +78,6 @@ class CapturingAgentFactory:
     raw_result: dict[str, Any]
     captured_profile: AgentRuntimeProfile | None = None
     captured_tools: tuple[Any, ...] | None = None
-    captured_retrieval_policy: AgentRunRetrievalPolicy | None = None
     captured_system_prompt: str | None = None
     agent: StubAgent | None = None
 
@@ -86,12 +85,10 @@ class CapturingAgentFactory:
         self,
         profile: AgentRuntimeProfile,
         tools: tuple[Any, ...],
-        retrieval_policy: AgentRunRetrievalPolicy,
         system_prompt: str,
     ) -> StubAgent:
         self.captured_profile = profile
         self.captured_tools = tools
-        self.captured_retrieval_policy = retrieval_policy
         self.captured_system_prompt = system_prompt
         self.agent = StubAgent(raw_result=self.raw_result)
         return self.agent
@@ -561,7 +558,6 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert factory.captured_tools is not None
     assert tuple(tool.name for tool in factory.captured_tools) == CANONICAL_TOOL_NAMES
     assert factory.captured_tools != (web_search, web_crawl)
-    assert factory.captured_retrieval_policy == AgentRunRetrievalPolicy()
     assert factory.captured_system_prompt is not None
     assert "Retrieval strategy:" in factory.captured_system_prompt
     assert "Answer objective: investigate a topic" in factory.captured_system_prompt
@@ -592,7 +588,6 @@ def test_run_agent_once_passes_inferred_retrieval_policy_into_agent_factory_and_
     )
 
     assert result.status == "completed"
-    assert factory.captured_retrieval_policy == expected_policy
     assert factory.captured_system_prompt is not None
     assert "stay within openai.com" in factory.captured_system_prompt
     assert "prefer week-fresh sources" in factory.captured_system_prompt

@@ -163,14 +163,7 @@ def _filter_search_payload_by_domain_scope(
         if is_url_allowed(str(result.url), **domain_scope)
     ]
 
-    return response.model_copy(
-        update={
-            "results": filtered_results,
-            "metadata": response.metadata.model_copy(
-                update={"result_count": len(filtered_results)}
-            ),
-        }
-    ).model_dump(mode="json")
+    return _with_updated_results(response, filtered_results).model_dump(mode="json")
 
 
 def build_web_search_action_record(
@@ -252,11 +245,18 @@ _MAX_SNIPPET_LENGTH = 280
 
 
 def _optimize_search_response(*, query: str, response: WebSearchResponse) -> WebSearchResponse:
-    ranked: list[tuple[float, int, WebSearchResult]] = []
-
-    for fallback_position, result in enumerate(response.results, start=1):
-        score = _score_result(query=query, result=result, fallback_position=fallback_position)
-        ranked.append((score, fallback_position, _rewrite_result_snippet(query=query, result=result, score=score)))
+    ranked = [
+        (
+            score := _score_result(
+                query=query,
+                result=result,
+                fallback_position=fallback_position,
+            ),
+            fallback_position,
+            _rewrite_result_snippet(query=query, result=result, score=score),
+        )
+        for fallback_position, result in enumerate(response.results, start=1)
+    ]
 
     ranked.sort(
         key=lambda item: (
@@ -266,25 +266,27 @@ def _optimize_search_response(*, query: str, response: WebSearchResponse) -> Web
         )
     )
 
-    reranked_results: list[WebSearchResult] = []
-    for position, (_, _, result) in enumerate(ranked, start=1):
-        reranked_results.append(
-            result.model_copy(
-                update={
-                    "rank": result.rank.model_copy(
-                        update={
-                            "position": position,
-                        }
-                    )
-                }
-            )
+    reranked_results = [
+        result.model_copy(
+            update={
+                "rank": result.rank.model_copy(update={"position": position}),
+            }
         )
+        for position, (_, _, result) in enumerate(ranked, start=1)
+    ]
 
+    return _with_updated_results(response, reranked_results)
+
+
+def _with_updated_results(
+    response: WebSearchResponse,
+    results: list[WebSearchResult],
+) -> WebSearchResponse:
     return response.model_copy(
         update={
-            "results": reranked_results,
+            "results": results,
             "metadata": response.metadata.model_copy(
-                update={"result_count": len(reranked_results)}
+                update={"result_count": len(results)}
             ),
         }
     )
@@ -357,7 +359,7 @@ def _select_snippet_excerpt(*, query: str, result: WebSearchResult) -> str:
     if scored_sentences[0][0] <= 0:
         return _truncate_text(sentences[0])
 
-    top_score, top_index, top_segment = scored_sentences[0]
+    _, top_index, top_segment = scored_sentences[0]
     excerpt_parts = [top_segment]
     total_length = len(top_segment)
 
@@ -377,8 +379,6 @@ def _select_snippet_excerpt(*, query: str, result: WebSearchResult) -> str:
         excerpt_parts.append(segment)
         total_length += candidate_length
 
-    if top_score <= 0:
-        return _truncate_text(sentences[0])
     return _truncate_text(_join_excerpt_parts(excerpt_parts))
 
 
