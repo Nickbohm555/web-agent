@@ -159,7 +159,7 @@ def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
         "/workspace/research/run-deep-complete/00-what-is-deep-research.md",
         "/workspace/research/run-deep-complete/01-how-long-can-it-run.md",
     ]
-    assert saved.progress_events == [
+    assert [event.model_dump() for event in saved.progress_events] == [
         {
             "subquestion": "What is deep research?",
             "status": "completed",

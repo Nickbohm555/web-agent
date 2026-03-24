@@ -11,6 +11,7 @@ from backend.agent.schemas import (
     AgentSourceReference,
     AgentStructuredAnswer,
 )
+from backend.agent.schemas.deep_research_subagent import DeepResearchArtifactRecord
 
 
 class DeepResearchStage(str, Enum):
@@ -23,6 +24,14 @@ class DeepResearchStage(str, Enum):
     FAILED = "failed"
 
 
+class DeepResearchProgressRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    subquestion: str = Field(min_length=1)
+    status: str = Field(min_length=1)
+    artifact_path: Optional[str] = None
+
+
 class DeepResearchJob(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -33,6 +42,8 @@ class DeepResearchJob(BaseModel):
     stage: DeepResearchStage
     sub_questions: list[str] = Field(default_factory=list)
     sources: list[AgentSourceReference] = Field(default_factory=list)
+    research_artifacts: list[DeepResearchArtifactRecord] = Field(default_factory=list)
+    progress_events: list[DeepResearchProgressRecord] = Field(default_factory=list)
     wave_count: int = Field(default=0, ge=0)
     final_answer: Optional[AgentStructuredAnswer] = None
     error: Optional[AgentRunError] = None

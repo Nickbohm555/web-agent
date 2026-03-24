@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.agent.schemas import AgentRunError
@@ -14,4 +16,4 @@ class PersistedStatusArtifact(BaseModel):
     stage: DeepResearchStage
     artifact_path: str = Field(min_length=1)
     sub_questions: list[str] = Field(default_factory=list)
-    error: AgentRunError | None = None
+    error: Optional[AgentRunError] = None

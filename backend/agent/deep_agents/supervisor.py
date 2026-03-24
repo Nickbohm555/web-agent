@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from deepagents import create_deep_agent
-
 from backend.agent.deep_agents.persistence.artifacts import DeepResearchArtifactRepository
-from backend.agent.deep_agents.persistence.backend_factory import build_deep_research_backend
 from backend.agent.deep_agents.schemas.persisted_plan import PersistedPlanArtifact
 from backend.agent.deep_research_planning import build_deep_research_plan
 from backend.agent.schemas.deep_research import DeepResearchJob, DeepResearchPlan, DeepResearchStage
 
 
 def build_deep_research_supervisor() -> object:
+    from deepagents import create_deep_agent
+    from backend.agent.deep_agents.persistence.backend_factory import build_deep_research_backend
+
     return create_deep_agent(
         model="gpt-4.1-mini",
         tools=(),

@@ -15,11 +15,11 @@ from backend.agent.deep_agents.resume import (
     restore_deep_research_job,
 )
 from backend.agent.deep_agents.supervisor import (
-    build_deep_research_supervisor,
     persist_research_plan,
 )
 from backend.agent.deep_research_execution import execute_research_waves
 from backend.agent.deep_research_planning import build_deep_research_plan
+from backend.agent.deep_research_supervisor import build_deep_research_supervisor
 from backend.agent.deep_research_store import (
     InMemoryDeepResearchStore,
     get_default_deep_research_store,
@@ -78,6 +78,7 @@ def run_deep_research_job(
     deep_research_store = store or get_default_deep_research_store()
     artifacts = artifact_repository or PostgresArtifactRepository()
     checkpoints = checkpoint_repository or PostgresCheckpointRepository()
+    effective_supervisor_builder = supervisor_builder or build_deep_research_supervisor
     job = deep_research_store.get_required(job_id)
 
     try:
@@ -99,7 +100,7 @@ def run_deep_research_job(
                 job,
                 artifact_repository=artifacts,
                 plan_builder=plan_builder or build_deep_research_plan,
-                supervisor_builder=supervisor_builder or build_deep_research_supervisor,
+                supervisor_builder=effective_supervisor_builder,
             )
             job = deep_research_logging.log_deep_research_stage(
                 job,
@@ -109,7 +110,15 @@ def run_deep_research_job(
             )
             deep_research_store.save(job)
 
-        job = (wave_executor or execute_research_waves)(job)
+        job = (
+            wave_executor
+            or (
+                lambda active_job: execute_research_waves(
+                    active_job,
+                    supervisor_builder=effective_supervisor_builder,
+                )
+            )
+        )(job)
         job = deep_research_logging.log_deep_research_stage(
             job,
             stage=DeepResearchStage.SEARCHING,
