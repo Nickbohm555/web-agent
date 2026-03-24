@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap turns the current placeholder deep-research path into a durable orchestrated workflow that can align tool contracts, run a resumable orchestration loop, persist plans and checkpoints, execute parallel research with existing retrieval tools, and only answer once evidence is normalized and sufficient.
+This roadmap turns the current placeholder deep-research path into a LangChain Deep Agents implementation built around `create_deep_agent(...)`, with doc-aligned backend routing for planning artifacts, `langgraph-checkpoint-postgres` for durable thread resume, Deep Agents subagent fan-out over the existing retrieval stack, and final answers gated on normalized evidence without changing the current top-level API envelope.
 
 ## Phases
 
@@ -12,86 +12,86 @@ This roadmap turns the current placeholder deep-research path into a durable orc
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Tool Contract Alignment** - Normalize retrieval tool names across quick, agentic, and deep-research modes.
-- [ ] **Phase 2: Orchestrated Run Lifecycle** - Replace the placeholder deep-research entry flow with an orchestrator that can clarify and resume.
-- [ ] **Phase 3: Persistent Planning Backbone** - Persist deep-research plans, workflow state, and inspectable progress artifacts.
-- [ ] **Phase 4: Parallel Research Execution** - Fan out planned subquestions to research subagents that reuse existing retrieval behavior.
-- [ ] **Phase 5: Evidence-Grounded Completion** - Normalize research evidence into AI messages and gate final answers on sufficient coverage.
+- [ ] **Phase 1: Tool Contract Alignment** - Rename the currently exposed open-page tool contract from `web_extract` to `open_url` and align retrieval names across all modes.
+- [ ] **Phase 2: Deep Agents Run Lifecycle** - Replace the placeholder deep-research flow with a `create_deep_agent(...)` supervisor that can clarify and resume.
+- [ ] **Phase 3: Deep Agents Persistence Backbone** - Use Deep Agents backends plus `langgraph-checkpoint-postgres` for durable planning state and inspectable progress.
+- [ ] **Phase 4: Deep Agents Research Fan-Out** - Run plan-derived subquestions through Deep Agents subagents that reuse existing retrieval behavior.
+- [ ] **Phase 5: Evidence-Grounded Completion** - Inject normalized evidence into subagent and final AI messages while gating final answers on sufficient coverage.
 
 ## Phase Details
 
 ### Phase 1: Tool Contract Alignment
-**Goal**: Users can rely on the same retrieval tool names in every runtime surface before deep-research orchestration builds on top of them.
+**Goal**: Users can rely on one explicit retrieval contract across every runtime surface, with the currently exposed open-page or crawl tool name aligned from `web_extract` to `open_url` while search remains `web_search`.
 **Depends on**: Nothing (first phase)
 **Requirements**: TOOL-01, TOOL-02
 **Success Criteria** (what must be TRUE):
   1. User can access the search tool as `web_search` in quick mode.
-  2. User can access the search tool as `web_search` and the page-opening tool as `open_url` in agentic mode.
-  3. User can access the search tool as `web_search` and the page-opening tool as `open_url` in deep-research mode.
+  2. User can access the search tool as `web_search` and the currently exposed `web_extract` page-opening contract is aligned to `open_url` in agentic mode.
+  3. User can access the search tool as `web_search` and the currently exposed `web_extract` page-opening contract is aligned to `open_url` in deep-research mode.
 **Plans**: TBD
 
 Plans:
-- [ ] 01-01: Audit current tool registrations and prompts across all three modes.
-- [ ] 01-02: Rename or alias retrieval tools to the canonical public contract.
+- [ ] 01-01: Audit where `web_search` and the current open-page contract are exposed across quick, agentic, and deep-research paths.
+- [ ] 01-02: Rename or alias the current `web_extract` open-page contract to canonical `open_url` without changing the underlying retrieval behavior.
 - [ ] 01-03: Verify the aligned names work end-to-end in each mode.
 
-### Phase 2: Orchestrated Run Lifecycle
-**Goal**: Users can start deep research through a dedicated orchestrator that asks for one clarification at a time and resumes the same run.
+### Phase 2: Deep Agents Run Lifecycle
+**Goal**: Users can start deep research through the LangChain Deep Agents architecture, centered on `create_deep_agent(...)`, with one clarification at a time and resume on the same thread.
 **Depends on**: Phase 1
 **Requirements**: DEEP-01, DEEP-02, DEEP-03
 **Success Criteria** (what must be TRUE):
-  1. User can start a `deep_research` run and the run is handled by a deep-research orchestrator rather than the placeholder queued flow.
-  2. User can receive no more than one clarifying question at a time before research begins.
-  3. User can answer the clarifying question and continue the same `deep_research` run without losing prior context.
+  1. User can start a `deep_research` run and the run is handled by a Deep Agents supervisor created via `create_deep_agent(...)` instead of the placeholder queued flow.
+  2. User can receive no more than one clarifying question at a time before Deep Agents research fan-out begins.
+  3. User can answer the clarifying question and continue the same `deep_research` thread without losing prior context.
 **Plans**: TBD
 
 Plans:
-- [ ] 02-01: Replace the current deep-research entry path with orchestrator-first control flow.
-- [ ] 02-02: Add single-question clarification and resume handling for in-flight runs.
+- [ ] 02-01: Replace the current deep-research entry path with a `create_deep_agent(...)`-based supervisor flow.
+- [ ] 02-02: Add single-question clarification and same-thread resume handling around the Deep Agents run lifecycle.
 
-### Phase 3: Persistent Planning Backbone
-**Goal**: Users can rely on deep-research runs to create durable plans, derive research threads from them, and survive interruption with inspectable progress.
+### Phase 3: Deep Agents Persistence Backbone
+**Goal**: Users can rely on doc-aligned Deep Agents persistence, with backend-routed planning artifacts and `langgraph-checkpoint-postgres` thread checkpoints that survive interruption and remain inspectable.
 **Depends on**: Phase 2
 **Requirements**: PLAN-01, PLAN-02, PLAN-03, PLAN-04
 **Success Criteria** (what must be TRUE):
-  1. User can start a deep-research run and a persistent high-level research plan is created before research workers begin.
-  2. User can have the orchestrator derive subquestions or research angles from the persisted plan.
-  3. User can resume an interrupted deep-research run from filesystem artifacts plus LangGraph/Postgres-backed workflow state.
+  1. User can start a deep-research run and a persistent high-level research plan is created in the Deep Agents filesystem surface before research workers begin.
+  2. User can have the Deep Agents supervisor derive subquestions or research angles from that persisted plan.
+  3. User can resume an interrupted deep-research run from `langgraph-checkpoint-postgres` thread checkpoints and persisted Deep Agents backend artifacts.
   4. User can inspect deep-research progress through persisted artifacts and logging without needing a new frontend surface.
 **Plans**: TBD
 
 Plans:
-- [ ] 03-01: Persist plan artifacts and thread structure for each deep-research run.
-- [ ] 03-02: Add checkpoint-backed resume behavior and progress logging.
+- [ ] 03-01: Configure the Deep Agents backend layer so HTTP runtime planning uses doc-aligned backends such as `StateBackend`, `StoreBackend`, or `CompositeBackend` instead of implying local-disk `FilesystemBackend` as the long-term server persistence path.
+- [ ] 03-02: Add `langgraph-checkpoint-postgres` thread checkpointing plus inspectable progress logging and artifact persistence for resume.
 
-### Phase 4: Parallel Research Execution
-**Goal**: Users can have planned research threads executed in parallel by subagents that reuse the system's existing search and page-opening capabilities.
+### Phase 4: Deep Agents Research Fan-Out
+**Goal**: Users can have plan-derived research threads executed in parallel by Deep Agents subagents that reuse the system's existing search and page-opening capabilities.
 **Depends on**: Phase 3
 **Requirements**: RSCH-01, RSCH-02
 **Success Criteria** (what must be TRUE):
-  1. User can have the orchestrator spawn parallel research subagents for the subquestions produced by the plan.
-  2. User can have each research subagent use the same `web_search` and `open_url` retrieval behavior already supported by the project.
-  3. User can observe parallel research progress in persisted logs or artifacts as subagents complete their work.
+  1. User can have the Deep Agents supervisor spawn parallel Deep Agents subagents for the subquestions produced by the plan.
+  2. User can have each Deep Agents subagent use the same `web_search` and `open_url` retrieval behavior already supported by the project.
+  3. User can observe parallel research progress in persisted logs or artifacts as Deep Agents subagents complete their work.
 **Plans**: TBD
 
 Plans:
-- [ ] 04-01: Wire orchestrator delegation to parallel research workers.
-- [ ] 04-02: Connect workers to existing retrieval tooling and execution policy.
+- [ ] 04-01: Wire Deep Agents `task`-style delegation from the supervisor to parallel research subagents.
+- [ ] 04-02: Connect Deep Agents research subagents to the existing retrieval tooling and execution policy.
 
 ### Phase 5: Evidence-Grounded Completion
-**Goal**: Users receive a final deep-research answer only after the orchestrator has normalized citations from research workers and determined coverage is sufficient.
+**Goal**: Users receive a final deep-research answer only after middleware injects normalized evidence into subagent AI messages and again into the final supervisor answer, while the top-level API shape stays unchanged.
 **Depends on**: Phase 4
 **Requirements**: RSCH-03, RSCH-04, DEEP-04, TOOL-03
 **Success Criteria** (what must be TRUE):
-  1. User can have each research subagent return AI messages that include normalized search-result sources and crawl-result citations.
-  2. User can have the orchestrator continue researching until it determines enough evidence exists to answer the original question deeply.
-  3. User receives a final deep-research answer only after the orchestrator decides the planned subquestions have been answered well enough.
-  4. User keeps the current top-level `deep_research` API response shape while evidence remains embedded in AI message content.
+  1. User can have each research subagent return an AI message whose content has normalized search-result sources and crawl-result citations injected by middleware.
+  2. User can have the Deep Agents supervisor continue researching until it determines enough evidence exists to answer the original question deeply.
+  3. User receives a final deep-research answer only after the supervisor injects normalized evidence into the final AI message and decides the planned subquestions have been answered well enough.
+  4. User keeps the current top-level `deep_research` API response shape while evidence remains embedded inside AI message content.
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: Normalize worker outputs through citation-aware middleware.
-- [ ] 05-02: Add coverage evaluation and final-answer gating in the orchestrator.
+- [ ] 05-01: Inject normalized search sources and crawl citations into Deep Agents subagent AIMessage output through middleware.
+- [ ] 05-02: Inject normalized evidence into the final supervisor answer and gate completion on coverage without changing the existing top-level response envelope.
 
 ## Progress
 
@@ -101,7 +101,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Tool Contract Alignment | 0/3 | Not started | - |
-| 2. Orchestrated Run Lifecycle | 0/2 | Not started | - |
-| 3. Persistent Planning Backbone | 0/2 | Not started | - |
-| 4. Parallel Research Execution | 0/2 | Not started | - |
+| 2. Deep Agents Run Lifecycle | 0/2 | Not started | - |
+| 3. Deep Agents Persistence Backbone | 0/2 | Not started | - |
+| 4. Deep Agents Research Fan-Out | 0/2 | Not started | - |
 | 5. Evidence-Grounded Completion | 0/2 | Not started | - |

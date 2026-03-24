@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-03-24)
 Phase: 1 of 5 (Tool Contract Alignment)
 Plan: 0 of 3 in current phase
 Status: Ready to plan
-Last activity: 2026-03-24 — Created initial roadmap, initialized state, and mapped v1 requirements to phases.
+Last activity: 2026-03-24 — Revised roadmap language to align with Deep Agents docs and persistence architecture.
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -40,9 +40,9 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Phase 1: Normalize public retrieval tool names before deeper orchestration work depends on them.
-- Phase 2: Treat clarification as part of the orchestrated run lifecycle, with only one outstanding question at a time.
-- Phase 3: Persist plan artifacts and checkpoint-backed workflow state before parallel research execution.
+- Phase 1: Align the currently exposed open-page contract from `web_extract` to canonical `open_url` before deeper orchestration work depends on it.
+- Phase 2: Build deep research around `create_deep_agent(...)`, with only one outstanding clarification at a time.
+- Phase 3: Use Deep Agents backends for planning artifacts and `langgraph-checkpoint-postgres` for durable thread resume.
 
 ### Pending Todos
 
@@ -55,5 +55,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-24 00:00
-Stopped at: Initial roadmap creation and traceability mapping completed.
+Stopped at: Roadmap revision completed with doc-aligned Deep Agents and checkpointing language.
 Resume file: None
