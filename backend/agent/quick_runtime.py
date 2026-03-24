@@ -2,31 +2,26 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from backend.agent.answer_synthesis import (
-    QuickAnswerClient,
-    build_quick_answer_evidence_bundle,
-    synthesize_quick_answer,
-)
 from backend.agent.quick_evidence import build_quick_evidence
 from backend.agent.quick_search import (
     DEFAULT_QUICK_SEARCH_MAX_RESULTS,
     QuickSearchRunner,
     run_quick_search,
-    synthesize_quick_answer as synthesize_quick_answer_text,
+    synthesize_quick_answer,
 )
 from backend.agent.quick_selection import select_quick_urls
 from backend.agent.runtime_constants import QUICK_RUNTIME_MAX_CRAWLS
 from backend.agent.runtime_errors import (
-    coerce_tool_error,
     elapsed_ms,
     failed_result,
     map_quick_search_error_category,
     map_quick_search_error_message,
+    coerce_tool_error,
 )
 from backend.agent.schemas import (
-    AgentRunError,
     AgentRunResult,
     AgentRunRetrievalPolicy,
+    AgentRunError,
     AgentStructuredAnswer,
 )
 from backend.app.tools.schemas.web_search import WebSearchResponse
@@ -46,7 +41,6 @@ def run_quick_runtime(
     retrieval_policy: AgentRunRetrievalPolicy,
     search_runner: QuickSearchRunner | None = None,
     crawl_runner: QuickCrawlRunner | None = None,
-    answer_client: QuickAnswerClient | None = None,
 ) -> AgentRunResult:
     """Run the deterministic quick retrieval pipeline.
 
@@ -127,40 +121,11 @@ def run_quick_runtime(
             ),
         )
 
-    quick_answer_evidence = build_quick_answer_evidence_bundle(
-        question=prompt,
-        sources=evidence.sources,
+    return AgentRunResult(
+        run_id=run_id,
+        status="completed",
+        final_answer=AgentStructuredAnswer(text=synthesize_quick_answer(search_response)),
+        sources=list(evidence.sources),
+        tool_call_count=1 + len(crawl_payloads),
+        elapsed_ms=elapsed_ms(started_at),
     )
-    if answer_client is None:
-        return AgentRunResult(
-            run_id=run_id,
-            status="completed",
-            final_answer=AgentStructuredAnswer(text=synthesize_quick_answer_text(search_response)),
-            sources=list(evidence.sources),
-            tool_call_count=1 + len(crawl_payloads),
-            elapsed_ms=elapsed_ms(started_at),
-        )
-
-    try:
-        return synthesize_quick_answer(
-            run_id=run_id,
-            started_at=started_at,
-            question=prompt,
-            evidence=quick_answer_evidence,
-            client=answer_client,
-            tool_call_count=1 + len(crawl_payloads),
-        )
-    except Exception as exc:
-        return AgentRunResult(
-            run_id=run_id,
-            status="failed",
-            final_answer=None,
-            sources=list(evidence.sources),
-            tool_call_count=1 + len(crawl_payloads),
-            elapsed_ms=elapsed_ms(started_at),
-            error=AgentRunError(
-                category="provider_failure",
-                message=str(exc) or "quick answer synthesis failed",
-                retryable=True,
-            ),
-        )

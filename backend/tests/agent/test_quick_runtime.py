@@ -55,23 +55,6 @@ class StubQuickCrawlRunner:
         return self.payloads_by_url[url]
 
 
-@dataclass
-class StubQuickAnswerResponses:
-    output_text: str
-    captured_model: str | None = None
-    captured_input: str | None = None
-
-    def create(self, *, model: str, input: str) -> Any:
-        self.captured_model = model
-        self.captured_input = input
-        return type("StubResponse", (), {"output_text": self.output_text})()
-
-
-@dataclass
-class StubQuickAnswerClient:
-    responses: StubQuickAnswerResponses
-
-
 def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
@@ -170,12 +153,6 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
             },
         }
     )
-    answer_client = StubQuickAnswerClient(
-        responses=StubQuickAnswerResponses(
-            output_text="Crawl one. Crawl two. Crawl three."
-        )
-    )
-
     result = run_quick_runtime(
         prompt="What is the pricing?",
         run_id="run-quick",
@@ -183,7 +160,6 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
         retrieval_policy=AgentRunRetrievalPolicy(),
         search_runner=search_runner,
         crawl_runner=crawl_runner,
-        answer_client=answer_client,
     )
 
     assert isinstance(result, AgentRunResult)
@@ -197,7 +173,14 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
     assert result.status == "completed"
     assert result.run_id == "run-quick"
     assert result.final_answer is not None
-    assert result.final_answer.text == "Crawl one. Crawl two. Crawl three."
+    assert (
+        result.final_answer.text
+        == "One: Result one. Two: Result two. Two duplicate: Duplicate result.\n\n"
+        "Sources:\n"
+        "- One: https://example.com/1\n"
+        "- Two: https://example.com/2\n"
+        "- Two duplicate: https://example.com/2"
+    )
     assert result.sources and [str(source.url) for source in result.sources] == [
         "https://example.com/1",
         "https://example.com/2",
@@ -205,7 +188,7 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
     ]
 
 
-def test_run_quick_runtime_uses_one_shot_synthesis_for_final_answer() -> None:
+def test_run_quick_runtime_does_not_accept_answer_client_override() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
             "query": "What is the refund policy?",
@@ -247,27 +230,16 @@ def test_run_quick_runtime_uses_one_shot_synthesis_for_final_answer() -> None:
             }
         }
     )
-    answer_client = StubQuickAnswerClient(
-        responses=StubQuickAnswerResponses(
-            output_text="Customers can request a refund within 30 days."
+    with pytest.raises(TypeError, match="answer_client"):
+        run_quick_runtime(
+            prompt="What is the refund policy?",
+            run_id="run-quick",
+            started_at=0.0,
+            retrieval_policy=AgentRunRetrievalPolicy(),
+            search_runner=search_runner,
+            crawl_runner=crawl_runner,
+            answer_client=object(),
         )
-    )
-
-    result = run_quick_runtime(
-        prompt="What is the refund policy?",
-        run_id="run-quick",
-        started_at=0.0,
-        retrieval_policy=AgentRunRetrievalPolicy(),
-        search_runner=search_runner,
-        crawl_runner=crawl_runner,
-        answer_client=answer_client,
-    )
-
-    assert result.status == "completed"
-    assert result.final_answer is not None
-    assert result.final_answer.text == "Customers can request a refund within 30 days."
-    assert answer_client.responses.captured_model is not None
-    assert answer_client.responses.captured_input is not None
 
 
 def test_select_quick_urls_skips_duplicate_urls() -> None:

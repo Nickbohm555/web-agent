@@ -6,9 +6,6 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
-from .quick_answer import QuickAnswerSynthesisRequest, QuickEvidenceBundle, QuickEvidenceSource
-
-
 AgentRunMode = Literal["quick", "agentic", "deep_research"]
 AgentRunStatus = Literal["completed", "failed"]
 AgentRuntimeExecutionMode = Literal["single_pass", "bounded_agent_loop", "background_research"]
@@ -285,9 +282,6 @@ __all__ = [
     "AgentRuntimeProfile",
     "AgentSourceReference",
     "AgentStructuredAnswer",
-    "QuickAnswerSynthesisRequest",
-    "QuickEvidenceBundle",
-    "QuickEvidenceSource",
 ]
 
 
