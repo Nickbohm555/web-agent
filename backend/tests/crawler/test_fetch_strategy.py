@@ -127,3 +127,22 @@ def test_classify_http_result_marks_low_content_as_javascript_required_when_shel
 
     assert classification == "javascript_required"
     assert should_escalate_http_result(classification=classification) == "javascript_required"
+
+
+def test_classify_http_result_escalates_plain_low_content_without_js_markers() -> None:
+    extraction_result = ExtractionResult(
+        state="low-content-quality",
+        text="Short fragment without any shell markers.",
+        markdown="Short fragment without any shell markers.",
+        excerpts=[],
+        fallback_reason="low-content-quality",
+    )
+
+    classification = classify_http_result(
+        fetch_result=None,
+        extraction_result=extraction_result,
+        response_body="<html><body><article>Short fragment without any shell markers.</article></body></html>",
+    )
+
+    assert classification == "low_content_quality"
+    assert should_escalate_http_result(classification=classification) == "low_content_quality"
