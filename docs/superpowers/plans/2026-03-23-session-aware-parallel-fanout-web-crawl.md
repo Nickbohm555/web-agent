@@ -27,7 +27,6 @@
 - `backend/app/crawler/error_mapping.py` - Stable typed crawl error mapping.
 
 **Modify:**
-- `backend/app/tools/schemas/tool_errors.py` - Extend crawl metadata typing for session-aware fields if the shared meta model remains the contract owner.
 - `backend/app/tools/schemas/web_crawl.py` - Merge the final single/batch/session-aware public tool schemas.
 - `backend/app/contracts/web_crawl.py` - Re-export the updated crawl contract types.
 - `backend/app/tools/schemas/__init__.py` - Export new batch crawl schemas.
@@ -155,7 +154,7 @@ Expected: one public input model, one public tool name, and no ambiguity about h
 - [ ] **Step 4: Extend crawl metadata typing for session-aware fields**
 
 ```python
-class CrawlToolMeta(ToolMeta):
+class WebCrawlMeta(ToolMeta):
     strategy_used: Literal["http", "browser"]
     escalation_count: int = Field(ge=0)
     session_profile_id: str | None = None
@@ -181,7 +180,6 @@ Expected: PASS
 
 ```bash
 git add backend/app/tools/schemas/web_crawl.py \
-  backend/app/tools/schemas/tool_errors.py \
   backend/app/tools/schemas/web_crawl_batch.py \
   backend/app/contracts/web_crawl.py \
   backend/app/tools/schemas/__init__.py \
@@ -216,6 +214,12 @@ def test_resolve_session_profile_matches_domain() -> None:
     assert profile.profile_id == "example-session"
 
 
+def test_get_session_profiles_returns_configured_profiles() -> None:
+    provider = InMemorySessionProfileProvider(profiles=[SessionProfile(profile_id="example-session", ...)])
+    profiles = get_session_profiles(provider)
+    assert profiles[0].profile_id == "example-session"
+
+
 def test_orchestrator_escalates_to_browser_for_403() -> None:
     result = run_fetch_orchestrator(url="https://example.com/blocked", objective="Find pricing", ...)
     assert result.meta.strategy_used == "browser"
@@ -245,6 +249,23 @@ Expected: FAIL because the new modules do not exist yet.
 - [ ] **Step 3: Implement the small crawler modules**
 
 ```python
+class SessionProfileProvider(Protocol):
+    def list_profiles(self) -> Sequence[SessionProfile]:
+        ...
+
+
+class InMemorySessionProfileProvider:
+    def __init__(self, profiles: Sequence[SessionProfile]) -> None:
+        self._profiles = list(profiles)
+
+    def list_profiles(self) -> Sequence[SessionProfile]:
+        return tuple(self._profiles)
+
+
+def get_session_profiles(provider: SessionProfileProvider | None) -> Sequence[SessionProfile]:
+    return provider.list_profiles() if provider is not None else ()
+
+
 def resolve_session_profile(url: str, profiles: Sequence[SessionProfile]) -> SessionProfile | None:
     hostname = urlsplit(url).hostname or ""
     return next((profile for profile in profiles if profile.matches(hostname)), None)
@@ -258,8 +279,33 @@ def decide_fetch_strategy(... ) -> FetchStrategyDecision:
 
 - [ ] **Step 4: Route single-page `run_web_crawl(...)` through the orchestrator**
 
-Run: keep the public `run_web_crawl(...)` entrypoint explicit, but delegate the internal single-page work to `fetch_orchestrator.py`.
-Expected: no behavior regression for existing single-URL tests.
+```python
+def run_web_crawl(
+    *,
+    url: str | None = None,
+    urls: list[str] | None = None,
+    objective: str | None = None,
+    session_profile_provider: SessionProfileProvider | None = None,
+    ...
+) -> WebCrawlToolResult:
+    validated = WebCrawlToolInput(url=url, urls=urls, objective=objective)
+    if validated.urls is not None:
+        return run_web_crawl_batch(
+            urls=[str(item) for item in validated.urls],
+            objective=validated.objective,
+            session_profile_provider=session_profile_provider,
+            ...,
+        )
+    return run_single_web_crawl(
+        url=str(validated.url),
+        objective=validated.objective,
+        session_profile_provider=session_profile_provider,
+        ...,
+    )
+```
+
+Run: keep the public `run_web_crawl(...)` entrypoint explicit, validate through `WebCrawlToolInput`, and pass the provider seam into the orchestrator/browser path.
+Expected: no behavior regression for existing single-URL tests and no ambiguity at the tool boundary.
 
 - [ ] **Step 5: Run targeted crawler and single-page crawl tests**
 
@@ -369,7 +415,23 @@ Expected: one slow or hung fetch does not stall the rest of the batch, and timed
 
 - [ ] **Step 4: Dispatch from the public tool boundary**
 
-Run: update `build_web_crawl_tool(...)` and `run_web_crawl(...)` wiring so single-page calls keep working and `urls=[...]` takes the new batch path.
+```python
+@tool("web_crawl", args_schema=WebCrawlToolInput)
+def bounded_web_crawl(
+    url: str | None = None,
+    urls: list[str] | None = None,
+    objective: str | None = None,
+) -> WebCrawlToolResult:
+    return run_web_crawl(
+        url=url,
+        urls=urls,
+        objective=objective,
+        session_profile_provider=session_profile_provider,
+        ...,
+    )
+```
+
+Run: update `build_web_crawl_tool(...)` so the LangChain wrapper signature matches the validated one-of input contract exactly and routes both single and batch requests through `run_web_crawl(...)`.
 Expected: one explicit tool boundary, not a second public crawl tool.
 
 - [ ] **Step 5: Run the full crawl tool suite**
