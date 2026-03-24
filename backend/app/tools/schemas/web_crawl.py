@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional, Union
+from typing import Iterator, Literal, Optional, Union
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
@@ -9,6 +9,7 @@ from .tool_errors import ToolErrorEnvelope, ToolMeta
 
 CrawlFallbackReason = Literal["network-error", "low-content-quality", "unsupported-content-type"]
 ExtractionState = Literal["ok", "low-content-quality", "unsupported-content-type", "network-error"]
+CrawlContentSource = Literal["http", "browser"]
 
 
 def _strip_text(value: str) -> str:
@@ -43,6 +44,29 @@ class WebCrawlInput(BaseModel):
         if not normalized:
             raise ValueError("objective must not be empty")
         return normalized
+
+
+class NormalizedCrawlContent(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    url: str = Field(min_length=1)
+    final_url: str = Field(min_length=1)
+    status_code: int = Field(ge=100, le=599)
+    content_type: str = Field(min_length=1)
+    body: str
+    source: CrawlContentSource
+    rendered: bool = False
+    raw_html: Optional[str] = None
+    extracted_text: Optional[str] = None
+
+    @field_validator("url", "final_url", "content_type", "body", "raw_html", "extracted_text")
+    @classmethod
+    def normalize_text(cls, value: Optional[str]) -> Optional[str]:
+        return _strip_optional_text(value)
+
+    def __iter__(self) -> Iterator[str]:
+        yield self.body
+        yield self.content_type
 
 
 class WebCrawlExcerpt(BaseModel):
