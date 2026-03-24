@@ -198,12 +198,30 @@ export const RunStartRequestSchema = z
 
 export const RunStartStatusSchema = z.enum(["queued", "running"]);
 
-export const RunStartResponseSchema = z
+export const RunStartExecutionSurfaceSchema = z.literal("background");
+
+export const RunStartBackgroundMetadataSchema = z
+  .object({
+    execution_surface: RunStartExecutionSurfaceSchema,
+  })
+  .strict();
+
+export const RunStartBaseResponseSchema = z
   .object({
     runId: z.uuid(),
     status: RunStartStatusSchema,
   })
   .strict();
+
+export const RunStartBackgroundResponseSchema = RunStartBaseResponseSchema.extend({
+  metadata: RunStartBackgroundMetadataSchema,
+});
+
+export const RunStartResponseSchema = z
+  .union([
+    RunStartBaseResponseSchema,
+    RunStartBackgroundResponseSchema,
+  ]);
 
 export const RunSourceSchema = z
   .object({

@@ -4,6 +4,7 @@ import {
   parseRunHistoryListResponse,
   parseRunHistoryNotFoundError,
   parseRunHistoryRunSnapshot,
+  RunStartResponseSchema,
   type RunStreamEvent,
 } from "../../frontend/contracts.js";
 import {
@@ -429,6 +430,13 @@ describe("run history API", () => {
         mode: "deep_research",
       });
       expect(startResponse.status).toBe(201);
+      expect(RunStartResponseSchema.parse(startResponse.json)).toMatchObject({
+        runId: expect.any(String),
+        status: "queued",
+        metadata: {
+          execution_surface: "background",
+        },
+      });
 
       const runId = parseRunId(startResponse.json);
       await new Promise((resolve) => setTimeout(resolve, 8));
