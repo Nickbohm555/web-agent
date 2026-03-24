@@ -12,7 +12,7 @@ This roadmap turns the current placeholder deep-research path into a LangChain D
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Tool Contract Alignment** - Rename the currently exposed open-page tool contract from `web_crawl` to `open_url` and align retrieval names across all modes.
+- [x] **Phase 1: Tool Contract Alignment** - Rename the currently exposed open-page tool contract from `web_crawl` to `open_url` and align retrieval names across all modes.
 - [ ] **Phase 2: Deep Agents Run Lifecycle** - Replace the placeholder deep-research flow with a `create_deep_agent(...)` supervisor that can clarify and resume.
 - [ ] **Phase 3: Deep Agents Persistence Backbone** - Use Deep Agents backends plus `langgraph-checkpoint-postgres` for durable planning state and inspectable progress.
 - [ ] **Phase 4: Deep Agents Research Fan-Out** - Run plan-derived subquestions through Deep Agents subagents that return subanswers plus normalized evidence from existing retrieval behavior.
@@ -31,9 +31,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Align backend canonical tool bindings, prompt text, and parser tolerance to `web_search` + `open_url`.
-- [ ] 01-02-PLAN.md — Align frontend contracts, observability, and event normalization to `open_url` while keeping `open_page`.
-- [ ] 01-03-PLAN.md — Add queued deep-research, SSE/history, reducer, and timeline regressions for the renamed contract.
+- [x] 01-01-PLAN.md — Align backend canonical tool bindings, prompt text, and parser tolerance to `web_search` + `open_url`.
+- [x] 01-02-PLAN.md — Align frontend contracts, observability, and event normalization to `open_url` while keeping `open_page`.
+- [x] 01-03-PLAN.md — Add queued deep-research, SSE/history, reducer, and timeline regressions for the renamed contract.
 
 ### Phase 2: Deep Agents Run Lifecycle
 **Goal**: Users can start deep research through the LangChain Deep Agents architecture, centered on `create_deep_agent(...)`, with one clarification at a time and resume on the same thread.
@@ -102,7 +102,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Tool Contract Alignment | 0/3 | Not started | - |
+| 1. Tool Contract Alignment | 3/3 | Complete | 2026-03-24 |
 | 2. Deep Agents Run Lifecycle | 0/2 | Not started | - |
 | 3. Deep Agents Persistence Backbone | 0/2 | Not started | - |
 | 4. Deep Agents Research Fan-Out | 0/2 | Not started | - |
