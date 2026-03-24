@@ -11,6 +11,11 @@
 5.2. Inside any `schemas/` folder, split models into multiple files by category when that makes sense. Do not pile unrelated Pydantic models into one large schema file. Prefer files like `tool_errors.py`, `web_search.py`, `web_crawl.py`, or `http_fetch.py`, and remove misplaced top-level schema folders like `backend/app/schemas` by moving each schema file into its correct feature-level `schemas/` folder.
 6. For backend functions in `backend/app/tools/**`, include a concise docstring with a short description of what the function does plus one example input and one example output whenever the function shape is stable enough to document.
 6.1. For any user-facing LangChain or framework tool entrypoint declared with `@tool(...)` or similar tool registration, make the docstring/tool description explicitly match the real runtime behavior, limits, policy filters, and output shape. These user-facing tool descriptions do not need the example input/output convention.
+7. Terminology mapping for this repo:
+7.1. When we specify `deep agents` anywhere, we mean the LangChain Deep Agents API documented at `https://docs.langchain.com/oss/python/deepagents/overview`.
+7.2. When we specify `filestorage`, we mean the Deep Agents backends/storage docs at `https://docs.langchain.com/oss/python/deepagents/backends`.
+7.3. When we specify `middleware`, we mean the LangChain built-in middleware docs at `https://docs.langchain.com/oss/python/langchain/middleware/built-in`.
+7.4. When we specify `checkpointer`, we mean the Postgres checkpointer package documented at `https://pypi.org/project/langgraph-checkpoint-postgres/`.
 
 
 ## App Build + Debug Instructions (Operational)
