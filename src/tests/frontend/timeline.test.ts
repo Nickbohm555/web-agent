@@ -28,7 +28,7 @@ describe("timeline helpers", () => {
         }),
         createToolCall({
           toolCallId: "tool-2",
-          toolName: "web_crawl",
+          toolName: "open_url",
           status: "started",
           startedAt: 100,
           sortTimestamp: 100,
@@ -88,7 +88,7 @@ describe("timeline helpers", () => {
       [
         createToolCall({
           toolCallId: "tool-1",
-          toolName: "web_crawl",
+          toolName: "open_url",
           status: "completed",
           startedAt: 1_000,
           endedAt: 1_900,
@@ -112,7 +112,7 @@ describe("timeline helpers", () => {
       [
         createToolCall({
           toolCallId: "tool-1",
-          toolName: "web_crawl",
+          toolName: "open_url",
           status: "failed",
           startedAt: 2_000,
           endedAt: 3_500,

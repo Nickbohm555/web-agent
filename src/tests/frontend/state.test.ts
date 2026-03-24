@@ -122,7 +122,7 @@ describe("run state reducer", () => {
         event: {
           runId: "run-123",
           toolCallId: "tool-2",
-          toolName: "web_crawl",
+          toolName: "open_url",
           status: "started",
           startedAt: 200,
         },
@@ -190,7 +190,7 @@ describe("run state reducer", () => {
         event: {
           runId: "run-123",
           toolCallId: "tool-2",
-          toolName: "web_crawl",
+          toolName: "open_url",
           status: "started",
           startedAt: 500,
         },
@@ -236,7 +236,7 @@ describe("run state reducer", () => {
         event: {
           runId: "run-456",
           toolCallId: "tool-9",
-          toolName: "web_crawl",
+          toolName: "open_url",
           status: "failed",
           endedAt: 20,
           durationMs: 10,
