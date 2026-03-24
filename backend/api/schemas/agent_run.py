@@ -54,6 +54,20 @@ class AgentRunMetadata(BaseModel):
         )
 
 
+class AgentRunQueuedMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    execution_surface: Literal["background"]
+
+
+class AgentRunQueuedResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str = Field(min_length=1)
+    status: Literal["queued", "running"]
+    metadata: AgentRunQueuedMetadata
+
+
 class AgentRunSuccessResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

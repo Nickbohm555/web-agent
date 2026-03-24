@@ -12,7 +12,13 @@ from backend.agent.quick_search import (
     run_quick_search,
     synthesize_quick_answer,
 )
-from backend.agent.runtime_constants import CANONICAL_TOOL_NAMES, RUNTIME_PROFILES
+from backend.agent.runtime_constants import (
+    AGENTIC_RUNTIME_MODE,
+    CANONICAL_TOOL_NAMES,
+    DEEP_RESEARCH_RUNTIME_MODE,
+    QUICK_RUNTIME_MODE,
+    RUNTIME_PROFILES,
+)
 from backend.agent.runtime_errors import (
     coerce_tool_error,
     elapsed_ms,
@@ -58,11 +64,39 @@ class AgentFactory(Protocol):
         ...
 
 
+class QuickRuntimeRunner(Protocol):
+    def __call__(
+        self,
+        *,
+        prompt: str,
+        run_id: str,
+        started_at: float,
+        retrieval_policy: AgentRunRetrievalPolicy,
+        runtime_dependencies: "RuntimeDependencies",
+    ) -> AgentRunResult:
+        ...
+
+
+class DeepResearchRunner(Protocol):
+    def __call__(
+        self,
+        *,
+        prompt: str,
+        run_id: str,
+        started_at: float,
+        retrieval_policy: AgentRunRetrievalPolicy,
+        runtime_dependencies: "RuntimeDependencies",
+    ) -> AgentRunResult:
+        ...
+
+
 @dataclass(frozen=True)
 class RuntimeDependencies:
     agent: AgentExecutor | None = None
     agent_factory: AgentFactory | None = None
     quick_search_runner: QuickSearchRunner | None = None
+    quick_runtime_runner: QuickRuntimeRunner | None = None
+    deep_research_runner: DeepResearchRunner | None = None
 
 
 def run_agent_once(
@@ -90,33 +124,28 @@ def run_agent_once(
             retrieval_policy=retrieval_policy,
         )
         dependencies = runtime_dependencies or build_runtime_dependencies()
-        if profile.name == "quick":
-            return run_quick_mode(
+        if profile.name == QUICK_RUNTIME_MODE:
+            return get_quick_runtime_runner(dependencies)(
                 prompt=prompt,
                 run_id=run_id,
                 started_at=started_at,
                 retrieval_policy=effective_policy,
                 runtime_dependencies=dependencies,
             )
-        agent = resolve_agent(
-            dependencies,
-            profile,
-            effective_policy,
-            prompt,
-        )
-        raw_result = agent.invoke(
-            build_inputs(prompt),
-            build_runtime_config(profile, effective_policy),
-        )
-        source_registry = extract_sources(raw_result)
-        sources = source_registry.sources()
-        return AgentRunResult(
+        if profile.name == DEEP_RESEARCH_RUNTIME_MODE:
+            return get_deep_research_runtime_runner(dependencies)(
+                prompt=prompt,
+                run_id=run_id,
+                started_at=started_at,
+                retrieval_policy=effective_policy,
+                runtime_dependencies=dependencies,
+            )
+        return run_agentic_mode(
+            prompt=prompt,
             run_id=run_id,
-            status="completed",
-            final_answer=extract_final_answer(raw_result, source_registry.source_lookup()),
-            sources=sources,
-            tool_call_count=count_tool_calls(raw_result),
-            elapsed_ms=elapsed_ms(started_at),
+            started_at=started_at,
+            retrieval_policy=effective_policy,
+            runtime_dependencies=dependencies,
         )
     except Exception as exc:
         return map_runtime_failure(exc=exc, run_id=run_id, started_at=started_at)
@@ -127,6 +156,8 @@ def build_runtime_dependencies() -> RuntimeDependencies:
     return RuntimeDependencies(
         agent_factory=build_default_agent,
         quick_search_runner=run_quick_search,
+        quick_runtime_runner=run_quick_mode,
+        deep_research_runner=run_deep_research_mode,
     )
 
 
@@ -142,7 +173,7 @@ def get_tools_for_profile(
     profile: AgentRuntimeProfile,
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
 ) -> tuple[Any, Any]:
-    if profile.name == "quick":
+    if profile.name == QUICK_RUNTIME_MODE:
         return get_canonical_tools()
 
     effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
@@ -244,6 +275,73 @@ def run_quick_mode(
     )
 
 
+def run_agentic_mode(
+    *,
+    prompt: str,
+    run_id: str,
+    started_at: float,
+    retrieval_policy: AgentRunRetrievalPolicy,
+    runtime_dependencies: RuntimeDependencies,
+) -> AgentRunResult:
+    return run_agent_profile_mode(
+        profile=get_runtime_profile(AGENTIC_RUNTIME_MODE),
+        prompt=prompt,
+        run_id=run_id,
+        started_at=started_at,
+        retrieval_policy=retrieval_policy,
+        runtime_dependencies=runtime_dependencies,
+    )
+
+
+def run_deep_research_mode(
+    *,
+    prompt: str,
+    run_id: str,
+    started_at: float,
+    retrieval_policy: AgentRunRetrievalPolicy,
+    runtime_dependencies: RuntimeDependencies,
+) -> AgentRunResult:
+    return run_agent_profile_mode(
+        profile=get_runtime_profile(DEEP_RESEARCH_RUNTIME_MODE),
+        prompt=prompt,
+        run_id=run_id,
+        started_at=started_at,
+        retrieval_policy=retrieval_policy,
+        runtime_dependencies=runtime_dependencies,
+    )
+
+
+def run_agent_profile_mode(
+    *,
+    profile: AgentRuntimeProfile,
+    prompt: str,
+    run_id: str,
+    started_at: float,
+    retrieval_policy: AgentRunRetrievalPolicy,
+    runtime_dependencies: RuntimeDependencies,
+) -> AgentRunResult:
+    agent = resolve_agent(
+        runtime_dependencies,
+        profile,
+        retrieval_policy,
+        prompt,
+    )
+    raw_result = agent.invoke(
+        build_inputs(prompt),
+        build_runtime_config(profile, retrieval_policy),
+    )
+    source_registry = extract_sources(raw_result)
+    sources = source_registry.sources()
+    return AgentRunResult(
+        run_id=run_id,
+        status="completed",
+        final_answer=extract_final_answer(raw_result, source_registry.source_lookup()),
+        sources=sources,
+        tool_call_count=count_tool_calls(raw_result),
+        elapsed_ms=elapsed_ms(started_at),
+    )
+
+
 def build_default_agent(
     profile: AgentRuntimeProfile,
     tools: tuple[Any, ...],
@@ -295,3 +393,13 @@ def build_inputs(prompt: str) -> dict[str, Any]:
 
 def get_quick_search_runner(runtime_dependencies: RuntimeDependencies) -> QuickSearchRunner:
     return runtime_dependencies.quick_search_runner or run_quick_search
+
+
+def get_quick_runtime_runner(runtime_dependencies: RuntimeDependencies) -> QuickRuntimeRunner:
+    return runtime_dependencies.quick_runtime_runner or run_quick_mode
+
+
+def get_deep_research_runtime_runner(
+    runtime_dependencies: RuntimeDependencies,
+) -> DeepResearchRunner:
+    return runtime_dependencies.deep_research_runner or run_deep_research_mode

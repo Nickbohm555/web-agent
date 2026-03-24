@@ -7,7 +7,12 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from backend.agent.schemas import AgentRunError, AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
-from backend.api.schemas import AgentRunRequest, AgentRunSuccessResponse
+from backend.api.schemas import (
+    AgentRunQueuedMetadata,
+    AgentRunQueuedResponse,
+    AgentRunRequest,
+    AgentRunSuccessResponse,
+)
 from backend.api.errors import map_runtime_failure
 from backend.api.services import agent_run as agent_run_service
 from backend.app.config import get_settings
@@ -512,6 +517,16 @@ def test_run_route_forwards_retrieval_policy_to_runtime(
             ),
         )
     ]
+
+
+def test_agent_run_request_accepts_background_deep_research_response_shape() -> None:
+    payload = AgentRunQueuedResponse(
+        run_id="run-deep",
+        status="queued",
+        metadata=AgentRunQueuedMetadata(execution_surface="background"),
+    )
+
+    assert payload.status == "queued"
 
 
 def post_run(client: TestClient, *, prompt: str, mode: str):
