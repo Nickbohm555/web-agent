@@ -1,10 +1,13 @@
 import importlib
 
 import httpx
+import pytest
+from pydantic import ValidationError
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
-from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess
+from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess, WebCrawlToolInput
+from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.tools.web_crawl import (
     build_web_crawl_action_record,
@@ -15,6 +18,91 @@ from backend.app.tools.web_crawl import (
 
 
 web_crawl_module = importlib.import_module("backend.app.tools.web_crawl")
+
+
+def test_web_crawl_input_accepts_single_url_and_objective() -> None:
+    model = WebCrawlToolInput(url="https://example.com/article", objective="Find pricing")
+
+    assert str(model.url) == "https://example.com/article"
+    assert model.objective == "Find pricing"
+
+
+def test_web_crawl_tool_input_accepts_urls_and_rejects_url_plus_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput(
+            url="https://example.com/a",
+            urls=["https://example.com/b"],
+        )
+
+
+def test_web_crawl_tool_input_rejects_missing_url_and_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput()
+
+
+def test_web_crawl_tool_input_rejects_more_than_five_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput(urls=[f"https://example.com/{index}" for index in range(6)])
+
+
+def test_web_crawl_batch_success_preserves_input_order() -> None:
+    payload = WebCrawlBatchSuccess.model_validate(
+        {
+            "requested_urls": ["https://example.com/a", "https://example.com/b"],
+            "items": [
+                {
+                    "url": "https://example.com/a",
+                    "status": "succeeded",
+                    "result": {
+                        "url": "https://example.com/a",
+                        "final_url": "https://example.com/a",
+                        "text": "alpha",
+                        "markdown": "alpha",
+                        "objective": None,
+                        "excerpts": [],
+                        "status_code": 200,
+                        "content_type": "text/html",
+                        "fallback_reason": None,
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 10,
+                            "timings": {"total_ms": 10},
+                        },
+                    },
+                    "error": None,
+                },
+                {
+                    "url": "https://example.com/b",
+                    "status": "failed",
+                    "result": None,
+                    "error": {
+                        "kind": "invalid_request",
+                        "message": "blocked",
+                        "retryable": False,
+                        "status_code": None,
+                        "attempt_number": None,
+                        "operation": "web_crawl",
+                        "timings": {"total_ms": 4},
+                    },
+                },
+            ],
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 2,
+                "retries": 0,
+                "duration_ms": 14,
+                "timings": {"total_ms": 14},
+            },
+            "summary": {"attempted": 2, "succeeded": 1, "failed": 1},
+        }
+    )
+
+    assert [str(item.url) for item in payload.items] == [
+        "https://example.com/a",
+        "https://example.com/b",
+    ]
 
 
 def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
