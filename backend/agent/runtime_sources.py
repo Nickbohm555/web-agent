@@ -162,34 +162,6 @@ def count_tool_calls(raw_result: Any) -> int:
     return total
 
 
-def has_crawl_attempt(raw_result: Any) -> bool:
-    if not isinstance(raw_result, dict):
-        return False
-
-    messages = raw_result.get("messages")
-    if not isinstance(messages, list):
-        return False
-
-    for message in messages:
-        if coerce_message_tool_name(message) == "web_crawl":
-            return True
-
-        tool_calls = coerce_message_typed_field(message, "tool_calls", list)
-        if not isinstance(tool_calls, list):
-            continue
-
-        for tool_call in tool_calls:
-            if isinstance(tool_call, dict):
-                tool_name = tool_call.get("name") or tool_call.get("tool_name")
-            else:
-                tool_name = getattr(tool_call, "name", None) or getattr(tool_call, "tool_name", None)
-
-            if tool_name == "web_crawl":
-                return True
-
-    return False
-
-
 def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
     if not isinstance(raw_result, dict):
         return None
@@ -204,13 +176,22 @@ def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
             continue
 
         payload = coerce_message_tool_payload(message)
-        if not isinstance(payload, dict) or "error" not in payload:
+        if not isinstance(payload, dict):
+            continue
+
+        if "error" in payload:
+            try:
+                crawl_error = ToolErrorEnvelope.model_validate(payload)
+            except ValidationError:
+                continue
             continue
 
         try:
-            crawl_error = ToolErrorEnvelope.model_validate(payload)
+            WebCrawlSuccess.model_validate(payload)
         except ValidationError:
             continue
+
+        crawl_error = None
 
     return crawl_error
 

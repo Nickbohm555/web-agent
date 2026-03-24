@@ -1260,6 +1260,75 @@ def test_run_agent_once_preserves_terminal_crawl_error_without_sources() -> None
     assert result.error.retryable is False
 
 
+def test_run_agent_once_prefers_terminal_zero_evidence_crawl_success_without_sources() -> None:
+    agent = StubAgent(
+        raw_result={
+            "messages": [
+                {
+                    "role": "tool",
+                    "name": "web_crawl",
+                    "content": {
+                        "error": {
+                            "kind": "provider_unavailable",
+                            "message": "temporary upstream issue",
+                            "retryable": True,
+                            "status_code": 503,
+                            "attempt_number": 1,
+                            "operation": "web_crawl",
+                            "timings": {"total_ms": 80, "provider_ms": 60},
+                        },
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 80,
+                            "timings": {"total_ms": 80, "provider_ms": 60},
+                        },
+                    },
+                },
+                {
+                    "role": "tool",
+                    "name": "web_crawl",
+                    "content": {
+                        "url": "https://example.com/thin",
+                        "final_url": "https://example.com/thin",
+                        "text": "",
+                        "markdown": "",
+                        "excerpts": [],
+                        "status_code": 200,
+                        "content_type": "text/html",
+                        "fallback_reason": "low-content-quality",
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 2,
+                            "retries": 1,
+                            "duration_ms": 20,
+                            "timings": {"total_ms": 20},
+                        },
+                    },
+                },
+                {
+                    "role": "assistant",
+                    "content": "Fallback answer.",
+                },
+            ]
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "failed"
+    assert result.final_answer is None
+    assert result.sources == []
+    assert result.error is not None
+    assert result.error.category == "tool_failure"
+    assert result.error.message == "agent crawl returned no evidence"
+    assert result.error.retryable is False
+
+
 def test_run_agent_once_normalizes_safe_source_urls_before_emitting_citations() -> None:
     agent = StubAgent(
         raw_result={
