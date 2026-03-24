@@ -55,7 +55,7 @@ def test_web_search_response_accepts_normalized_success_payload() -> None:
                 title="Example result",
                 url="https://example.com/article",
                 snippet="  Summary text.  ",
-                rank=SearchRank(position=1, provider_position=2, rerank_score=12.5),
+                rank=SearchRank(position=1, provider_position=2),
             )
         ],
         metadata=SearchMetadata(result_count=1, provider="serper"),
@@ -72,7 +72,6 @@ def test_web_search_response_accepts_normalized_success_payload() -> None:
     assert response.results[0].snippet == "Summary text."
     assert str(response.results[0].url) == "https://example.com/article"
     assert response.metadata.result_count == 1
-    assert response.results[0].rank.rerank_score == 12.5
 
 
 def test_build_web_search_action_record_summarizes_success_payload() -> None:
@@ -540,11 +539,10 @@ def test_web_search_tool_returns_contract_valid_success_payload() -> None:
         "Later provider result",
     ]
     assert [result.rank.position for result in response.results] == [1, 2]
-    assert response.results[0].rank.rerank_score is not None
     assert response.meta.operation == "web_search"
 
 
-def test_web_search_tool_reranks_results_by_query_relevance() -> None:
+def test_web_search_tool_preserves_provider_order_even_when_later_result_matches_query_better() -> None:
     client = SerperClient(
         api_key="serper-test-key",
         http_client=_mock_http_client(
@@ -577,15 +575,16 @@ def test_web_search_tool_reranks_results_by_query_relevance() -> None:
     response = WebSearchResponse.model_validate(payload)
 
     assert [result.title for result in response.results] == [
-        "Widget pricing and enterprise plans",
         "Company blog",
+        "Widget pricing and enterprise plans",
     ]
     assert response.results[0].rank.position == 1
-    assert response.results[0].rank.provider_position == 2
-    assert response.results[0].rank.rerank_score > response.results[1].rank.rerank_score
+    assert response.results[0].rank.provider_position == 1
+    assert response.results[1].rank.position == 2
+    assert response.results[1].rank.provider_position == 2
 
 
-def test_web_search_tool_builds_tighter_query_aligned_snippets() -> None:
+def test_web_search_tool_preserves_provider_snippets() -> None:
     client = SerperClient(
         api_key="serper-test-key",
         http_client=_mock_http_client(
@@ -612,7 +611,8 @@ def test_web_search_tool_builds_tighter_query_aligned_snippets() -> None:
     response = WebSearchResponse.model_validate(payload)
 
     assert response.results[0].snippet == (
-        "Widget pricing starts at $49 per seat for teams. Contact sales for annual billing."
+        "Welcome to the overview page. Widget pricing starts at $49 per seat for teams. "
+        "Contact sales for annual billing."
     )
 
 

@@ -25,7 +25,6 @@ class SearchRank(BaseModel):
 
     position: int = Field(ge=1)
     provider_position: Optional[int] = Field(default=None, ge=1)
-    rerank_score: Optional[float] = Field(default=None, ge=0)
 
 
 class WebSearchResult(BaseModel):
