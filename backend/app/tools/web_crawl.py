@@ -45,11 +45,11 @@ def build_web_crawl_tool(
     """Build the bounded LangChain crawl tool.
 
     Example input: `build_web_crawl_tool(max_content_chars=4000)`
-    Example output: `StructuredTool(name="web_crawl", ...)`
+    Example output: `StructuredTool(name="open_url", ...)`
     """
     bounded_limit = max(0, max_content_chars)
 
-    @tool("web_crawl", args_schema=WebCrawlInput)
+    @tool("open_url", args_schema=WebCrawlInput)
     def bounded_web_crawl(
         url: str | None = None,
         urls: list[str] | None = None,

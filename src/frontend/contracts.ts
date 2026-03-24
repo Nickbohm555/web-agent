@@ -361,7 +361,7 @@ export const RunStreamEventNameSchema = z.enum([
   "run_error",
 ]);
 
-export const RunEventToolNameSchema = z.enum(["web_search", "web_crawl"]);
+export const RunEventToolNameSchema = z.enum(["web_search", "open_url"]);
 export const RetrievalActionTypeSchema = z.enum([
   "search",
   "open_page",

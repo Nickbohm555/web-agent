@@ -22,13 +22,13 @@ export function createFetchRouter(): Router {
       const request = parseFetchApiRequest(req.body);
       requestBody = request;
       emitToolCallStarted({
-        toolName: "web_crawl",
+        toolName: "open_url",
         toolCallId,
         toolInput: request,
       });
       const data = await fetch(request.url, parseFetchSdkOptions(req.body));
       emitToolCallSucceeded({
-        toolName: "web_crawl",
+        toolName: "open_url",
         toolCallId,
         toolOutput: data,
       });
@@ -50,7 +50,7 @@ export function createFetchRouter(): Router {
         error,
       });
       emitToolCallFailed({
-        toolName: "web_crawl",
+        toolName: "open_url",
         toolCallId,
         ...(requestBody !== undefined ? { toolInput: requestBody } : {}),
         errorOutput: {

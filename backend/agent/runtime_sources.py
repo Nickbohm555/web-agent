@@ -224,7 +224,7 @@ def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
 
     crawl_error: ToolErrorEnvelope | None = None
     for message in messages:
-        if coerce_message_tool_name(message) != "web_crawl":
+        if coerce_message_tool_name(message) != "open_url":
             continue
 
         payload = coerce_message_tool_payload(message)
@@ -257,7 +257,7 @@ def has_zero_evidence_crawl_success(raw_result: Any) -> bool:
         return False
 
     for message in messages:
-        if coerce_message_tool_name(message) != "web_crawl":
+        if coerce_message_tool_name(message) != "open_url":
             continue
 
         payload = coerce_message_tool_payload(message)
@@ -433,7 +433,7 @@ def merge_repr_encoded_tool_sources_into_registry(
             )
         return
 
-    if tool_name == "web_crawl":
+    if tool_name == "open_url":
         source = extract_crawl_source_from_repr(content)
         if source is None:
             return

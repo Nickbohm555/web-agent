@@ -159,7 +159,7 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
                     "content": "",
                     "tool_calls": [
                         {"name": "web_search", "args": {"query": "agents"}},
-                        {"name": "web_crawl", "args": {"url": "https://example.com"}},
+                        {"name": "open_url", "args": {"url": "https://example.com"}},
                     ],
                 },
                 {
@@ -298,7 +298,7 @@ def test_canonical_tool_binding_rejects_name_drift() -> None:
             self.name = name
 
     with pytest.raises(ValueError, match="Canonical tool binding mismatch"):
-        _assert_canonical_tool_names((RenamedTool("search_web"), RenamedTool("web_crawl")))
+        _assert_canonical_tool_names((RenamedTool("search_web"), RenamedTool("open_url")))
 
 
 def test_run_agent_once_rejects_empty_prompt() -> None:
@@ -365,7 +365,7 @@ def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
 def test_system_prompt_instructs_agent_to_batch_selected_url_opens() -> None:
     prompt = build_system_prompt(profile=RUNTIME_PROFILES["agentic"])
 
-    assert "call web_crawl with multiple selected URLs in one call" in prompt
+    assert "call open_url with multiple selected URLs in one call" in prompt
 
 
 def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
@@ -374,7 +374,7 @@ def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
             "messages": [
                 {
                     "type": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "payload": {
                         "requested_urls": [
                             "https://example.com/a",
@@ -1115,7 +1115,7 @@ def test_run_agent_once_assembles_consulted_sources_from_search_and_crawl_messag
                 },
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "url": "https://example.com/start",
                         "final_url": "https://example.com/final",
@@ -1188,7 +1188,7 @@ def test_run_agent_once_no_evidence_crawl_success_does_not_register_source() -> 
             "messages": [
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "url": "https://example.com/thin",
                         "final_url": "https://example.com/thin",
@@ -1234,7 +1234,7 @@ def test_run_agent_once_preserves_retryable_crawl_error_without_sources() -> Non
             "messages": [
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "error": {
                             "kind": "provider_unavailable",
@@ -1282,7 +1282,7 @@ def test_run_agent_once_preserves_terminal_crawl_error_without_sources() -> None
             "messages": [
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "error": {
                             "kind": "provider_unavailable",
@@ -1304,7 +1304,7 @@ def test_run_agent_once_preserves_terminal_crawl_error_without_sources() -> None
                 },
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "error": {
                             "kind": "invalid_request",
@@ -1352,7 +1352,7 @@ def test_run_agent_once_prefers_terminal_zero_evidence_crawl_success_without_sou
             "messages": [
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "error": {
                             "kind": "provider_unavailable",
@@ -1374,7 +1374,7 @@ def test_run_agent_once_prefers_terminal_zero_evidence_crawl_success_without_sou
                 },
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "url": "https://example.com/thin",
                         "final_url": "https://example.com/thin",
@@ -1514,7 +1514,7 @@ def test_run_agent_once_parses_repr_encoded_tool_payloads_into_source_registry()
                 },
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": (
                         "url=HttpUrl('https://example.com/a') "
                         "final_url=HttpUrl('https://example.com/a') "
@@ -1569,7 +1569,7 @@ def test_run_agent_once_replaces_placeholder_agent_answer_when_sources_exist() -
                 },
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": (
                         "url=HttpUrl('https://example.com/a') "
                         "final_url=HttpUrl('https://example.com/a') "

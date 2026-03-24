@@ -110,7 +110,7 @@ def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
     payload = web_crawl.invoke({"url": "https://example.com/article"})
     result = WebCrawlSuccess.model_validate(payload)
 
-    assert web_crawl.name == "web_crawl"
+    assert web_crawl.name == "open_url"
     assert str(result.url) == "https://example.com/article"
     assert str(result.final_url) == "https://example.com/article"
     assert result.fallback_reason is None
@@ -386,7 +386,7 @@ def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -
     )
     result = WebCrawlSuccess.model_validate(payload)
 
-    assert tool_instance.name == "web_crawl"
+    assert tool_instance.name == "open_url"
     assert 0 < len(result.text) <= 40
     assert 0 < len(result.markdown) <= 40
     assert result.excerpts

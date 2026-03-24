@@ -984,7 +984,7 @@ function createPreviewEvents(): CanonicalRunEvent[] {
       event_seq: 7,
       event_type: "tool_call_failed",
       ts: "2026-03-17T12:00:03.000Z",
-      tool_name: "web_crawl",
+      tool_name: "open_url",
       tool_call_id: "tool-failure",
       tool_input: {
         url: "https://example.com/private",

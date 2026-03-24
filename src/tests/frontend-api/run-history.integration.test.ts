@@ -214,7 +214,7 @@ describe("run history API", () => {
           data: {
             runId: "__RUN_ID__",
             toolCallId: "tool-2",
-            toolName: "web_crawl",
+            toolName: "open_url",
             status: "failed",
             startedAt: Date.parse("2026-03-17T00:00:03.000Z"),
             endedAt: Date.parse("2026-03-17T00:00:04.000Z"),

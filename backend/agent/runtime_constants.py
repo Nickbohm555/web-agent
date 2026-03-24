@@ -9,7 +9,7 @@ from backend.agent.schemas import AgentRunMode, AgentRuntimeProfile
 QUICK_RUNTIME_MODE = "quick"
 AGENTIC_RUNTIME_MODE = "agentic"
 DEEP_RESEARCH_RUNTIME_MODE = "deep_research"
-CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")
+CANONICAL_TOOL_NAMES = ("web_search", "open_url")
 DEFAULT_RECURSION_LIMIT = 12
 QUICK_RUNTIME_MAX_CRAWLS = 3
 STANDARD_AGENT_MAX_SEARCH_RESULTS = 4

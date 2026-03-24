@@ -168,7 +168,7 @@ function deriveRetrievalAction(input: {
     };
   }
 
-  if (input.toolName === "web_crawl") {
+  if (input.toolName === "open_url") {
     const url =
       readUrlField(input.toolInput, "url") ??
       readUrlField(input.toolOutput, "final_url") ??

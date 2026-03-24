@@ -121,7 +121,7 @@ describe("observability correlation context", () => {
 
     expect(parsedEvents[0]?.tool_name).toBe("web_search");
     expect(parsedEvents[1]?.tool_name).toBe("web_search");
-    expect(parsedEvents[2]?.tool_name).toBe("web_crawl");
+    expect(parsedEvents[2]?.tool_name).toBe("open_url");
     expect(parsedEvents[0]?.retrieval_action).toEqual({
       action_id: parsedEvents[0]?.tool_call_id,
       action_type: "search",

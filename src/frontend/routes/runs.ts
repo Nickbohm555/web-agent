@@ -973,7 +973,7 @@ function createToolProgressEvents(
           toPreviewPayload(event.inputPreview),
         ),
       ];
-    case "web_crawl":
+    case "open_url":
       return [
         createRunProgressEvent(
           event.runId,
@@ -982,7 +982,7 @@ function createToolProgressEvents(
           timestamp,
           {
             stage: "crawl",
-            message: "Selecting an objective-driven page crawl.",
+            message: "Opening selected pages for extraction.",
           },
           toPreviewPayload(event.inputPreview),
         ),

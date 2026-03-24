@@ -331,7 +331,7 @@ describe("run stream client", () => {
       JSON.stringify({
         runId: "run-123",
         toolCallId: "tool-1",
-        toolName: "web_crawl",
+        toolName: "open_url",
         status: "started",
         startedAt: 11,
       }),
@@ -367,7 +367,7 @@ describe("run stream client", () => {
     expect(handlers.onToolCall).toHaveBeenCalledWith({
       runId: "run-123",
       toolCallId: "tool-1",
-      toolName: "web_crawl",
+      toolName: "open_url",
       status: "started",
       startedAt: 11,
     });
