@@ -103,7 +103,7 @@ export type RetrievalActionEvent =
 export interface ToolCallEvent {
   runId: string;
   toolCallId: string;
-  toolName: "web_search" | "web_crawl";
+  toolName: "web_search" | "open_url";
   status: "started" | "completed" | "failed";
   startedAt?: number | undefined;
   endedAt?: number | undefined;
@@ -182,7 +182,7 @@ export type CanonicalRunEvent = {
     | "run_completed"
     | "run_failed";
   ts: string;
-  tool_name?: "web_search" | "web_crawl" | undefined;
+  tool_name?: "web_search" | "open_url" | undefined;
   tool_call_id?: string | undefined;
   tool_input?: unknown;
   tool_output?: unknown;
@@ -425,7 +425,7 @@ function parseToolCallEvent(record: RecordLike): ToolCallEvent {
   return {
     runId: expectString(record.runId, "runId"),
     toolCallId: expectString(record.toolCallId, "toolCallId"),
-    toolName: expectEnum(record.toolName, "toolName", ["web_search", "web_crawl"]),
+    toolName: expectEnum(record.toolName, "toolName", ["web_search", "open_url"]),
     status: expectEnum(record.status, "status", [
       "started",
       "completed",
@@ -591,7 +591,7 @@ function parseCanonicalRunEvent(record: RecordLike, path: string): CanonicalRunE
       "tool_name",
       record.tool_name,
       `${path}.tool_name`,
-      ["web_search", "web_crawl"],
+      ["web_search", "open_url"],
     ),
     ...includeOptionalString("tool_call_id", record.tool_call_id, `${path}.tool_call_id`),
     ...includeDefined("tool_input", record.tool_input),

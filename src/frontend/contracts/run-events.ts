@@ -33,7 +33,7 @@ export const RunEventTypeSchema = z.enum([
   "run_failed",
 ]);
 
-export const RunEventToolNameSchema = z.enum(["web_search", "web_crawl"]);
+export const RunEventToolNameSchema = z.enum(["web_search", "open_url"]);
 
 export const RunEventJsonSchema: z.ZodType<RunEventJson> = z.lazy(() =>
   z.union([

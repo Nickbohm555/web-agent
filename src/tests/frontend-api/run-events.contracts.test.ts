@@ -57,7 +57,7 @@ describe("run event contracts", () => {
       event_seq: 3,
       event_type: "tool_call_failed",
       ts: "2026-03-17T12:00:01.000Z",
-      tool_name: "web_crawl",
+      tool_name: "open_url",
       tool_call_id: "tool-2",
       tool_input: {
         url: "https://example.com/private",
@@ -103,6 +103,23 @@ describe("run event contracts", () => {
       token: "[Redacted]",
     });
     expect(event.safety.error_output.redaction.paths).toEqual(["token"]);
+  });
+
+  it("rejects stale web_crawl tool names in the canonical run-event contract", () => {
+    expect(() =>
+      parseRunEvent({
+        run_id: "run-123",
+        event_seq: 3,
+        event_type: "tool_call_started",
+        ts: "2026-03-17T12:00:01.000Z",
+        tool_name: "web_crawl",
+        tool_call_id: "tool-legacy",
+        tool_input: {
+          url: "https://example.com/private",
+        },
+        safety: createEmptyRunEventSafety(),
+      })
+    ).toThrow();
   });
 
   it("parses research progress events with explicit stage metadata", () => {
@@ -292,7 +309,7 @@ describe("run event contracts", () => {
         event_seq: 5,
         event_type: "tool_call_failed",
         ts: "2026-03-17T12:00:03.000Z",
-        tool_name: "web_crawl",
+        tool_name: "open_url",
         tool_call_id: "tool-4",
         error_output: {
           token: "[Redacted]",
@@ -323,7 +340,7 @@ describe("run event contracts", () => {
           event_seq: 3,
           event_type: "tool_call_started",
           ts: "2026-03-17T12:00:00.000Z",
-          tool_name: "web_crawl",
+          tool_name: "open_url",
           tool_call_id: "tool-1",
           tool_input: {
             url: "https://example.com",
@@ -335,7 +352,7 @@ describe("run event contracts", () => {
           event_seq: 3,
           event_type: "tool_call_failed",
           ts: "2026-03-17T12:00:01.000Z",
-          tool_name: "web_crawl",
+          tool_name: "open_url",
           tool_call_id: "tool-1",
           error_output: {
             code: "TIMEOUT",
