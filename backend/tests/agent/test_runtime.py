@@ -436,6 +436,64 @@ def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
     assert [str(source.url) for source in registry.sources()] == ["https://example.com/a"]
 
 
+def test_extract_sources_accepts_open_url_and_legacy_web_crawl_messages() -> None:
+    registry = extract_sources(
+        {
+            "messages": [
+                {
+                    "type": "tool",
+                    "name": "open_url",
+                    "payload": {
+                        "url": "https://example.com/new",
+                        "final_url": "https://example.com/new",
+                        "text": "New canonical crawl body.",
+                        "markdown": "New canonical crawl body.",
+                        "objective": None,
+                        "excerpts": [],
+                        "status_code": 200,
+                        "content_type": "text/html",
+                        "fallback_reason": None,
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 8,
+                            "timings": {"total_ms": 8},
+                        },
+                    },
+                },
+                {
+                    "type": "tool",
+                    "name": "web_crawl",
+                    "payload": {
+                        "url": "https://example.com/legacy",
+                        "final_url": "https://example.com/legacy",
+                        "text": "Legacy crawl body.",
+                        "markdown": "Legacy crawl body.",
+                        "objective": None,
+                        "excerpts": [],
+                        "status_code": 200,
+                        "content_type": "text/html",
+                        "fallback_reason": None,
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 8,
+                            "timings": {"total_ms": 8},
+                        },
+                    },
+                },
+            ]
+        }
+    )
+
+    assert [str(source.url) for source in registry.sources()] == [
+        "https://example.com/legacy",
+        "https://example.com/new",
+    ]
+
+
 def test_system_prompt_includes_effective_retrieval_policy_details() -> None:
     profile = get_runtime_profile("agentic")
     prompt = build_system_prompt(

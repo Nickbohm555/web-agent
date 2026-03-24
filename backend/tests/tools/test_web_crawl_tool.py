@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
+from backend.app.tools import open_url as exported_open_url
 from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess, WebCrawlToolInput
 from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
@@ -138,6 +139,34 @@ def test_web_crawl_tool_accepts_objective_and_preserves_contract(monkeypatch) ->
     assert result.excerpts
     assert "agent systems" in result.excerpts[0].text.lower()
     assert "agent systems" in result.text.lower()
+
+
+def test_open_url_export_preserves_open_page_action_type() -> None:
+    assert exported_open_url is open_url
+
+    record = build_web_crawl_action_record(
+        url="https://example.com/article",
+        payload={
+            "url": "https://example.com/article",
+            "final_url": "https://example.com/article",
+            "text": "Focused open_url body.",
+            "markdown": "Focused open_url body.",
+            "objective": "Find the key claim",
+            "excerpts": [],
+            "status_code": 200,
+            "content_type": "text/html",
+            "fallback_reason": None,
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 9,
+                "timings": {"total_ms": 9},
+            },
+        },
+    )
+
+    assert record["action_type"] == "open_page"
 
 
 def test_web_crawl_tool_uses_lead_excerpt_when_objective_has_no_clear_match(monkeypatch) -> None:

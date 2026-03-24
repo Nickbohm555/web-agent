@@ -9,7 +9,6 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import ValidationError
 
-from backend.agent.runtime_constants import CANONICAL_TOOL_NAMES
 from backend.agent.schemas import (
     AgentAnswerBasis,
     AgentAnswerCitation,
@@ -857,8 +856,9 @@ def normalize_content_value(content: Any) -> str:
 
     return ""
 LEGACY_CRAWL_TOOL_NAME = "web_crawl"
+OPEN_URL_TOOL_NAME = "open_url"
 CrawlToolName = str
 ACCEPTED_CRAWL_TOOL_NAMES: tuple[CrawlToolName, ...] = (
-    CANONICAL_TOOL_NAMES[1],
+    OPEN_URL_TOOL_NAME,
     LEGACY_CRAWL_TOOL_NAME,
 )
