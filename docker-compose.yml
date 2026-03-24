@@ -27,6 +27,7 @@ services:
     environment:
       PORT: "3000"
       AGENT_BACKEND_ORIGIN: http://backend:8000
+      SERPER_API_KEY: ${SERPER_API_KEY:?SERPER_API_KEY is required}
     logging:
       driver: json-file
       options:
