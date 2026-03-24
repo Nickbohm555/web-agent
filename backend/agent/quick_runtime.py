@@ -12,6 +12,7 @@ from backend.agent.quick_search import (
     DEFAULT_QUICK_SEARCH_MAX_RESULTS,
     QuickSearchRunner,
     run_quick_search,
+    synthesize_quick_answer as synthesize_quick_answer_text,
 )
 from backend.agent.quick_selection import select_quick_urls
 from backend.agent.runtime_constants import QUICK_RUNTIME_MAX_CRAWLS
@@ -22,7 +23,12 @@ from backend.agent.runtime_errors import (
     map_quick_search_error_category,
     map_quick_search_error_message,
 )
-from backend.agent.schemas import AgentRunError, AgentRunResult, AgentRunRetrievalPolicy
+from backend.agent.schemas import (
+    AgentRunError,
+    AgentRunResult,
+    AgentRunRetrievalPolicy,
+    AgentStructuredAnswer,
+)
 from backend.app.tools.schemas.web_search import WebSearchResponse
 from backend.app.tools.web_crawl import run_web_crawl
 
@@ -129,6 +135,16 @@ def run_quick_runtime(
         question=prompt,
         sources=evidence.sources,
     )
+    if answer_client is None:
+        return AgentRunResult(
+            run_id=run_id,
+            status="completed",
+            final_answer=AgentStructuredAnswer(text=synthesize_quick_answer_text(search_response)),
+            sources=list(evidence.sources),
+            tool_call_count=1 + len(crawl_payloads),
+            elapsed_ms=elapsed_ms(started_at),
+        )
+
     try:
         return synthesize_quick_answer(
             run_id=run_id,

@@ -149,12 +149,21 @@ export function createRunsRouter(): Router {
         historyStore: getRunHistoryStore(req.app.locals.runHistoryStore),
       });
 
-      res.status(201).json(
-        createRunStartResponse({
-          runId,
-          status: "queued",
-        }),
-      );
+      const startResponse =
+        request.mode === "deep_research"
+          ? createRunStartResponse({
+              runId,
+              status: "queued",
+              metadata: {
+                execution_surface: "background",
+              },
+            })
+          : createRunStartResponse({
+              runId,
+              status: "queued",
+            });
+
+      res.status(201).json(startResponse);
     } catch (error: unknown) {
       const request =
         error instanceof ZodError ? null : safelyParseRequest(req.body);
