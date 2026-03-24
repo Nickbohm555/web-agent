@@ -76,7 +76,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Create the typed Deep Agents fan-out foundation: Wave 0 subagent tests, retrieval-tool injection, and a supervisor factory for parallel research delegation.
+- [x] 04-01: Create the typed Deep Agents fan-out foundation: Wave 0 subagent tests, retrieval-tool injection, and a supervisor factory for parallel research delegation.
 - [ ] 04-02: Replace the placeholder deep-research wave executor with delegated subquestion execution, persisted progress, and normalized evidence aggregation.
 
 ### Phase 5: Evidence-Grounded Completion
@@ -105,5 +105,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Tool Contract Alignment | 0/3 | Not started | - |
 | 2. Deep Agents Run Lifecycle | 0/2 | Not started | - |
 | 3. Deep Agents Persistence Backbone | 0/2 | Not started | - |
-| 4. Deep Agents Research Fan-Out | 0/2 | Not started | - |
+| 4. Deep Agents Research Fan-Out | 1/2 | In Progress | - |
 | 5. Evidence-Grounded Completion | 0/2 | Not started | - |
