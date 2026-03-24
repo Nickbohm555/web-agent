@@ -1,94 +1,79 @@
-# Requirements: Parallel-like Web Extraction Agent
+# Requirements: Web Agent
 
-**Defined:** 2026-03-20
-**Core Value:** Return accurate, high-signal web evidence in a stable format even when pages are messy (bad HTML, low text, redirects, JS/PDF).
+**Defined:** 2026-03-24
+**Core Value:** Deep research must be able to break a complex question into the right research threads, gather enough evidence across those threads, and return a deeply supported answer only when the orchestrator has enough coverage to do so confidently.
 
 ## v1 Requirements
 
-Requirements for initial release. Each maps to roadmap phases.
+### Deep Research Orchestration
 
-### Extraction Modes & Objective Excerpts
+- [ ] **DEEP-01**: User can start a `deep_research` run that is executed by an orchestrator agent dedicated to deep research.
+- [ ] **DEEP-02**: User can receive at most one clarifying question at a time when the orchestrator determines more context is needed before research starts.
+- [ ] **DEEP-03**: User can resume the same `deep_research` run after answering a clarifying question instead of starting over.
+- [ ] **DEEP-04**: User can receive a final deep-research answer only after the orchestrator determines the planned subquestions have been answered well enough.
 
-- [ ] **EXTR-01**: User can request `excerpt` mode and receive objective-driven excerpts (deterministic, bounded, stable ordering)
-- [ ] **EXTR-02**: User can request `full_content` mode and receive full extracted markdown content (links preserved)
-- [ ] **EXTR-03**: Excerpt budget is enforced in v1 (<= 3 excerpts/url; <= 300 chars per excerpt)
-- [ ] **EXTR-04**: `objective` is the primary signal and `search_queries[]` is the secondary ranking/select signal for excerpts (without changing crawl strategy)
+### Planning And Persistence
 
-### JS/PDF Real Handling & Fallbacks
+- [ ] **PLAN-01**: User can have each `deep_research` run create a persistent high-level research plan before parallel research begins.
+- [ ] **PLAN-02**: User can have the orchestrator derive subquestions or research angles from that persistent plan.
+- [ ] **PLAN-03**: User can resume an interrupted `deep_research` run from persisted workflow state backed by LangGraph checkpointing and Postgres.
+- [ ] **PLAN-04**: User can inspect deep-research progress indirectly through persisted artifacts and logging without requiring a new frontend feature set.
 
-- [ ] **REND-01**: JS-heavy pages are handled via a real render step (Playwright) and the extracted readable output is fed into excerpting/full content
-- [ ] **REND-02**: PDFs are handled via real text extraction (PyMuPDF) with OCR fallback for scanned/low-text PDFs
-- [ ] **REND-03**: Content-type detection + attempt policy chooses the appropriate extraction method (HTML vs rendered HTML vs PDF)
-- [ ] **REND-04**: When extraction fails or degrades, the tool returns structured fallback reasons and stable `meta.status` / `meta.extraction_method` fields
+### Research Subagents
 
-### Unified Response Contract & Meta
+- [ ] **RSCH-01**: User can have the orchestrator spawn parallel research subagents for subquestions generated from the plan.
+- [ ] **RSCH-02**: User can have each research subagent use the same retrieval capabilities the project already exposes for web search and URL opening.
+- [ ] **RSCH-03**: User can have each research subagent return an AI message that includes normalized search-result sources and crawl-result citations for the orchestrator to use.
+- [ ] **RSCH-04**: User can have the orchestrator loop on research results until it decides enough evidence exists to answer the original question deeply.
 
-- [ ] **CONT-01**: Tool output follows a unified per-URL response contract including: `url`, `title`, `publish_date`, `excerpts[]`, `full_content`, and `meta`
-- [ ] **CONT-02**: `meta` is populated on both success and failure and is machine-readable (no silent empties without failure reason)
+### Tool Contracts
 
-### Deterministic Set Output Mode & Evaluation Parsing
-
-- [ ] **OUT-01**: `set output mode` is supported so the agent’s `final_answer` is a deterministic arrays-only structure (no prose)
-- [ ] **OUT-02**: Output parsing/normalization for set mode is fail-closed (if it can’t parse deterministically, the run fails with a stable error category/message)
-
-### DeepSearchQA (DSQA) Eval Harness
-
-- [ ] **EVAL-01**: Add an offline DSQA evaluation harness that runs the agent end-to-end per prompt and computes Fully Correct exact set equivalence
-- [ ] **EVAL-02**: The harness forces agent outputs into a strict list/set representation for comparison (canonicalization matches DSQA semantics)
+- [ ] **TOOL-01**: User can access the search tool as `web_search` in quick, agentic, and deep-research modes.
+- [ ] **TOOL-02**: User can access the page-opening or crawl tool as `open_url` in quick, agentic, and deep-research modes.
+- [ ] **TOOL-03**: User can keep the current top-level API response shape for `deep_research` runs while evidence is carried inside AI message content via middleware.
 
 ## v2 Requirements
 
-Deferred to future release. Tracked but not in current roadmap.
+### Deep Research Experience
 
-### Evidence Fidelity & Provenance
-
-- **PROV-01**: Add deeper provenance for excerpts (stable evidence anchors/fragment mapping) once baseline evidence quality is established
-- **PROV-02**: Add per-site extraction policies (tuned attempt policies and thresholds after observing failure clusters)
-
-### Throughput / Orchestration
-
-- **ORCH-01**: Multi-URL extract orchestrator / parallel fan-out in v2 (v1 stays single-URL tool mode)
+- **OBS-01**: User can inspect deep-research plans, subagent outputs, and synthesis state in a dedicated frontend view.
+- **PLAN-05**: User can edit or approve the generated high-level research plan before subagent execution begins.
+- **RSCH-05**: User can control research breadth and depth knobs per run.
 
 ## Out of Scope
 
-Explicitly excluded. Documented to prevent scope creep.
-
 | Feature | Reason |
 |---------|--------|
-| Multi-URL fan-out orchestration in v1 | Higher complexity and cost; defer until extraction quality is validated |
-| Prose/non-deterministic excerpt outputs in excerpt mode | Breaks DSQA parsing and makes regressions hard |
-| Natural-language “helpful summaries” as the primary excerpt representation | Removes traceability and increases nondeterminism |
-| Unbounded excerpts / variable-length outputs | Makes costs unpredictable and destabilizes evaluation |
-| Logging raw page bodies/provider internals by default | Privacy/safety risk and payload bloat |
+| Reworking quick-mode execution flow | Not part of this deep-research initiative |
+| Reworking agentic-mode execution flow | Not part of this deep-research initiative |
+| Redesigning the deep-research API envelope | Current response shape should remain stable |
+| Broad frontend redesign for deep research | Backend orchestration is the current priority |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXTR-01 | Phase 1 | Pending |
-| EXTR-02 | Phase 1 | Pending |
-| EXTR-03 | Phase 1 | Pending |
-| EXTR-04 | Phase 1 | Pending |
-| REND-01 | Phase 1 | Pending |
-| REND-02 | Phase 1 | Pending |
-| REND-03 | Phase 1 | Pending |
-| REND-04 | Phase 1 | Pending |
-| CONT-01 | Phase 1 | Pending |
-| CONT-02 | Phase 1 | Pending |
-| OUT-01 | Phase 2 | Pending |
-| OUT-02 | Phase 2 | Pending |
-| EVAL-01 | Phase 3 | Pending |
-| EVAL-02 | Phase 3 | Pending |
+| DEEP-01 | Phase TBD | Pending |
+| DEEP-02 | Phase TBD | Pending |
+| DEEP-03 | Phase TBD | Pending |
+| DEEP-04 | Phase TBD | Pending |
+| PLAN-01 | Phase TBD | Pending |
+| PLAN-02 | Phase TBD | Pending |
+| PLAN-03 | Phase TBD | Pending |
+| PLAN-04 | Phase TBD | Pending |
+| RSCH-01 | Phase TBD | Pending |
+| RSCH-02 | Phase TBD | Pending |
+| RSCH-03 | Phase TBD | Pending |
+| RSCH-04 | Phase TBD | Pending |
+| TOOL-01 | Phase TBD | Pending |
+| TOOL-02 | Phase TBD | Pending |
+| TOOL-03 | Phase TBD | Pending |
 
 **Coverage:**
-
-- v1 requirements: 14 total
-- Mapped to phases: 14
-- Unmapped: 0 ✅
+- v1 requirements: 15 total
+- Mapped to phases: 0
+- Unmapped: 15 ⚠️
 
 ---
-*Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 after v1 scoping*
-
+*Requirements defined: 2026-03-24*
+*Last updated: 2026-03-24 after initial definition*
