@@ -4,9 +4,11 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from backend.agent.schemas import AgentRunError, AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
+from backend.api.routes import agent_run as agent_run_route
 from backend.api.schemas import (
     AgentRunQueuedMetadata,
     AgentRunQueuedResponse,
@@ -527,6 +529,35 @@ def test_agent_run_request_accepts_background_deep_research_response_shape() -> 
     )
 
     assert payload.status == "queued"
+
+
+def test_run_route_exposes_background_execution_surface_for_queued_runs(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        agent_run_route,
+        "execute_agent_run_request",
+        lambda payload: JSONResponse(
+            status_code=202,
+            content=AgentRunQueuedResponse(
+                run_id="run-deep",
+                status="queued",
+                metadata=AgentRunQueuedMetadata(execution_surface="background"),
+            ).model_dump(),
+        ),
+    )
+
+    response = post_run(client, prompt="investigate deeply", mode="deep_research")
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "run_id": "run-deep",
+        "status": "queued",
+        "metadata": {"execution_surface": "background"},
+    }
+    assert response.headers["x-run-route"] == "legacy-compat"
+    assert response.headers["x-run-execution-surface"] == "background"
 
 
 def post_run(client: TestClient, *, prompt: str, mode: str):
