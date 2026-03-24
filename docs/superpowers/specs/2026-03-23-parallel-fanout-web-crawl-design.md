@@ -12,6 +12,8 @@ Preserve the current two-tool research pattern:
 
 while adding guaranteed parallel fan-out for page reads so the LLM can choose multiple promising URLs from search results and open them concurrently with deterministic backend behavior.
 
+This design is intended to merge into the final session-aware `web_crawl` contract rather than land as a separate intermediate crawl API.
+
 ## Motivation
 
 The current runtime already lets the model inspect search snippets and decide which pages are worth reading. That matches the desired interaction model. The gap is execution: page reads are currently modeled as one `web_crawl` call per URL, which leaves concurrency up to agent behavior instead of backend guarantees.
@@ -26,6 +28,7 @@ This keeps the product behavior close to the Onyx-style pattern described in "Bu
 - Do not add backend auto-selection of pages beyond what the model explicitly chooses.
 - Do not redesign the extraction pipeline for a single page.
 - Do not depend on the agent framework making parallel tool calls on its own.
+- Do not create a second long-lived crawl tool boundary that diverges from the session-aware crawl design.
 
 ## Desired User-Visible Behavior
 
@@ -47,6 +50,7 @@ Recommended input contract:
 - `url: str | None`
 - `urls: list[str] | None`
 - `objective: str | None`
+- session-aware fields from the approved session-aware crawl design
 
 Validation rules:
 
@@ -56,6 +60,8 @@ Validation rules:
 - Every URL must pass retrieval-policy domain checks before fetch.
 
 This preserves backward compatibility while giving the runtime a deterministic fan-out path.
+
+The important sequencing decision is that batch fan-out should be folded into the same final `web_crawl` contract used by the session-aware crawl work. Planning and implementation should converge on one combined entrypoint, one schema family, and one source/citation path.
 
 ## Why This Approach
 
@@ -90,6 +96,8 @@ When `urls` is provided:
 
 The backend should not reorder the user-selected URLs unless there is a strong implementation reason. Input order should remain observable in the result.
 
+If every item in a valid batch fails, the tool still returns a batch success envelope with ordered failed items and `summary.succeeded = 0`. Request-wide errors remain reserved for invalid request shape or validation failures.
+
 ## Proposed Schemas
 
 New schema files should live under `backend/app/tools/schemas/` and remain category-focused.
@@ -98,6 +106,7 @@ Recommended additions:
 
 - `web_crawl_batch.py`
 - optionally a shared per-URL result model if it improves reuse
+- update `backend/app/contracts/web_crawl.py` alongside the new schemas so the compatibility layer matches the final combined contract
 
 Recommended models:
 
@@ -275,6 +284,7 @@ If feasible, include a test that demonstrates the batch path completes faster th
 
 Phase 1:
 
+- reconcile this design with the approved session-aware crawl spec into one final `web_crawl` contract
 - add batch schemas
 - add batch execution module
 - extend `web_crawl` entrypoint to accept `urls`
