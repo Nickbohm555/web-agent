@@ -559,7 +559,7 @@ function createToolProgressEvents(event: ToolCallEvent): DraftRunEvent[] {
           ),
         ),
       ];
-    case "web_crawl":
+    case "open_url":
       return [
         createResearchProgressEvent(
           event.runId,
@@ -780,7 +780,7 @@ function formatToolLabel(toolName: ToolCallEvent["toolName"]): string {
   switch (toolName) {
     case "web_search":
       return "web search";
-    case "web_crawl":
+    case "open_url":
       return "web crawl";
   }
 }

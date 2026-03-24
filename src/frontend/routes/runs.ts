@@ -973,7 +973,7 @@ function createToolProgressEvents(
           toPreviewPayload(event.inputPreview),
         ),
       ];
-    case "web_crawl":
+    case "open_url":
       return [
         createRunProgressEvent(
           event.runId,
