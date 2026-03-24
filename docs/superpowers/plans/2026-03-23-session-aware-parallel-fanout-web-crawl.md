@@ -27,6 +27,7 @@
 - `backend/app/crawler/error_mapping.py` - Stable typed crawl error mapping.
 
 **Modify:**
+- `backend/app/tools/schemas/tool_errors.py` - Extend crawl metadata typing for session-aware fields if the shared meta model remains the contract owner.
 - `backend/app/tools/schemas/web_crawl.py` - Merge the final single/batch/session-aware public tool schemas.
 - `backend/app/contracts/web_crawl.py` - Re-export the updated crawl contract types.
 - `backend/app/tools/schemas/__init__.py` - Export new batch crawl schemas.
@@ -61,14 +62,24 @@
 
 ```python
 def test_web_crawl_input_accepts_single_url_and_objective() -> None:
-    model = WebCrawlInput(url="https://example.com/article", objective="Find pricing")
+    model = WebCrawlToolInput(url="https://example.com/article", objective="Find pricing")
     assert str(model.url) == "https://example.com/article"
     assert model.objective == "Find pricing"
 
 
-def test_web_crawl_batch_input_accepts_urls_and_rejects_url_plus_urls() -> None:
+def test_web_crawl_tool_input_accepts_urls_and_rejects_url_plus_urls() -> None:
     with pytest.raises(ValidationError):
-        WebCrawlBatchInput(url="https://example.com/a", urls=["https://example.com/b"])
+        WebCrawlToolInput(url="https://example.com/a", urls=["https://example.com/b"])
+
+
+def test_web_crawl_tool_input_rejects_missing_url_and_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput()
+
+
+def test_web_crawl_tool_input_rejects_more_than_five_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput(urls=[f"https://example.com/{index}" for index in range(6)])
 
 
 def test_web_crawl_batch_success_preserves_input_order() -> None:
@@ -91,7 +102,7 @@ def test_web_crawl_batch_success_preserves_input_order() -> None:
 
 - [ ] **Step 2: Run the schema-focused test target and confirm it fails for missing models**
 
-Run: `pytest backend/tests/tools/test_web_crawl_tool.py -k "batch_input or preserves_input_order or single_url_and_objective" -v`
+Run: `pytest backend/tests/tools/test_web_crawl_tool.py -k "tool_input or preserves_input_order or single_url_and_objective" -v`
 Expected: FAIL with missing batch models or validation behavior.
 
 - [ ] **Step 3: Implement the merged public crawl schemas**
@@ -103,6 +114,12 @@ class WebCrawlToolInput(BaseModel):
     url: HttpUrl | None = None
     urls: list[HttpUrl] | None = Field(default=None, min_length=1, max_length=5)
     objective: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_target_shape(self) -> "WebCrawlToolInput":
+        if (self.url is None) == (self.urls is None):
+            raise ValueError("exactly one of url or urls must be provided")
+        return self
 
 
 class WebCrawlBatchInput(BaseModel):
@@ -135,20 +152,36 @@ class WebCrawlBatchSuccess(BaseModel):
 Run: make `WebCrawlToolInput` the single public args schema for the LangChain `web_crawl` entrypoint so the tool accepts either `url` or `urls` through one explicit contract.
 Expected: one public input model, one public tool name, and no ambiguity about how batch calls enter the tool.
 
-- [ ] **Step 4: Update the compatibility exports**
+- [ ] **Step 4: Extend crawl metadata typing for session-aware fields**
+
+```python
+class CrawlToolMeta(ToolMeta):
+    strategy_used: Literal["http", "browser"]
+    escalation_count: int = Field(ge=0)
+    session_profile_id: str | None = None
+    block_reason: str | None = None
+    rendered: bool = False
+    challenge_detected: bool = False
+```
+
+Run: update the typed crawl success contract so the session-aware metadata promised by the spec exists before orchestrator work starts.
+Expected: `WebCrawlSuccess.meta` and any batch item success path can surface session-aware metadata without ad hoc dict fields.
+
+- [ ] **Step 5: Update the compatibility exports**
 
 Run: update `backend/app/contracts/web_crawl.py`, `backend/app/tools/schemas/__init__.py`, and `backend/app/contracts/__init__.py` so the new batch models are importable through the existing contract layer.
 Expected: imports stay explicit and callers do not need to reach into private modules.
 
-- [ ] **Step 5: Run the schema tests again**
+- [ ] **Step 6: Run the schema tests again**
 
-Run: `pytest backend/tests/tools/test_web_crawl_tool.py -k "batch_input or preserves_input_order or single_url_and_objective" -v`
+Run: `pytest backend/tests/tools/test_web_crawl_tool.py -k "tool_input or preserves_input_order or single_url_and_objective" -v`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add backend/app/tools/schemas/web_crawl.py \
+  backend/app/tools/schemas/tool_errors.py \
   backend/app/tools/schemas/web_crawl_batch.py \
   backend/app/contracts/web_crawl.py \
   backend/app/tools/schemas/__init__.py \
@@ -293,14 +326,31 @@ def _await_batch_futures(
     futures: dict[Future[WebCrawlToolResult], str],
 ) -> list[WebCrawlBatchItemResult]:
     results_by_url: dict[str, WebCrawlBatchItemResult] = {}
-    for future, url in futures.items():
-        try:
-            payload = future.result(timeout=PER_URL_TIMEOUT_SECONDS)
-        except TimeoutError:
-            future.cancel()
-            results_by_url[url] = build_timeout_item(url)
-            continue
-        results_by_url[url] = build_batch_item(url=url, payload=payload)
+    pending = set(futures)
+    while pending:
+        done, pending = wait(
+            pending,
+            timeout=PER_URL_TIMEOUT_SECONDS,
+            return_when=FIRST_COMPLETED,
+        )
+        if not done:
+            for future in pending:
+                future.cancel()
+                url = futures[future]
+                results_by_url[url] = build_timeout_item(url)
+            break
+        for future in done:
+            url = futures[future]
+            try:
+                payload = future.result()
+            except TimeoutError:
+                future.cancel()
+                results_by_url[url] = build_timeout_item(url)
+                continue
+            except Exception as exc:
+                results_by_url[url] = build_exception_item(url, exc)
+                continue
+            results_by_url[url] = build_batch_item(url=url, payload=payload)
     return [results_by_url[url] for url in requested_urls]
 
 
