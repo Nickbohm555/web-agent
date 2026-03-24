@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Tool Contract Alignment** - Rename the currently exposed open-page tool contract from `web_crawl` to `open_url` and align retrieval names across all modes.
 - [ ] **Phase 2: Deep Agents Run Lifecycle** - Replace the placeholder deep-research flow with a `create_deep_agent(...)` supervisor that can clarify and resume.
 - [ ] **Phase 3: Deep Agents Persistence Backbone** - Use Deep Agents backends plus `langgraph-checkpoint-postgres` for durable planning state and inspectable progress.
-- [ ] **Phase 4: Deep Agents Research Fan-Out** - Run plan-derived subquestions through Deep Agents subagents that return subanswers plus normalized evidence from existing retrieval behavior.
+- [x] **Phase 4: Deep Agents Research Fan-Out** - Run plan-derived subquestions through Deep Agents subagents that return subanswers plus normalized evidence from existing retrieval behavior. (completed 2026-03-24)
 - [ ] **Phase 5: Evidence-Grounded Completion** - Use middleware as an enforcement and normalization layer so synthesis only completes once evidence from each subagent result is extracted and sufficient.
 
 ## Phase Details
@@ -77,7 +77,7 @@ Plans:
 
 Plans:
 - [x] 04-01: Create the typed Deep Agents fan-out foundation: Wave 0 subagent tests, retrieval-tool injection, and a supervisor factory for parallel research delegation.
-- [ ] 04-02: Replace the placeholder deep-research wave executor with delegated subquestion execution, persisted progress, and normalized evidence aggregation.
+- [x] 04-02: Replace the placeholder deep-research wave executor with delegated subquestion execution, persisted progress, and normalized evidence aggregation.
 
 ### Phase 5: Evidence-Grounded Completion
 **Goal**: Users receive a final deep-research answer only after middleware has enforced evidence-bearing subagent outputs and the supervisor has extracted and normalized those results for synthesis, while the top-level API shape stays unchanged.
@@ -105,5 +105,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Tool Contract Alignment | 0/3 | Not started | - |
 | 2. Deep Agents Run Lifecycle | 0/2 | Not started | - |
 | 3. Deep Agents Persistence Backbone | 0/2 | Not started | - |
-| 4. Deep Agents Research Fan-Out | 1/2 | In Progress | - |
+| 4. Deep Agents Research Fan-Out | 2/2 | Complete | 2026-03-24 |
 | 5. Evidence-Grounded Completion | 0/2 | Not started | - |
