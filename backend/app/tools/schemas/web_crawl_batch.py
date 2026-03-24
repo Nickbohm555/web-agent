@@ -10,7 +10,6 @@ from .web_crawl import (
     WebCrawlMeta,
     WebCrawlSuccess,
     _coerce_web_crawl_meta,
-    _strip_optional_text,
 )
 
 
@@ -18,17 +17,6 @@ class WebCrawlBatchInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     urls: list[HttpUrl] = Field(min_length=1, max_length=5)
-    objective: Optional[str] = Field(default=None, min_length=1)
-
-    @field_validator("objective")
-    @classmethod
-    def normalize_objective(cls, value: Optional[str]) -> Optional[str]:
-        normalized = _strip_optional_text(value)
-        if normalized is None:
-            return None
-        if not normalized:
-            raise ValueError("objective must not be empty")
-        return normalized
 
 
 class WebCrawlBatchItemResult(BaseModel):

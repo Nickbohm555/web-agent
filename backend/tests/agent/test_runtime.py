@@ -359,7 +359,7 @@ def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
     assert f"no more than {profile.max_search_results} results per call" in prompt
     assert str(profile.max_crawl_chars) in prompt
     assert "Use web_search to shortlist likely-answering sources before crawling" in prompt
-    assert "always include an objective" in prompt
+    assert "Treat search excerpts as a triage layer" in prompt
 
 
 def test_system_prompt_instructs_agent_to_batch_selected_url_opens() -> None:
@@ -389,7 +389,6 @@ def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
                                     "final_url": "https://example.com/a",
                                     "text": "Alpha body text.",
                                     "markdown": "Alpha body text.",
-                                    "objective": None,
                                     "excerpts": [],
                                     "status_code": 200,
                                     "content_type": "text/html",
@@ -454,11 +453,10 @@ def test_system_prompt_includes_effective_retrieval_policy_details() -> None:
         ),
     )
 
-    assert "Translate clear prompt intent like official-docs-only" in prompt
-    assert "freshness=week" in prompt
-    assert "include domains=['openai.com']" in prompt
-    assert "fetch fresh=True" in prompt
-    assert "fetch max_age_ms=21600000" in prompt
+    assert "Mode guidance:" in prompt
+    assert "Tool budget:" in prompt
+    assert "include domains" not in prompt
+    assert "freshness=" not in prompt
 
 
 def test_system_prompt_accepts_prompt_specific_retrieval_brief() -> None:
@@ -468,13 +466,13 @@ def test_system_prompt_accepts_prompt_specific_retrieval_brief() -> None:
         retrieval_brief=(
             "Retrieval strategy:\n"
             "- Answer objective: Compare two API launches\n"
-            "- Crawl plan: every web_crawl call must include an objective"
+            "- Crawl plan: crawl only high-value pages that look useful for the answer"
         ),
     )
 
     assert "Retrieval strategy:" in prompt
     assert "Compare two API launches" in prompt
-    assert "every web_crawl call must include an objective" in prompt
+    assert "crawl only high-value pages that look useful for the answer" in prompt
 
 
 def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
@@ -575,9 +573,7 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     ]
     assert search_runner.captured_query == "latest agent news"
     assert search_runner.captured_max_results == 5
-    assert search_runner.captured_freshness == "week"
-    assert search_runner.captured_include_domains is None
-    assert search_runner.captured_exclude_domains is None
+    assert search_runner.captured_freshness == "any"
     assert crawl_runner.requested_urls == [
         "https://example.com/one",
         "https://example.com/two",
@@ -585,7 +581,7 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     assert agent.captured_inputs is None
 
 
-def test_run_agent_once_threads_retrieval_policy_into_runtime_and_quick_search() -> None:
+def test_run_agent_once_accepts_retrieval_policy_without_changing_quick_search() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
             "query": "latest agent news",
@@ -648,14 +644,12 @@ def test_run_agent_once_threads_retrieval_policy_into_runtime_and_quick_search()
     )
 
     assert result.status == "completed"
-    assert search_runner.captured_freshness == "week"
-    assert search_runner.captured_query == "latest agent news site:example.com -site:blocked.com"
-    assert search_runner.captured_include_domains is None
-    assert search_runner.captured_exclude_domains is None
+    assert search_runner.captured_freshness == "any"
+    assert search_runner.captured_query == "latest agent news"
     assert crawl_runner.requested_urls == ["https://example.com/one"]
 
 
-def test_run_agent_once_infers_retrieval_policy_from_prompt_intent() -> None:
+def test_run_agent_once_does_not_infer_retrieval_policy_from_prompt_intent() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
             "query": "Responses API update",
@@ -708,12 +702,10 @@ def test_run_agent_once_infers_retrieval_policy_from_prompt_intent() -> None:
     )
 
     assert result.status == "completed"
-    assert search_runner.captured_freshness == "week"
+    assert search_runner.captured_freshness == "any"
     assert search_runner.captured_query == (
-        "Use official docs only to find the latest OpenAI Responses API update. site:openai.com"
+        "Use official docs only to find the latest OpenAI Responses API update."
     )
-    assert search_runner.captured_include_domains is None
-    assert search_runner.captured_exclude_domains is None
     assert crawl_runner.requested_urls == ["https://openai.com/docs/responses"]
 
 
@@ -782,7 +774,16 @@ def test_run_agent_once_rejects_invalid_quick_search_payloads() -> None:
     [
         ("quick", "gpt-4.1-mini", 4, 20, "single_pass", 1, 5, 0),
         ("agentic", "gpt-4.1-mini", DEFAULT_RECURSION_LIMIT, 45, "bounded_agent_loop", 6, 4, 4000),
-        ("deep_research", "gpt-4.1", 24, 180, "background_research", 16, 8, 12000),
+        (
+            "deep_research",
+            "gpt-4.1",
+            DEFAULT_RECURSION_LIMIT,
+            180,
+            "background_research",
+            16,
+            4,
+            4000,
+        ),
     ],
 )
 def test_get_runtime_profile_exposes_distinct_policy_per_mode(
@@ -824,25 +825,13 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert factory.captured_system_prompt is not None
     assert "Retrieval strategy:" in factory.captured_system_prompt
     assert "Answer objective: investigate a topic" in factory.captured_system_prompt
-    assert "every web_crawl call must include an objective" in factory.captured_system_prompt
+    assert "crawl only high-value pages that look useful for the answer" in factory.captured_system_prompt
     assert factory.agent is not None
     assert factory.agent.captured_config == expected_runtime_config("deep_research")
 
 
-def test_run_agent_once_passes_inferred_retrieval_policy_into_agent_factory_and_config() -> None:
+def test_run_agent_once_passes_default_retrieval_policy_into_agent_factory_and_config() -> None:
     factory = CapturingAgentFactory(raw_result={"output": "Research answer."})
-    expected_policy = AgentRunRetrievalPolicy.model_validate(
-        {
-            "search": {
-                "freshness": "week",
-                "include_domains": ["openai.com"],
-            },
-            "fetch": {
-                "max_age_ms": 21_600_000,
-                "fresh": True,
-            },
-        }
-    )
 
     result = run_agent_once(
         "Use official docs only to find the latest OpenAI Responses API update.",
@@ -852,17 +841,12 @@ def test_run_agent_once_passes_inferred_retrieval_policy_into_agent_factory_and_
 
     assert result.status == "completed"
     assert factory.captured_system_prompt is not None
-    assert "stay within openai.com" in factory.captured_system_prompt
-    assert "prefer week-fresh sources" in factory.captured_system_prompt
     assert (
         "Answer objective: Use official docs only to find the latest OpenAI Responses API update."
         in factory.captured_system_prompt
     )
     assert factory.agent is not None
-    assert factory.agent.captured_config == expected_runtime_config_with_policy(
-        expected_policy,
-        "agentic",
-    )
+    assert factory.agent.captured_config == expected_runtime_config("agentic")
 
 
 def test_run_agent_once_preserves_explicit_structured_final_answer_citations() -> None:
@@ -1536,7 +1520,6 @@ def test_run_agent_once_parses_repr_encoded_tool_payloads_into_source_registry()
                         "final_url=HttpUrl('https://example.com/a') "
                         "text='Expanded article body.' "
                         "markdown='# Example source' "
-                        "objective='Find the latest update' "
                         "excerpts=[WebCrawlExcerpt(text='Expanded article body.', markdown='# Example source')] "
                         "status_code=200 content_type='text/html' fallback_reason=None "
                         "meta=WebCrawlMeta(operation='web_crawl', attempts=1, retries=0, "
@@ -1592,7 +1575,6 @@ def test_run_agent_once_replaces_placeholder_agent_answer_when_sources_exist() -
                         "final_url=HttpUrl('https://example.com/a') "
                         "text='Expanded article body.' "
                         "markdown='# Example source' "
-                        "objective='Find the latest update' "
                         "excerpts=[WebCrawlExcerpt(text='Expanded article body.', markdown='# Example source')] "
                         "status_code=200 content_type='text/html' fallback_reason=None "
                         "meta=WebCrawlMeta(operation='web_crawl', attempts=1, retries=0, "

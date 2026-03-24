@@ -36,7 +36,6 @@ class WebCrawlToolInput(BaseModel):
 
     url: Optional[HttpUrl] = None
     urls: Optional[list[HttpUrl]] = Field(default=None, min_length=1, max_length=5)
-    objective: Optional[str] = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def validate_target_shape(self) -> "WebCrawlToolInput":
@@ -62,16 +61,6 @@ class WebCrawlToolInput(BaseModel):
             if item.scheme not in {"http", "https"}:
                 raise ValueError("urls must use http or https")
         return value
-
-    @field_validator("objective")
-    @classmethod
-    def normalize_objective(cls, value: Optional[str]) -> Optional[str]:
-        normalized = _strip_optional_text(value)
-        if normalized is None:
-            return None
-        if not normalized:
-            raise ValueError("objective must not be empty")
-        return normalized
 
 
 class WebCrawlExcerpt(BaseModel):
@@ -114,17 +103,16 @@ class WebCrawlSuccess(BaseModel):
     final_url: HttpUrl
     text: str
     markdown: str
-    objective: Optional[str] = None
     excerpts: list[WebCrawlExcerpt] = Field(default_factory=list)
     status_code: int = Field(ge=100, le=599)
     content_type: str = Field(min_length=1)
     fallback_reason: Optional[CrawlFallbackReason] = None
     meta: WebCrawlMeta
 
-    @field_validator("text", "markdown", "content_type", "objective")
+    @field_validator("text", "markdown", "content_type")
     @classmethod
-    def normalize_text(cls, value: Optional[str]) -> Optional[str]:
-        return _strip_optional_text(value)
+    def normalize_text(cls, value: str) -> str:
+        return _strip_text(value)
 
     @field_validator("meta", mode="before")
     @classmethod

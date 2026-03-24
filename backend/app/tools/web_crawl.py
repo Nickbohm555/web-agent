@@ -21,8 +21,6 @@ from backend.app.tools.web_crawl_batch import run_web_crawl_batch
 from backend.app.tools._tool_utils import (
     build_tool_action_error_record,
     build_tool_error_payload,
-    domain_scope_kwargs,
-    is_url_allowed,
     validation_error_message,
 )
 
@@ -55,15 +53,13 @@ def build_web_crawl_tool(
     def bounded_web_crawl(
         url: str | None = None,
         urls: list[str] | None = None,
-        objective: str | None = None,
     ) -> WebCrawlToolResult:
-        """Fetch one allowed page or a bounded batch of allowed pages and return typed crawl output.
+        """Fetch one page or a bounded batch of pages and return typed crawl output.
 
         Input:
         - Exactly one of `url` or `urls` must be provided.
         - `url`: One absolute `http` or `https` page URL to fetch.
         - `urls`: One to five absolute `http` or `https` page URLs to fetch in deterministic input order.
-        - `objective`: Optional short instruction describing what the agent wants from the page, such as "Find the refund policy" or "Summarize pricing details". This helps the extractor prioritize relevant excerpts but does not change which URL is fetched.
 
         Output:
         - `WebCrawlSuccess` for single-page success.
@@ -73,7 +69,6 @@ def build_web_crawl_tool(
         payload = run_web_crawl(
             url=url,
             urls=urls,
-            objective=objective,
             fetch_worker=fetch_worker,
             retrieval_policy=retrieval_policy,
             session_profile_provider=session_profile_provider,
@@ -88,7 +83,6 @@ def run_web_crawl(
     *,
     url: str | None = None,
     urls: list[str] | None = None,
-    objective: str | None = None,
     fetch_worker: HttpFetchWorker | None = None,
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
     session_profile_provider: SessionProfileProvider | None = None,
@@ -96,19 +90,18 @@ def run_web_crawl(
 ) -> WebCrawlToolResult:
     """Run the crawl pipeline without LangChain wrapping.
 
-    Example input: `run_web_crawl(url="https://example.com/article", objective="Find pricing")`
+    Example input: `run_web_crawl(url="https://example.com/article")`
     Example output: `WebCrawlSuccess(final_url="https://example.com/article", ...)`
     """
     operation_start = perf_counter()
     try:
-        validated_input = WebCrawlInput(url=url, urls=urls, objective=objective)
+        validated_input = WebCrawlInput(url=url, urls=urls)
         if validated_input.urls is not None:
             worker = fetch_worker or create_http_fetch_worker()
 
-            def crawl_batch_item(item_url: str, item_objective: str | None) -> WebCrawlToolResult:
+            def crawl_batch_item(item_url: str) -> WebCrawlToolResult:
                 return run_web_crawl(
                     url=item_url,
-                    objective=item_objective,
                     fetch_worker=worker,
                     retrieval_policy=retrieval_policy,
                     session_profile_provider=session_profile_provider,
@@ -117,25 +110,12 @@ def run_web_crawl(
 
             return run_web_crawl_batch(
                 urls=[str(item) for item in validated_input.urls],
-                objective=validated_input.objective,
                 retrieval_policy=retrieval_policy,
                 crawl_one=crawl_batch_item,
             )
 
-        effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
-        if not is_url_allowed(str(validated_input.url), **domain_scope_kwargs(effective_policy.search)):
-            envelope = build_tool_error_payload(
-                kind="invalid_request",
-                message="url is outside the configured retrieval policy domain scope",
-                retryable=False,
-                total_ms=0,
-                operation="web_crawl",
-            )
-            return WebCrawlError(error=envelope.error, meta=envelope.meta)
-
         return run_fetch_orchestrator(
             url=str(validated_input.url),
-            objective=validated_input.objective,
             fetch_worker=fetch_worker or create_http_fetch_worker(),
             session_profile_provider=session_profile_provider,
             browser_fetcher=browser_fetcher,
@@ -252,7 +232,6 @@ def build_web_crawl_action_record(
             "final_url": str(success.final_url),
             "status_code": success.status_code,
             "content_type": success.content_type,
-            "objective": success.objective,
             "fallback_reason": success.fallback_reason,
             "text_preview": text_preview,
         }

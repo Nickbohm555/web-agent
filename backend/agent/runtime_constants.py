@@ -12,6 +12,8 @@ DEEP_RESEARCH_RUNTIME_MODE = "deep_research"
 CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")
 DEFAULT_RECURSION_LIMIT = 12
 QUICK_RUNTIME_MAX_CRAWLS = 3
+STANDARD_AGENT_MAX_SEARCH_RESULTS = 4
+STANDARD_AGENT_MAX_CRAWL_CHARS = 4000
 RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
     QUICK_RUNTIME_MODE: AgentRuntimeProfile(
         name=QUICK_RUNTIME_MODE,
@@ -30,18 +32,18 @@ RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
         timeout_seconds=45,
         execution_mode="bounded_agent_loop",
         max_tool_steps=6,
-        max_search_results=4,
-        max_crawl_chars=4000,
+        max_search_results=STANDARD_AGENT_MAX_SEARCH_RESULTS,
+        max_crawl_chars=STANDARD_AGENT_MAX_CRAWL_CHARS,
     ),
     DEEP_RESEARCH_RUNTIME_MODE: AgentRuntimeProfile(
         name=DEEP_RESEARCH_RUNTIME_MODE,
         model="gpt-4.1",
-        recursion_limit=24,
+        recursion_limit=DEFAULT_RECURSION_LIMIT,
         timeout_seconds=180,
         execution_mode="background_research",
         max_tool_steps=16,
-        max_search_results=8,
-        max_crawl_chars=12000,
+        max_search_results=STANDARD_AGENT_MAX_SEARCH_RESULTS,
+        max_crawl_chars=STANDARD_AGENT_MAX_CRAWL_CHARS,
     ),
 }
 QUICK_SEARCH_ERROR_CATEGORY_BY_KIND = {

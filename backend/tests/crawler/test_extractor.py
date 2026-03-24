@@ -34,24 +34,21 @@ def test_extract_content_returns_unsupported_content_type_for_non_html_payload()
     assert result.markdown == ""
 
 
-def test_extract_content_selects_relevant_excerpt_for_objective() -> None:
+def test_extract_content_returns_lead_excerpt_even_when_objective_is_provided() -> None:
     result = extract_content(
         body=_objective_ranked_article_html(),
         content_type="text/html",
-        objective="Find the deployment rollback checklist",
     )
 
     assert result.state == "ok"
     assert result.excerpts
-    assert "rollback checklist" in result.excerpts[0].text.lower()
-    assert "incident retrospectives" not in result.excerpts[0].text.lower()
+    assert "agent systems need a crisp retrieval objective" in result.excerpts[0].text.lower()
 
 
 def test_extract_content_uses_lead_excerpt_when_objective_has_no_strong_match() -> None:
     result = extract_content(
         body=_objective_ranked_article_html(),
         content_type="text/html",
-        objective="Find the pricing calculator details",
     )
 
     assert result.state == "ok"

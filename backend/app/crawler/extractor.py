@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from backend.app.crawler.content_types import is_supported_content_type
 from backend.app.crawler.schemas import HttpFetchFailure
-from backend.app.crawler.excerpt_selection import select_objective_excerpts
+from backend.app.crawler.excerpt_selection import segment_passages
 from backend.app.tools.schemas.web_crawl import ExtractionResult
 
 import trafilatura
@@ -14,7 +14,6 @@ def extract_content(
     *,
     body: str,
     content_type: str | None,
-    objective: str | None = None,
 ) -> ExtractionResult:
     normalized_content_type = (content_type or "").strip().lower()
     if not is_supported_content_type(normalized_content_type):
@@ -35,11 +34,7 @@ def extract_content(
             fallback_reason="low-content-quality",
         )
 
-    excerpts = select_objective_excerpts(
-        text=text,
-        markdown=full_markdown,
-        objective=objective,
-    )
+    excerpts = segment_passages(markdown=full_markdown, text=text)[:1]
     return ExtractionResult(
         state="ok",
         text=text,

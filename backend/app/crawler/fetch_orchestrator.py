@@ -26,12 +26,11 @@ BrowserFetcher = Callable[..., BrowserFetchResult]
 def run_fetch_orchestrator(
     *,
     url: str,
-    objective: Optional[str] = None,
     fetch_worker: Optional[HttpFetchWorker] = None,
     session_profile_provider: Optional[SessionProfileProvider] = None,
     browser_fetcher: Optional[BrowserFetcher] = None,
 ) -> WebCrawlToolResult:
-    validated_input = WebCrawlToolInput(url=url, objective=objective)
+    validated_input = WebCrawlToolInput(url=url)
     operation_start = perf_counter()
     profiles = get_session_profiles(session_profile_provider)
     session_profile = resolve_session_profile(str(validated_input.url), profiles=profiles)
@@ -92,7 +91,6 @@ def run_fetch_orchestrator(
     extraction_result = extract_content(
         body=normalized_http.body,
         content_type=normalized_http.content_type,
-        objective=validated_input.objective,
     )
     classification = classify_http_fetch(http_result, extraction_result=extraction_result)
     if browser_fetcher is not None and should_escalate_extraction(classification, strategy=strategy):
@@ -148,7 +146,6 @@ def _run_browser_path(
     extraction_result = extract_content(
         body=normalized_browser.body,
         content_type=normalized_browser.content_type,
-        objective=validated_input.objective,
     )
     return _build_success(
         validated_input=validated_input,
@@ -197,7 +194,6 @@ def _build_success(
         final_url=final_url,
         text=extraction_result.text,
         markdown=extraction_result.markdown,
-        objective=validated_input.objective,
         excerpts=extraction_result.excerpts,
         status_code=status_code,
         content_type=content_type,

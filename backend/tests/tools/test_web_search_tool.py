@@ -732,7 +732,7 @@ def test_web_search_langchain_tool_is_callable() -> None:
     assert web_search.name == "web_search"
 
 
-def test_bounded_web_search_applies_retrieval_policy_to_query_and_results() -> None:
+def test_bounded_web_search_uses_plain_query_and_preserves_results() -> None:
     captured: dict[str, object] = {}
 
     def runner(*, query: str, max_results: int, freshness: str = "any") -> WebSearchResponse:
@@ -783,12 +783,12 @@ def test_bounded_web_search_applies_retrieval_policy_to_query_and_results() -> N
     response = WebSearchResponse.model_validate(payload)
 
     assert captured == {
-        "query": "agents site:example.com -site:blocked.com",
-        "freshness": "week",
+        "query": "agents",
+        "freshness": "any",
         "max_results": 3,
     }
-    assert [result.title for result in response.results] == ["Allowed"]
-    assert response.metadata.result_count == 1
+    assert [result.title for result in response.results] == ["Allowed", "Blocked"]
+    assert response.metadata.result_count == 2
 
 
 def _mock_http_client(handler) -> object:

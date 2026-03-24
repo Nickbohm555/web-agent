@@ -7,10 +7,7 @@ from typing import Any, Callable
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from backend.agent.schemas import (
-    AgentRunRetrievalPolicy,
-    AgentRunRetrievalSearchPolicy,
-)
+from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.config import get_settings
 from backend.app.tools.schemas.web_search import (
     SearchRank,
@@ -24,9 +21,6 @@ from backend.app.providers.serper_client import SerperClient, SerperClientError
 from backend.app.tools._tool_utils import (
     build_tool_action_error_record,
     build_tool_error_payload,
-    domain_scope_kwargs,
-    has_domain_scope,
-    is_url_allowed,
     validation_error_message,
 )
 
@@ -56,16 +50,11 @@ def build_web_search_tool(
 
     @tool("web_search", args_schema=WebSearchInput)
     def bounded_web_search(query: str, max_results: int = 5) -> WebSearchToolResult:
-        """Search the web, apply retrieval-policy domain scoping, and return typed search results or a typed error."""
-        effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
-        search_policy = effective_policy.search
-        domain_scope = domain_scope_kwargs(search_policy)
-        payload = runner(
-            query=_apply_domain_scope_to_query(query, search_policy),
+        """Search the web and return typed search results or a typed error."""
+        return runner(
+            query=query,
             max_results=min(max_results, bounded_cap),
-            freshness=search_policy.freshness,
         )
-        return _filter_search_payload_by_domain_scope(payload, domain_scope)
 
     return bounded_web_search
 
@@ -85,10 +74,10 @@ def run_web_search(
     operation_start = perf_counter()
     try:
         validated_input = WebSearchInput(query=query, max_results=max_results)
+        del freshness
         response = (client or create_serper_client()).search(
             query=validated_input.query,
             max_results=validated_input.max_results,
-            freshness=freshness,
         )
         validated_response = WebSearchResponse.model_validate(response)
         optimized_response = _optimize_search_response(
@@ -162,51 +151,6 @@ def _build_search_error_payload(
         provider_ms=provider_ms,
     )
     return WebSearchError(error=envelope.error, meta=envelope.meta)
-
-
-def _apply_domain_scope_to_query(
-    query: str,
-    search_policy: AgentRunRetrievalSearchPolicy,
-) -> str:
-    """Apply include/exclude domain scope terms to a search query.
-
-    Example input: `_apply_domain_scope_to_query("agents", policy)`
-    Example output: `"agents site:example.com -site:blocked.com"`
-    """
-    include_terms = [f"site:{domain}" for domain in search_policy.include_domains]
-    exclude_terms = [f"-site:{domain}" for domain in search_policy.exclude_domains]
-    scope_terms = [*include_terms, *exclude_terms]
-
-    if not scope_terms:
-        return query
-
-    return f"{query} {' '.join(scope_terms)}".strip()
-
-
-def _filter_search_payload_by_domain_scope(
-    payload: WebSearchToolResult,
-    domain_scope: dict[str, list[str]],
-) -> WebSearchToolResult:
-    """Filter search results by configured domain scope.
-
-    Example input: `_filter_search_payload_by_domain_scope(WebSearchResponse(...), {"include_domains": ["example.com"], "exclude_domains": ["blocked.com"]})`
-    Example output: `WebSearchResponse(results=[...filtered...], ...)`
-    """
-    if not has_domain_scope(**domain_scope):
-        return payload
-
-    try:
-        response = WebSearchResponse.model_validate(payload)
-    except ValidationError:
-        return payload
-
-    filtered_results = [
-        result
-        for result in response.results
-        if is_url_allowed(str(result.url), **domain_scope)
-    ]
-
-    return _with_updated_results(response, filtered_results)
 
 
 def build_web_search_action_record(

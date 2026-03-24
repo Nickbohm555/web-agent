@@ -34,7 +34,7 @@ from backend.app.tools.web_crawl import run_web_crawl
 
 
 class QuickCrawlRunner(Protocol):
-    def __call__(self, *, url: str, objective: str | None = None) -> Any:
+    def __call__(self, *, url: str) -> Any:
         ...
 
 
@@ -56,9 +56,6 @@ def run_quick_runtime(
     search_payload = run_quick_search(
         query=prompt,
         max_results=DEFAULT_QUICK_SEARCH_MAX_RESULTS,
-        freshness=retrieval_policy.search.freshness,
-        include_domains=retrieval_policy.search.include_domains,
-        exclude_domains=retrieval_policy.search.exclude_domains,
         search_runner=search_runner,
     )
 
@@ -85,14 +82,13 @@ def run_quick_runtime(
 
     selected_urls = select_quick_urls(
         search_response,
-        retrieval_policy=retrieval_policy,
         max_urls=QUICK_RUNTIME_MAX_CRAWLS,
     )
 
     crawl_payloads: list[Any] = []
     for url in selected_urls:
         try:
-            payload = (crawl_runner or run_web_crawl)(url=url, objective=prompt)
+            payload = (crawl_runner or run_web_crawl)(url=url)
         except Exception as exc:
             payload = {
                 "error": {

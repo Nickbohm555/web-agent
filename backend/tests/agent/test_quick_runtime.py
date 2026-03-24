@@ -270,7 +270,7 @@ def test_run_quick_runtime_uses_one_shot_synthesis_for_final_answer() -> None:
     assert answer_client.responses.captured_input is not None
 
 
-def test_select_quick_urls_skips_disallowed_or_duplicate_urls() -> None:
+def test_select_quick_urls_skips_duplicate_urls() -> None:
     search_response = WebSearchResponse.model_validate(
         {
             "query": "pricing",
@@ -310,14 +310,11 @@ def test_select_quick_urls_skips_disallowed_or_duplicate_urls() -> None:
             },
         }
     )
-    policy = AgentRunRetrievalPolicy.model_validate(
-        {"search": {"include_domains": ["allowed.example.com"], "exclude_domains": ["blocked.example.com"]}}
-    )
-
-    selected = select_quick_urls(search_response, retrieval_policy=policy, max_urls=3)
+    selected = select_quick_urls(search_response, max_urls=3)
 
     assert selected == [
         "https://allowed.example.com/a",
+        "https://blocked.example.com/x",
         "https://allowed.example.com/b",
     ]
 

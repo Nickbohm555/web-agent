@@ -13,12 +13,10 @@ Gather enough context to answer accurately, then stop and provide a concise fina
 Do not keep calling tools once you have enough evidence to answer the user's prompt.
 If a tool fails, either recover with the other available tool when appropriate or stop and explain the limitation.
 Do not expose provider internals or raw tool payload details unless they are directly relevant.
-Translate clear prompt intent like official-docs-only, latest filings, and recent coverage into concrete source and freshness constraints, and keep those constraints stable unless the user explicitly broadens them.
 Use web_search to shortlist likely-answering sources before crawling unless the user already gave you a specific page to inspect.
 Treat search excerpts as a triage layer; do not crawl results that do not appear useful.
 When several search results look promising, call web_crawl with multiple selected URLs in one call.
 Use one-by-one crawling only when you need to branch after reading an earlier page.
-When you call web_crawl, always include an objective that states the exact fact, section, or claim you need from that page.
 """.strip()
 
 PROFILE_PROMPT_APPENDICES: dict[str, str] = {
@@ -48,16 +46,9 @@ def build_system_prompt(
         f"Use web_search for no more than {profile.max_search_results} results per call. "
         f"Use web_crawl selectively and keep extracted evidence under about {profile.max_crawl_chars} characters per page."
     )
-    policy = retrieval_policy or AgentRunRetrievalPolicy()
-    policy_guidance = (
-        f"Retrieval policy: freshness={policy.search.freshness}; "
-        f"include domains={policy.search.include_domains or ['*']}; "
-        f"exclude domains={policy.search.exclude_domains or []}; "
-        f"fetch fresh={policy.fetch.fresh}; "
-        f"fetch max_age_ms={policy.fetch.max_age_ms}."
-    )
+    del retrieval_policy
     strategy_guidance = f"\n{retrieval_brief}" if retrieval_brief else ""
     return (
         f"{BASE_SYSTEM_PROMPT}\n\nMode guidance: {appendix}\n"
-        f"{bounded_guidance}\n{policy_guidance}{strategy_guidance}"
+        f"{bounded_guidance}{strategy_guidance}"
     )

@@ -16,28 +16,11 @@ def test_web_crawl_input_accepts_absolute_http_urls() -> None:
 
     assert str(payload.url) == "https://example.com/articles/agent"
 
-
-def test_web_crawl_input_accepts_objective() -> None:
-    payload = WebCrawlInput(
-        url="https://example.com/articles/agent",
-        objective=" Find the sections about tool calling. ",
-    )
-
-    assert payload.objective == "Find the sections about tool calling."
-
-
 @pytest.mark.parametrize(
     ("payload", "field_name"),
     [
         ({"url": "example.com"}, "url"),
         ({"url": "ftp://example.com/file.txt"}, "url"),
-        (
-            {
-                "url": "https://example.com/articles/agent",
-                "objective": "   ",
-            },
-            "objective",
-        ),
     ],
 )
 def test_web_crawl_input_rejects_invalid_urls(payload: dict[str, str], field_name: str) -> None:
@@ -54,7 +37,6 @@ def test_web_crawl_success_accepts_contract_valid_payload() -> None:
             "final_url": "https://example.com/final",
             "text": " Main article text ",
             "markdown": " # Main article text ",
-            "objective": " Summarize the deployment steps ",
             "excerpts": [
                 {
                     "text": " Step 1 installs dependencies. ",
@@ -76,7 +58,6 @@ def test_web_crawl_success_accepts_contract_valid_payload() -> None:
 
     assert response.text == "Main article text"
     assert response.markdown == "# Main article text"
-    assert response.objective == "Summarize the deployment steps"
     assert response.excerpts == [
         WebCrawlExcerpt(
             text="Step 1 installs dependencies.",

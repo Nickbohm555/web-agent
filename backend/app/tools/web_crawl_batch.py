@@ -5,7 +5,6 @@ from time import perf_counter
 from typing import Callable
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
-from backend.app.tools._tool_utils import build_tool_error_payload, domain_scope_kwargs, is_url_allowed
 from backend.app.tools.schemas.tool_errors import ToolError, ToolTimings
 from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlMeta, WebCrawlSuccess, WebCrawlToolResult
 from backend.app.tools.schemas.web_crawl_batch import (
@@ -21,28 +20,24 @@ MAX_BATCH_WORKERS = 5
 def run_web_crawl_batch(
     *,
     urls: list[str],
-    objective: str | None,
-    crawl_one: Callable[[str, str | None], WebCrawlToolResult],
+    crawl_one: Callable[[str], WebCrawlToolResult],
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
 ) -> WebCrawlBatchSuccess:
     """Run deterministic parallel crawl fan-out and return ordered typed batch results.
 
-    Example input: `run_web_crawl_batch(urls=["https://example.com/a"], objective=None, crawl_one=my_crawl)`
+    Example input: `run_web_crawl_batch(urls=["https://example.com/a"], crawl_one=my_crawl)`
     Example output: `WebCrawlBatchSuccess(requested_urls=["https://example.com/a"], items=[...], ...)`
     """
     operation_start = perf_counter()
     requested_urls = list(urls)
-    policy = retrieval_policy or AgentRunRetrievalPolicy()
+    del retrieval_policy
 
     with ThreadPoolExecutor(max_workers=min(len(requested_urls), MAX_BATCH_WORKERS)) as pool:
         futures: dict[Future[WebCrawlToolResult], str] = {}
         results_by_url: dict[str, WebCrawlBatchItemResult] = {}
 
         for url in requested_urls:
-            if not is_url_allowed(url, **domain_scope_kwargs(policy.search)):
-                results_by_url[url] = _build_invalid_request_item(url)
-                continue
-            futures[pool.submit(crawl_one, url, objective)] = url
+            futures[pool.submit(crawl_one, url)] = url
 
         results_by_url.update(_await_batch_futures(futures))
 
@@ -119,22 +114,6 @@ def _build_batch_item(*, url: str, payload: WebCrawlToolResult) -> WebCrawlBatch
         status="failed",
         result=None,
         error=error.error,
-    )
-
-
-def _build_invalid_request_item(url: str) -> WebCrawlBatchItemResult:
-    envelope = build_tool_error_payload(
-        kind="invalid_request",
-        message="url is outside the configured retrieval policy domain scope",
-        retryable=False,
-        total_ms=0,
-        operation="web_crawl",
-    )
-    return WebCrawlBatchItemResult(
-        url=url,
-        status="failed",
-        result=None,
-        error=envelope.error,
     )
 
 

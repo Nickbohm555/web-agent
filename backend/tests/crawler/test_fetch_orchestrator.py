@@ -29,7 +29,6 @@ def test_orchestrator_escalates_to_browser_for_403() -> None:
 
     payload = run_fetch_orchestrator(
         url="https://example.com/blocked",
-        objective="Find pricing",
         fetch_worker=worker,
         session_profile_provider=provider,
         browser_fetcher=lambda *, url, seed: BrowserFetchSuccess(

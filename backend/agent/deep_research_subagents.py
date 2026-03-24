@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.agent.runtime_constants import (
+    STANDARD_AGENT_MAX_CRAWL_CHARS,
+    STANDARD_AGENT_MAX_SEARCH_RESULTS,
+)
 from backend.agent.deep_research_retrieval_tools import build_deep_research_retrieval_tools
 from backend.agent.schemas import AgentRunRetrievalPolicy
 
@@ -9,8 +13,8 @@ from backend.agent.schemas import AgentRunRetrievalPolicy
 def build_research_subagent(
     *,
     retrieval_policy: AgentRunRetrievalPolicy,
-    max_search_results: int = 8,
-    max_content_chars: int = 12000,
+    max_search_results: int = STANDARD_AGENT_MAX_SEARCH_RESULTS,
+    max_content_chars: int = STANDARD_AGENT_MAX_CRAWL_CHARS,
 ) -> dict[str, Any]:
     return {
         "name": "research_subagent",

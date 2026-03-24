@@ -20,11 +20,10 @@ from backend.app.tools.web_crawl import (
 web_crawl_module = importlib.import_module("backend.app.tools.web_crawl")
 
 
-def test_web_crawl_input_accepts_single_url_and_objective() -> None:
-    model = WebCrawlToolInput(url="https://example.com/article", objective="Find pricing")
+def test_web_crawl_input_accepts_single_url() -> None:
+    model = WebCrawlToolInput(url="https://example.com/article")
 
     assert str(model.url) == "https://example.com/article"
-    assert model.objective == "Find pricing"
 
 
 def test_web_crawl_tool_input_accepts_urls_and_rejects_url_plus_urls() -> None:
@@ -58,7 +57,6 @@ def test_web_crawl_batch_success_preserves_input_order() -> None:
                         "final_url": "https://example.com/a",
                         "text": "alpha",
                         "markdown": "alpha",
-                        "objective": None,
                         "excerpts": [],
                         "status_code": 200,
                         "content_type": "text/html",
@@ -120,34 +118,11 @@ def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
     assert result.markdown
 
 
-def test_web_crawl_tool_accepts_objective_and_preserves_contract(monkeypatch) -> None:
+def test_web_crawl_tool_uses_lead_excerpt(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
     monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
 
-    payload = web_crawl.invoke(
-        {
-            "url": "https://example.com/article",
-            "objective": "Find the sections about agent systems",
-        }
-    )
-    result = WebCrawlSuccess.model_validate(payload)
-
-    assert result.objective == "Find the sections about agent systems"
-    assert result.excerpts
-    assert "agent systems" in result.excerpts[0].text.lower()
-    assert "agent systems" in result.text.lower()
-
-
-def test_web_crawl_tool_uses_lead_excerpt_when_objective_has_no_clear_match(monkeypatch) -> None:
-    worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
-    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
-
-    payload = web_crawl.invoke(
-        {
-            "url": "https://example.com/article",
-            "objective": "Find the unrelated pricing calculator details",
-        }
-    )
+    payload = web_crawl.invoke({"url": "https://example.com/article"})
     result = WebCrawlSuccess.model_validate(payload)
 
     assert result.excerpts
@@ -216,7 +191,7 @@ def test_web_crawl_batch_preserves_fallback_success_for_pdf(monkeypatch) -> None
     assert result.items[0].result.fallback_reason == "unsupported-content-type"
 
 
-def test_web_crawl_batch_returns_per_item_invalid_request_for_policy_blocked_url(
+def test_web_crawl_batch_fetches_each_url_without_policy_filtering(
     monkeypatch,
 ) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
@@ -232,9 +207,7 @@ def test_web_crawl_batch_returns_per_item_invalid_request_for_policy_blocked_url
     )
     result = WebCrawlBatchSuccess.model_validate(payload)
 
-    assert result.items[1].status == "failed"
-    assert result.items[1].error is not None
-    assert result.items[1].error.kind == "invalid_request"
+    assert [item.status for item in result.items] == ["succeeded", "succeeded"]
 
 
 def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
@@ -245,7 +218,6 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
             "final_url": "https://example.com/final",
             "text": "A concise extracted summary of the page body.",
             "markdown": "A concise extracted summary of the page body.",
-            "objective": "Find the summary",
             "excerpts": [
                 {
                     "text": "Focused excerpt for the summary.",
@@ -271,7 +243,6 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
         "final_url": "https://example.com/final",
         "status_code": 200,
         "content_type": "text/html",
-        "objective": "Find the summary",
         "fallback_reason": None,
         "text_preview": "A concise extracted summary of the page body.",
     }
@@ -411,7 +382,6 @@ def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -
     payload = tool_instance.invoke(
         {
             "url": "https://example.com/article",
-            "objective": "Find the focused passage",
         }
     )
     result = WebCrawlSuccess.model_validate(payload)
@@ -419,7 +389,6 @@ def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -
     assert tool_instance.name == "web_crawl"
     assert 0 < len(result.text) <= 40
     assert 0 < len(result.markdown) <= 40
-    assert result.objective == "Find the focused passage"
     assert result.excerpts
 
 
@@ -438,7 +407,11 @@ def test_run_web_crawl_returns_structured_retryable_error_metadata() -> None:
     assert result.meta.retries == 2
 
 
-def test_bounded_web_crawl_rejects_urls_outside_retrieval_policy_scope() -> None:
+def test_bounded_web_crawl_fetches_urls_even_when_retrieval_policy_is_present(
+    monkeypatch,
+) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
     tool_instance = build_web_crawl_tool(
         retrieval_policy=AgentRunRetrievalPolicy.model_validate(
             {
@@ -451,10 +424,9 @@ def test_bounded_web_crawl_rejects_urls_outside_retrieval_policy_scope() -> None
     )
 
     payload = tool_instance.invoke({"url": "https://blocked.com/article"})
-    result = WebCrawlError.model_validate(payload)
+    result = WebCrawlSuccess.model_validate(payload)
 
-    assert result.error.kind == "invalid_request"
-    assert result.error.message == "url is outside the configured retrieval policy domain scope"
+    assert str(result.url) == "https://blocked.com/article"
 
 
 def _mock_http_client(handler):
