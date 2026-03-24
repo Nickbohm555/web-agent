@@ -29,6 +29,7 @@ from backend.app.tools._tool_utils import (
     is_url_allowed,
     validation_error_message,
 )
+from backend.app.tools.tool_logging import log_web_search_result
 
 
 def create_serper_client() -> SerperClient:
@@ -65,7 +66,9 @@ def build_web_search_tool(
             max_results=min(max_results, bounded_cap),
             freshness=search_policy.freshness,
         )
-        return _filter_search_payload_by_domain_scope(payload, domain_scope)
+        filtered_payload = _filter_search_payload_by_domain_scope(payload, domain_scope)
+        log_web_search_result(query=query, payload=filtered_payload)
+        return filtered_payload
 
     return bounded_web_search
 

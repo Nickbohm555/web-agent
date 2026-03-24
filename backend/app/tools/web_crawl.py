@@ -25,6 +25,7 @@ from backend.app.tools._tool_utils import (
     is_url_allowed,
     validation_error_message,
 )
+from backend.app.tools.tool_logging import log_web_crawl_result
 
 
 def create_http_fetch_worker() -> HttpFetchWorker:
@@ -76,7 +77,13 @@ def build_web_crawl_tool(
             objective=objective,
             fetch_worker=fetch_worker,
         )
-        return _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
+        bounded_payload = _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
+        log_web_crawl_result(
+            url=url,
+            objective=objective,
+            payload=bounded_payload,
+        )
+        return bounded_payload
 
     return bounded_web_crawl
 
