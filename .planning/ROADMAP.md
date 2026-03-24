@@ -12,7 +12,7 @@ This roadmap turns the current placeholder deep-research path into a LangChain D
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Tool Contract Alignment** - Rename the currently exposed open-page tool contract from `web_extract` to `open_url` and align retrieval names across all modes.
+- [ ] **Phase 1: Tool Contract Alignment** - Rename the currently exposed open-page tool contract from `web_crawl` to `open_url` and align retrieval names across all modes.
 - [ ] **Phase 2: Deep Agents Run Lifecycle** - Replace the placeholder deep-research flow with a `create_deep_agent(...)` supervisor that can clarify and resume.
 - [ ] **Phase 3: Deep Agents Persistence Backbone** - Use Deep Agents backends plus `langgraph-checkpoint-postgres` for durable planning state and inspectable progress.
 - [ ] **Phase 4: Deep Agents Research Fan-Out** - Run plan-derived subquestions through Deep Agents subagents that return subanswers plus normalized evidence from existing retrieval behavior.
@@ -21,19 +21,19 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Tool Contract Alignment
-**Goal**: Users can rely on one explicit retrieval contract across every runtime surface, with the currently exposed open-page or crawl tool name aligned from `web_extract` to `open_url` while search remains `web_search`.
+**Goal**: Users can rely on one explicit retrieval contract across every runtime surface, with the currently exposed open-page or crawl tool name aligned from `web_crawl` to `open_url` while search remains `web_search`.
 **Depends on**: Nothing (first phase)
 **Requirements**: TOOL-01, TOOL-02
 **Success Criteria** (what must be TRUE):
   1. User can access the search tool as `web_search` in quick mode.
-  2. User can access the search tool as `web_search` and the currently exposed `web_extract` page-opening contract is aligned to `open_url` in agentic mode.
-  3. User can access the search tool as `web_search` and the currently exposed `web_extract` page-opening contract is aligned to `open_url` in deep-research mode.
-**Plans**: TBD
+  2. User can access the search tool as `web_search` and the currently exposed `web_crawl` page-opening contract is aligned to `open_url` in agentic mode.
+  3. User can access the search tool as `web_search` and the currently exposed `web_crawl` page-opening contract is aligned to `open_url` in deep-research mode.
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Audit where `web_search` and the current open-page contract are exposed across quick, agentic, and deep-research paths.
-- [ ] 01-02: Rename or alias the current `web_extract` open-page contract to canonical `open_url` without changing the underlying retrieval behavior.
-- [ ] 01-03: Verify the aligned names work end-to-end in each mode.
+- [ ] 01-01-PLAN.md — Align backend canonical tool bindings, prompt text, and parser tolerance to `web_search` + `open_url`.
+- [ ] 01-02-PLAN.md — Align frontend contracts, observability, and event normalization to `open_url` while keeping `open_page`.
+- [ ] 01-03-PLAN.md — Add queued deep-research, SSE/history, reducer, and timeline regressions for the renamed contract.
 
 ### Phase 2: Deep Agents Run Lifecycle
 **Goal**: Users can start deep research through the LangChain Deep Agents architecture, centered on `create_deep_agent(...)`, with one clarification at a time and resume on the same thread.
@@ -43,7 +43,7 @@ Plans:
   1. User can start a `deep_research` run and the run is handled by a Deep Agents supervisor created via `create_deep_agent(...)` instead of the placeholder queued flow.
   2. User can receive no more than one clarifying question at a time before Deep Agents research fan-out begins.
   3. User can answer the clarifying question and continue the same `deep_research` thread without losing prior context.
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [ ] 02-01: Replace the current deep-research entry path with a `create_deep_agent(...)`-based supervisor flow.
