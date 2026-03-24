@@ -85,6 +85,7 @@ When `urls` is provided:
 - validate each URL independently against policy before fetch
 - fetch and extract pages concurrently
 - preserve partial success
+- preserve current single-page fallback-success behavior for pages that cannot be fully extracted but still produce a valid fallback payload
 - return one typed batch success envelope unless the request itself is invalid
 
 The backend should not reorder the user-selected URLs unless there is a strong implementation reason. Input order should remain observable in the result.
@@ -124,7 +125,8 @@ Suggested shape:
         "text": "...",
         "markdown": "...",
         "objective": null,
-        "excerpts": [...]
+        "excerpts": [...],
+        "fallback_reason": null
       },
       "error": null
     },
@@ -163,6 +165,8 @@ Suggested shape:
 ```
 
 The ordered `items` list preserves input order directly and avoids ambiguity for mixed-success batches. Aggregate counts should be included in a separate `summary` object for downstream reasoning and observability.
+
+Batch item success should reuse the current single-page success semantics as closely as possible, including `fallback_reason` when a page produces a supported fallback success such as unsupported content type or low-content-quality extraction fallback.
 
 ## Execution Design
 
@@ -238,6 +242,19 @@ Minimum needs:
 - total batch timing
 
 If action tracing is used downstream, batch crawl summaries should remain compact and avoid flooding logs with full extracted content.
+
+## Source and Citation Mapping
+
+Batch crawl results must integrate cleanly with the existing source registry and final citation path.
+
+Rules:
+
+- every successful batch item is flattened into the same source extraction path currently used for `WebCrawlSuccess`
+- fallback-success items remain valid sources if they produce a normal crawl success payload
+- failed batch items do not become sources
+- `runtime_sources.extract_sources()` or its crawl-specific helpers must be extended to recognize batch crawl payloads and emit one source record per successful item
+
+This prevents batch reads from disappearing from `AgentRunResult.sources` and keeps final citations aligned with the pages the model actually opened.
 
 ## Testing Strategy
 
