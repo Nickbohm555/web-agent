@@ -69,9 +69,23 @@ class WebCrawlSuccess(BaseModel):
     status_code: int = Field(ge=100, le=599)
     content_type: str = Field(min_length=1)
     fallback_reason: Optional[CrawlFallbackReason] = None
+    strategy_used: str = Field(default="http", min_length=1)
+    escalation_count: int = Field(default=0, ge=0)
+    session_profile_id: Optional[str] = None
+    block_reason: Optional[str] = None
+    rendered: bool = False
+    challenge_detected: bool = False
     meta: ToolMeta
 
-    @field_validator("text", "markdown", "content_type", "objective")
+    @field_validator(
+        "text",
+        "markdown",
+        "content_type",
+        "objective",
+        "strategy_used",
+        "session_profile_id",
+        "block_reason",
+    )
     @classmethod
     def normalize_text(cls, value: Optional[str]) -> Optional[str]:
         return _strip_optional_text(value)

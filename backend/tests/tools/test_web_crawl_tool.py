@@ -3,9 +3,11 @@ import importlib
 import httpx
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
+from backend.app.crawler.browser_worker import BrowserFetchWorker
 from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
+from backend.app.crawler.schemas.browser_fetch import BrowserFetchSuccess
 from backend.app.tools.web_crawl import (
     build_web_crawl_action_record,
     build_web_crawl_tool,
@@ -82,26 +84,58 @@ def test_run_web_crawl_returns_success_fallback_for_unsupported_content_type() -
     worker = HttpFetchWorker(http_client=_mock_http_client(_pdf_handler))
 
     payload = run_web_crawl(url="https://example.com/file.pdf", fetch_worker=worker)
-    result = WebCrawlSuccess.model_validate(payload)
+    result = WebCrawlError.model_validate(payload)
 
-    assert result.status_code == 200
-    assert result.content_type == "application/pdf"
-    assert result.fallback_reason == "unsupported-content-type"
-    assert result.text == ""
-    assert result.markdown == ""
+    assert result.error.kind == "unsupported_content_type"
+    assert result.error.retryable is False
+    assert result.error.status_code == 200
 
 
-def test_run_web_crawl_returns_success_fallback_for_low_content_quality() -> None:
+def test_run_web_crawl_returns_typed_error_for_low_content_quality() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_boilerplate_handler))
+    browser_worker = BrowserFetchWorker(
+        navigation_runner=lambda **kwargs: BrowserFetchSuccess(
+            url=kwargs["url"],
+            final_url=kwargs["url"],
+            status_code=200,
+            content_type="text/html",
+            html="""
+            <html>
+              <body>
+                <header>Home Docs Login</header>
+                <nav>Products Pricing About</nav>
+                <footer>Copyright Example</footer>
+              </body>
+            </html>
+            """,
+            text="Home Docs Login Products Pricing About Copyright Example",
+            rendered=True,
+        )
+    )
 
-    payload = run_web_crawl(url="https://example.com/thin", fetch_worker=worker)
+    payload = run_web_crawl(
+        url="https://example.com/thin",
+        fetch_worker=worker,
+        browser_fetch_worker=browser_worker,
+    )
+    result = WebCrawlError.model_validate(payload)
+
+    assert result.error.kind == "low_content_quality"
+    assert result.error.retryable is False
+    assert result.error.status_code == 200
+
+
+def test_run_web_crawl_surfaces_strategy_metadata_on_success() -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
+
+    payload = run_web_crawl(url="https://example.com/article", fetch_worker=worker)
     result = WebCrawlSuccess.model_validate(payload)
 
-    assert result.status_code == 200
-    assert result.content_type == "text/html"
-    assert result.fallback_reason == "low-content-quality"
-    assert result.text == ""
-    assert result.markdown == ""
+    assert result.strategy_used == "http"
+    assert result.escalation_count == 0
+    assert result.session_profile_id is None
+    assert result.rendered is False
+    assert result.challenge_detected is False
 
 
 def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
@@ -122,6 +156,12 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
             "status_code": 200,
             "content_type": "text/html",
             "fallback_reason": None,
+            "strategy_used": "browser",
+            "escalation_count": 1,
+            "session_profile_id": "auth-profile",
+            "block_reason": None,
+            "rendered": True,
+            "challenge_detected": False,
             "meta": {
                 "operation": "web_crawl",
                 "attempts": 1,
@@ -140,6 +180,11 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
         "content_type": "text/html",
         "objective": "Find the summary",
         "fallback_reason": None,
+        "strategy_used": "browser",
+        "escalation_count": 1,
+        "session_profile_id": "auth-profile",
+        "rendered": True,
+        "challenge_detected": False,
         "text_preview": "A concise extracted summary of the page body.",
     }
 

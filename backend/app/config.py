@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from functools import lru_cache
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,6 +11,7 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str
     SERPER_API_KEY: str
+    CRAWLER_SESSION_PROFILES_PATH: Optional[str] = None
 
 
 @lru_cache

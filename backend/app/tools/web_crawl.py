@@ -8,6 +8,17 @@ from pydantic import ValidationError
 from pydantic.networks import HttpUrl
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
+from backend.app.crawler.browser_worker import BrowserFetchWorker
+from backend.app.crawler.fetch_orchestrator import CrawlSuccessEnvelope, FetchOrchestrator
+from backend.app.crawler.http_worker import HttpFetchWorker
+from backend.app.crawler.schemas.session_profile import SessionProfile
+from backend.app.tools._tool_utils import (
+    build_tool_action_error_record,
+    build_tool_error_payload,
+    domain_scope_kwargs,
+    is_url_allowed,
+    validation_error_message,
+)
 from backend.app.tools.schemas.tool_errors import ToolMeta
 from backend.app.tools.schemas.web_crawl import (
     ExtractionResult,
@@ -15,15 +26,6 @@ from backend.app.tools.schemas.web_crawl import (
     WebCrawlInput,
     WebCrawlSuccess,
     WebCrawlToolResult,
-)
-from backend.app.crawler.extractor import extract_content, extraction_result_from_fetch_failure
-from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchWorker
-from backend.app.tools._tool_utils import (
-    build_tool_action_error_record,
-    build_tool_error_payload,
-    domain_scope_kwargs,
-    is_url_allowed,
-    validation_error_message,
 )
 from backend.app.tools.tool_logging import log_web_crawl_result
 
@@ -37,11 +39,40 @@ def create_http_fetch_worker() -> HttpFetchWorker:
     return HttpFetchWorker()
 
 
+def create_browser_fetch_worker() -> BrowserFetchWorker:
+    """Build the default browser fetch worker.
+
+    Example input: `create_browser_fetch_worker()`
+    Example output: `BrowserFetchWorker(...)`
+    """
+    return BrowserFetchWorker()
+
+
+def create_fetch_orchestrator(
+    *,
+    fetch_worker: HttpFetchWorker | None = None,
+    browser_fetch_worker: BrowserFetchWorker | None = None,
+    session_profiles: list[SessionProfile] | None = None,
+) -> FetchOrchestrator:
+    """Build the session-aware crawl orchestrator.
+
+    Example input: `create_fetch_orchestrator(fetch_worker=HttpFetchWorker())`
+    Example output: `FetchOrchestrator(...)`
+    """
+    return FetchOrchestrator(
+        http_fetch_worker=fetch_worker,
+        browser_fetch_worker=browser_fetch_worker,
+        session_profiles=session_profiles,
+    )
+
+
 def build_web_crawl_tool(
     *,
     max_content_chars: int = 6000,
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
     fetch_worker: HttpFetchWorker | None = None,
+    browser_fetch_worker: BrowserFetchWorker | None = None,
+    session_profiles: list[SessionProfile] | None = None,
 ):
     """Build the bounded LangChain crawl tool.
 
@@ -52,37 +83,34 @@ def build_web_crawl_tool(
 
     @tool("web_crawl", args_schema=WebCrawlInput)
     def bounded_web_crawl(url: str, objective: str | None = None) -> WebCrawlToolResult:
-        """Fetch and extract one allowed page, then return typed crawl content or a typed error.
+        """Fetch one allowed page through HTTP and browser retrieval paths, then return evidence-bearing content or a typed error.
 
         Input:
         - `url`: Absolute `http` or `https` page URL to fetch. The URL must be inside the current retrieval-policy domain scope or the tool returns an `invalid_request` error.
-        - `objective`: Optional short instruction describing what the agent wants from the page, such as "Find the refund policy" or "Summarize pricing details". This helps the extractor prioritize relevant excerpts but does not change which URL is fetched.
+        - `objective`: Optional short instruction describing what the agent wants from the page, such as "Find the refund policy" or "Summarize pricing details". This helps excerpt selection after HTTP or browser retrieval.
 
         Output:
-        - `WebCrawlSuccess` with normalized page text, markdown, excerpts, final URL, status code, and content type when the fetch/extraction succeeds.
-        - `WebCrawlError` with a typed error envelope when validation, policy checks, fetching, or extraction fails.
+        - `WebCrawlSuccess` with normalized page text, markdown, excerpts, final URL, status code, strategy metadata, and content type when evidence is recovered.
+        - `WebCrawlError` with a typed error envelope when validation, policy checks, HTTP/browser fetching, or extraction fails. Auth gates, challenge pages, unsupported content, and low-content pages are returned as typed failures instead of empty successes.
         """
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         if not is_url_allowed(url, **domain_scope_kwargs(effective_policy.search)):
-            envelope = build_tool_error_payload(
+            return _build_crawl_error_payload(
+                total_ms=0,
                 kind="invalid_request",
                 message="url is outside the configured retrieval policy domain scope",
                 retryable=False,
-                total_ms=0,
-                operation="web_crawl",
             )
-            return WebCrawlError(error=envelope.error, meta=envelope.meta)
+
         payload = run_web_crawl(
             url=url,
             objective=objective,
-            fetch_worker=fetch_worker,
+            fetch_worker=fetch_worker or create_http_fetch_worker(),
+            browser_fetch_worker=browser_fetch_worker or create_browser_fetch_worker(),
+            session_profiles=session_profiles,
         )
         bounded_payload = _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
-        log_web_crawl_result(
-            url=url,
-            objective=objective,
-            payload=bounded_payload,
-        )
+        log_web_crawl_result(url=url, objective=objective, payload=bounded_payload)
         return bounded_payload
 
     return bounded_web_crawl
@@ -93,54 +121,52 @@ def run_web_crawl(
     url: str,
     objective: str | None = None,
     fetch_worker: HttpFetchWorker | None = None,
+    browser_fetch_worker: BrowserFetchWorker | None = None,
+    session_profiles: list[SessionProfile] | None = None,
+    fetch_orchestrator: FetchOrchestrator | None = None,
 ) -> WebCrawlToolResult:
-    """Run the crawl pipeline without LangChain wrapping.
+    """Run the session-aware crawl pipeline without LangChain wrapping.
 
     Example input: `run_web_crawl(url="https://example.com/article", objective="Find pricing")`
-    Example output: `WebCrawlSuccess(final_url="https://example.com/article", ...)`
+    Example output: `WebCrawlSuccess(final_url="https://example.com/article", strategy_used="http", ...)`
     """
     operation_start = perf_counter()
     try:
         validated_input = WebCrawlInput(url=url, objective=objective)
-        fetch_result = (fetch_worker or create_http_fetch_worker()).fetch(
-            url=str(validated_input.url)
-        )
-
-        if isinstance(fetch_result, HttpFetchFailure):
-            if fetch_result.error.kind == "unsupported_content_type":
-                return _build_fetch_failure_success(
-                    validated_input=validated_input,
-                    fetch_result=fetch_result,
-                )
-
-            return WebCrawlError(
-                error=fetch_result.error,
-                meta=fetch_result.meta,
-            )
-
-        extraction_result = extract_content(
-            body=fetch_result.body,
-            content_type=fetch_result.content_type,
+        result = (fetch_orchestrator or create_fetch_orchestrator(
+            fetch_worker=fetch_worker,
+            browser_fetch_worker=browser_fetch_worker,
+            session_profiles=session_profiles,
+        )).crawl(
+            url=str(validated_input.url),
             objective=validated_input.objective,
         )
-        return _build_crawl_success_payload(
-            validated_input=validated_input,
-            final_url=fetch_result.final_url,
-            extraction_result=extraction_result,
-            status_code=fetch_result.status_code,
-            content_type=fetch_result.content_type,
-            meta=fetch_result.meta,
-        )
+        if isinstance(result, CrawlSuccessEnvelope):
+            return _build_crawl_success_payload(
+                validated_input=validated_input,
+                final_url=result.final_url,
+                extraction_result=result.extraction_result,
+                status_code=result.status_code,
+                content_type=result.content_type,
+                meta=result.meta,
+                strategy_used=result.strategy_used,
+                escalation_count=result.escalation_count,
+                session_profile_id=result.session_profile_id,
+                block_reason=result.block_reason,
+                rendered=result.rendered,
+                challenge_detected=result.challenge_detected,
+            )
+        return result
     except ValidationError as exc:
         return _build_crawl_error_payload(
-            operation_start=operation_start,
+            total_ms=_elapsed_ms(operation_start),
             kind="invalid_request",
             message=validation_error_message(exc),
             retryable=False,
         )
     except Exception:
         return _build_crawl_error_payload(
-            operation_start=operation_start,
+            total_ms=_elapsed_ms(operation_start),
             kind="internal_error",
             message="unexpected web_crawl failure",
             retryable=False,
@@ -161,7 +187,7 @@ def _elapsed_ms(start: float) -> int:
 
 def _build_crawl_error_payload(
     *,
-    operation_start: float,
+    total_ms: int,
     kind: str,
     message: str,
     retryable: bool,
@@ -169,38 +195,17 @@ def _build_crawl_error_payload(
 ) -> WebCrawlError:
     """Build a typed crawl error envelope.
 
-    Example input: `_build_crawl_error_payload(operation_start=t0, kind="invalid_request", message="bad url", retryable=False)`
+    Example input: `_build_crawl_error_payload(total_ms=12, kind="invalid_request", message="bad url", retryable=False)`
     Example output: `WebCrawlError(error=ToolError(kind="invalid_request", ...), ...)`
     """
     envelope = build_tool_error_payload(
         kind=kind,
         message=message,
         retryable=retryable,
-        total_ms=_elapsed_ms(operation_start),
+        total_ms=total_ms,
         operation=operation,
     )
     return WebCrawlError(error=envelope.error, meta=envelope.meta)
-
-
-def _build_fetch_failure_success(
-    *,
-    validated_input: WebCrawlInput,
-    fetch_result: HttpFetchFailure,
-) -> WebCrawlSuccess:
-    """Convert a supported fetch failure fallback into typed success output.
-
-    Example input: `_build_fetch_failure_success(validated_input=WebCrawlInput(...), fetch_result=HttpFetchFailure(...))`
-    Example output: `WebCrawlSuccess(fallback_reason="unsupported-content-type", ...)`
-    """
-    extraction_result = extraction_result_from_fetch_failure(fetch_result)
-    return _build_crawl_success_payload(
-        validated_input=validated_input,
-        final_url=fetch_result.final_url or validated_input.url,
-        extraction_result=extraction_result,
-        status_code=fetch_result.status_code or 200,
-        content_type=fetch_result.content_type or "application/octet-stream",
-        meta=fetch_result.meta,
-    )
 
 
 def _build_crawl_success_payload(
@@ -211,11 +216,17 @@ def _build_crawl_success_payload(
     status_code: int,
     content_type: str,
     meta: ToolMeta,
+    strategy_used: str = "http",
+    escalation_count: int = 0,
+    session_profile_id: str | None = None,
+    block_reason: str | None = None,
+    rendered: bool = False,
+    challenge_detected: bool = False,
 ) -> WebCrawlSuccess:
     """Build typed crawl success output.
 
     Example input: `_build_crawl_success_payload(validated_input=WebCrawlInput(...), final_url="https://example.com", extraction_result=ExtractionResult(...), status_code=200, content_type="text/html", meta=ToolMeta(...))`
-    Example output: `WebCrawlSuccess(status_code=200, content_type="text/html", ...)`
+    Example output: `WebCrawlSuccess(status_code=200, strategy_used="http", ...)`
     """
     return WebCrawlSuccess(
         url=validated_input.url,
@@ -227,6 +238,12 @@ def _build_crawl_success_payload(
         status_code=status_code,
         content_type=content_type,
         fallback_reason=extraction_result.fallback_reason,
+        strategy_used=strategy_used,
+        escalation_count=escalation_count,
+        session_profile_id=session_profile_id,
+        block_reason=block_reason,
+        rendered=rendered,
+        challenge_detected=challenge_detected,
         meta=meta,
     )
 
@@ -268,7 +285,7 @@ def build_web_crawl_action_record(
     Example input: `build_web_crawl_action_record(url="https://example.com", payload=WebCrawlSuccess(...))`
     Example output: `{"action_type": "open_page", "url": "https://example.com", ...}`
     """
-    normalized_url = url.strip()
+    normalized_url = str(url).strip()
 
     try:
         success = WebCrawlSuccess.model_validate(payload)
@@ -281,6 +298,11 @@ def build_web_crawl_action_record(
             "content_type": success.content_type,
             "objective": success.objective,
             "fallback_reason": success.fallback_reason,
+            "strategy_used": success.strategy_used,
+            "escalation_count": success.escalation_count,
+            "session_profile_id": success.session_profile_id,
+            "rendered": success.rendered,
+            "challenge_detected": success.challenge_detected,
             "text_preview": text_preview,
         }
     except ValidationError:
