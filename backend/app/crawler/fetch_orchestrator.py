@@ -164,6 +164,7 @@ class FetchOrchestrator:
             return map_crawl_failure(
                 browser_result,
                 total_ms=_elapsed_ms(started_at),
+                attempt_number=1 + escalation_count,
             )
 
         normalized_content = normalize_browser_content(browser_result)

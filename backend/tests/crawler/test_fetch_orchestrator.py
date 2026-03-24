@@ -290,6 +290,59 @@ def test_fetch_orchestrator_uses_normalized_browser_content_fields(monkeypatch: 
     assert result.error.operation == "web_crawl"
 
 
+def test_fetch_orchestrator_reports_orchestrator_attempts_for_escalated_browser_failure() -> None:
+    orchestrator = FetchOrchestrator(
+        http_fetch_worker=_HttpWorkerStub(
+            result=HttpFetchFailure(
+                url="https://example.com/protected",
+                final_url="https://example.com/protected",
+                status_code=401,
+                content_type="text/html",
+                error=ToolError(
+                    kind="http_error",
+                    message="login required",
+                    retryable=False,
+                    status_code=401,
+                    attempt_number=1,
+                    operation="http_fetch",
+                    timings=ToolTimings(total_ms=11),
+                ),
+                meta=_tool_meta(attempts=1, total_ms=11, operation="http_fetch"),
+            )
+        ),
+        browser_fetch_worker=_BrowserWorkerStub(
+            result=BrowserFetchFailure(
+                url="https://example.com/protected",
+                final_url="https://example.com/protected",
+                status_code=504,
+                content_type="text/html",
+                navigation_error_kind="timeout",
+                error=ToolError(
+                    kind="browser_timeout",
+                    message="browser timed out",
+                    retryable=True,
+                    status_code=504,
+                    attempt_number=1,
+                    operation="browser_fetch",
+                    timings=ToolTimings(total_ms=23),
+                ),
+                meta=_tool_meta(attempts=1, total_ms=23, operation="browser_fetch"),
+                rendered=True,
+            )
+        ),
+    )
+
+    result = orchestrator.crawl(url="https://example.com/protected", objective=None)
+
+    assert isinstance(result, WebCrawlError)
+    assert result.error.kind == "browser_navigation_failed"
+    assert result.error.attempt_number == 2
+    assert result.meta.attempts == 2
+    assert result.meta.retries == 1
+    assert result.error.operation == "web_crawl"
+    assert result.meta.operation == "web_crawl"
+
+
 def _tool_meta(*, attempts: int, total_ms: int, operation: str = "web_crawl") -> ToolMeta:
     return ToolMeta(
         operation=operation,
