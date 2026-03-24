@@ -345,6 +345,62 @@ def test_build_web_crawl_action_record_accepts_pydantic_error_payload() -> None:
     }
 
 
+def test_build_web_crawl_action_record_summarizes_batch_payload() -> None:
+    record = build_web_crawl_action_record(
+        url="https://example.com/a",
+        payload={
+            "requested_urls": ["https://example.com/a", "https://example.com/b"],
+            "items": [
+                {
+                    "url": "https://example.com/a",
+                    "status": "failed",
+                    "result": None,
+                    "error": {
+                        "kind": "http_error",
+                        "message": "blocked",
+                        "retryable": False,
+                        "status_code": 403,
+                        "attempt_number": None,
+                        "operation": "web_crawl",
+                        "timings": {"total_ms": 5},
+                    },
+                },
+                {
+                    "url": "https://example.com/b",
+                    "status": "failed",
+                    "result": None,
+                    "error": {
+                        "kind": "http_error",
+                        "message": "unavailable",
+                        "retryable": False,
+                        "status_code": 503,
+                        "attempt_number": None,
+                        "operation": "web_crawl",
+                        "timings": {"total_ms": 7},
+                    },
+                },
+            ],
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 2,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12},
+            },
+            "summary": {"attempted": 2, "succeeded": 0, "failed": 2},
+        },
+    )
+
+    assert record == {
+        "action_type": "open_page_batch",
+        "url": "https://example.com/a",
+        "requested_urls": ["https://example.com/a", "https://example.com/b"],
+        "attempted": 2,
+        "succeeded": 0,
+        "failed": 2,
+    }
+
+
 def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
     tool_instance = build_web_crawl_tool(

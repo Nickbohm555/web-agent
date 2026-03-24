@@ -17,6 +17,7 @@ from backend.app.tools.schemas.web_crawl import (
     WebCrawlSuccess,
     WebCrawlToolResult,
 )
+from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
 from backend.app.tools.web_crawl_batch import run_web_crawl_batch
 from backend.app.tools._tool_utils import (
     build_tool_action_error_record,
@@ -224,6 +225,19 @@ def build_web_crawl_action_record(
     Example output: `{"action_type": "open_page", "url": "https://example.com", ...}`
     """
     normalized_url = url.strip()
+
+    try:
+        batch = WebCrawlBatchSuccess.model_validate(payload)
+        return {
+            "action_type": "open_page_batch",
+            "url": normalized_url,
+            "requested_urls": [str(item) for item in batch.requested_urls],
+            "attempted": batch.summary.attempted,
+            "succeeded": batch.summary.succeeded,
+            "failed": batch.summary.failed,
+        }
+    except ValidationError:
+        pass
 
     try:
         success = WebCrawlSuccess.model_validate(payload)
