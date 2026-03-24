@@ -333,7 +333,7 @@ def test_run_route_rejects_unknown_modes(client: TestClient) -> None:
     assert "Input should be 'quick', 'agentic' or 'deep_research'" in response.json()["detail"][0]["msg"]
 
 
-@pytest.mark.parametrize("mode", ["quick", "agentic", "deep_research"])
+@pytest.mark.parametrize("mode", ["quick", "agentic"])
 def test_run_route_returns_stable_success_envelope_for_each_mode(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -388,6 +388,46 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
     assert runner.calls == [("find one source", mode, AgentRunRetrievalPolicy())]
 
 
+def test_run_route_queues_deep_research_requests(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        agent_run_service,
+        "start_deep_research_request",
+        lambda payload: AgentRunQueuedResponse(
+            run_id="run-deep-route",
+            status="queued",
+            metadata=AgentRunQueuedMetadata(execution_surface="background"),
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        agent_run_service,
+        "run_agent_once",
+        StubRuntimeRunner(
+            AgentRunResult(
+                run_id="run-should-not-complete",
+                status="completed",
+                final_answer="This should not run.",
+                tool_call_count=1,
+                elapsed_ms=20,
+            )
+        ),
+    )
+
+    response = post_run(client, prompt="Investigate deeply", mode="deep_research")
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "run_id": "run-deep-route",
+        "status": "queued",
+        "metadata": {"execution_surface": "background"},
+    }
+    assert response.headers["x-run-route"] == "legacy-compat"
+    assert response.headers["x-run-execution-surface"] == "background"
+
+
 @pytest.mark.parametrize(
     ("mode", "category", "retryable", "expected_status", "expected_payload"),
     [
@@ -414,19 +454,6 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
                     "code": "tool_execution_failed",
                     "message": "agent tool invocation failed",
                     "retryable": False,
-                }
-            },
-        ),
-        (
-            "deep_research",
-            "provider_failure",
-            True,
-            503,
-            {
-                "error": {
-                    "code": "provider_request_failed",
-                    "message": "agent provider request failed",
-                    "retryable": True,
                 }
             },
         ),
