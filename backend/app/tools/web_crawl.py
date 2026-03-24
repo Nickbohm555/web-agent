@@ -51,7 +51,16 @@ def build_web_crawl_tool(
 
     @tool("web_crawl", args_schema=WebCrawlInput)
     def bounded_web_crawl(url: str, objective: str | None = None) -> WebCrawlToolResult:
-        """Fetch and extract a single URL within retrieval-policy domain scope, then return typed crawl output or a typed error."""
+        """Fetch and extract one allowed page, then return typed crawl content or a typed error.
+
+        Input:
+        - `url`: Absolute `http` or `https` page URL to fetch. The URL must be inside the current retrieval-policy domain scope or the tool returns an `invalid_request` error.
+        - `objective`: Optional short instruction describing what the agent wants from the page, such as "Find the refund policy" or "Summarize pricing details". This helps the extractor prioritize relevant excerpts but does not change which URL is fetched.
+
+        Output:
+        - `WebCrawlSuccess` with normalized page text, markdown, excerpts, final URL, status code, and content type when the fetch/extraction succeeds.
+        - `WebCrawlError` with a typed error envelope when validation, policy checks, fetching, or extraction fails.
+        """
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
         if not is_url_allowed(url, **domain_scope_kwargs(effective_policy.search)):
             envelope = build_tool_error_payload(
