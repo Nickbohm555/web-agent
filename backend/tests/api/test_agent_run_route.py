@@ -428,6 +428,33 @@ def test_run_route_queues_deep_research_requests(
     assert response.headers["x-run-execution-surface"] == "background"
 
 
+def test_queued_deep_research_response_shape_stays_background_only(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        agent_run_service,
+        "start_deep_research_request",
+        lambda payload: AgentRunQueuedResponse(
+            run_id="run-stable-shape",
+            status="queued",
+            metadata=AgentRunQueuedMetadata(execution_surface="background"),
+        ),
+        raising=False,
+    )
+
+    response = post_run(client, prompt="Investigate deeply", mode="deep_research")
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "run_id": "run-stable-shape",
+        "status": "queued",
+        "metadata": {"execution_surface": "background"},
+    }
+    assert "final_answer" not in response.json()
+    assert "tool_call_count" not in response.json()
+
+
 @pytest.mark.parametrize(
     ("mode", "category", "retryable", "expected_status", "expected_payload"),
     [
