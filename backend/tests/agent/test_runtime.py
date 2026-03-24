@@ -1096,6 +1096,50 @@ def test_run_agent_once_assembles_consulted_sources_from_search_and_crawl_messag
     ]
 
 
+def test_run_agent_once_no_evidence_crawl_success_does_not_register_source() -> None:
+    agent = StubAgent(
+        raw_result={
+            "messages": [
+                {
+                    "role": "tool",
+                    "name": "web_crawl",
+                    "content": {
+                        "url": "https://example.com/thin",
+                        "final_url": "https://example.com/thin",
+                        "text": "",
+                        "markdown": "",
+                        "excerpts": [],
+                        "status_code": 200,
+                        "content_type": "text/html",
+                        "fallback_reason": "low-content-quality",
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 20,
+                            "timings": {"total_ms": 20},
+                        },
+                    },
+                },
+                {
+                    "role": "assistant",
+                    "content": "No evidence answer.",
+                },
+            ]
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.final_answer is not None
+    assert result.final_answer.text == "No evidence answer."
+    assert result.sources == []
+
+
 def test_run_agent_once_normalizes_safe_source_urls_before_emitting_citations() -> None:
     agent = StubAgent(
         raw_result={

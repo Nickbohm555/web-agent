@@ -92,6 +92,9 @@ class WebCrawlSuccess(BaseModel):
             return ()
         return (original_url,)
 
+    def has_evidence(self) -> bool:
+        return bool(self.excerpts or self.text or self.markdown)
+
 
 class WebCrawlError(ToolErrorEnvelope):
     model_config = ConfigDict(extra="forbid", strict=True)

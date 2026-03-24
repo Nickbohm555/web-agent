@@ -255,6 +255,9 @@ def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any)
     except ValidationError:
         return
 
+    if not crawl_result.has_evidence():
+        return
+
     source_record = crawl_result.to_source_record()
     registry.register(
         url=source_record["url"],
