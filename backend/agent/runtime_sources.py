@@ -16,6 +16,7 @@ from backend.agent.schemas import (
 )
 from backend.app.tools.schemas.tool_errors import ToolErrorEnvelope
 from backend.app.tools.schemas.web_crawl import WebCrawlSuccess
+from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
 from backend.app.tools.schemas.web_search import WebSearchResponse
 
 
@@ -310,6 +311,24 @@ def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any)
         except ValidationError:
             return
         merge_search_sources_into_registry(registry, response)
+        return
+
+    try:
+        batch_result = WebCrawlBatchSuccess.model_validate(payload)
+    except ValidationError:
+        batch_result = None
+
+    if batch_result is not None:
+        for item in batch_result.items:
+            if item.result is None:
+                continue
+            source_record = item.result.to_source_record()
+            registry.register(
+                url=source_record["url"],
+                title=source_record["title"],
+                snippet=source_record["snippet"],
+                alias_urls=item.result.source_alias_urls(),
+            )
         return
 
     try:

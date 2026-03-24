@@ -17,6 +17,7 @@ from backend.agent.runtime import (
     get_runtime_profile,
     run_agent_once,
 )
+from backend.agent.runtime_sources import extract_sources
 from backend.agent.schemas import AgentRunMode, AgentRunResult, AgentRuntimeProfile
 from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.web_crawl import web_crawl
@@ -332,6 +333,80 @@ def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
     assert str(profile.max_crawl_chars) in prompt
     assert "Use web_search to shortlist likely-answering sources before crawling" in prompt
     assert "always include an objective" in prompt
+
+
+def test_system_prompt_instructs_agent_to_batch_selected_url_opens() -> None:
+    prompt = build_system_prompt(profile=RUNTIME_PROFILES["agentic"])
+
+    assert "call web_crawl with multiple selected URLs in one call" in prompt
+
+
+def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
+    registry = extract_sources(
+        {
+            "messages": [
+                {
+                    "type": "tool",
+                    "name": "web_crawl",
+                    "payload": {
+                        "requested_urls": [
+                            "https://example.com/a",
+                            "https://example.com/b",
+                        ],
+                        "items": [
+                            {
+                                "url": "https://example.com/a",
+                                "status": "succeeded",
+                                "result": {
+                                    "url": "https://example.com/a",
+                                    "final_url": "https://example.com/a",
+                                    "text": "Alpha body text.",
+                                    "markdown": "Alpha body text.",
+                                    "objective": None,
+                                    "excerpts": [],
+                                    "status_code": 200,
+                                    "content_type": "text/html",
+                                    "fallback_reason": None,
+                                    "meta": {
+                                        "operation": "web_crawl",
+                                        "attempts": 1,
+                                        "retries": 0,
+                                        "duration_ms": 10,
+                                        "timings": {"total_ms": 10},
+                                    },
+                                },
+                                "error": None,
+                            },
+                            {
+                                "url": "https://example.com/b",
+                                "status": "failed",
+                                "result": None,
+                                "error": {
+                                    "kind": "invalid_request",
+                                    "message": "blocked",
+                                    "retryable": False,
+                                    "status_code": None,
+                                    "attempt_number": None,
+                                    "operation": "web_crawl",
+                                    "timings": {"total_ms": 1},
+                                },
+                            },
+                        ],
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 2,
+                            "retries": 0,
+                            "duration_ms": 11,
+                            "timings": {"total_ms": 11},
+                        },
+                        "summary": {"attempted": 2, "succeeded": 1, "failed": 1},
+                    },
+                }
+            ]
+        }
+    )
+
+    assert [str(source.url) for source in registry.sources()] == ["https://example.com/a"]
 
 
 def test_system_prompt_includes_effective_retrieval_policy_details() -> None:

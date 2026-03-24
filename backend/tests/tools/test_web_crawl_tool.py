@@ -1,10 +1,13 @@
 import importlib
 
 import httpx
+import pytest
+from pydantic import ValidationError
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
-from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess
+from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess, WebCrawlToolInput
+from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.tools.web_crawl import (
     build_web_crawl_action_record,
@@ -15,6 +18,91 @@ from backend.app.tools.web_crawl import (
 
 
 web_crawl_module = importlib.import_module("backend.app.tools.web_crawl")
+
+
+def test_web_crawl_input_accepts_single_url_and_objective() -> None:
+    model = WebCrawlToolInput(url="https://example.com/article", objective="Find pricing")
+
+    assert str(model.url) == "https://example.com/article"
+    assert model.objective == "Find pricing"
+
+
+def test_web_crawl_tool_input_accepts_urls_and_rejects_url_plus_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput(
+            url="https://example.com/a",
+            urls=["https://example.com/b"],
+        )
+
+
+def test_web_crawl_tool_input_rejects_missing_url_and_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput()
+
+
+def test_web_crawl_tool_input_rejects_more_than_five_urls() -> None:
+    with pytest.raises(ValidationError):
+        WebCrawlToolInput(urls=[f"https://example.com/{index}" for index in range(6)])
+
+
+def test_web_crawl_batch_success_preserves_input_order() -> None:
+    payload = WebCrawlBatchSuccess.model_validate(
+        {
+            "requested_urls": ["https://example.com/a", "https://example.com/b"],
+            "items": [
+                {
+                    "url": "https://example.com/a",
+                    "status": "succeeded",
+                    "result": {
+                        "url": "https://example.com/a",
+                        "final_url": "https://example.com/a",
+                        "text": "alpha",
+                        "markdown": "alpha",
+                        "objective": None,
+                        "excerpts": [],
+                        "status_code": 200,
+                        "content_type": "text/html",
+                        "fallback_reason": None,
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 10,
+                            "timings": {"total_ms": 10},
+                        },
+                    },
+                    "error": None,
+                },
+                {
+                    "url": "https://example.com/b",
+                    "status": "failed",
+                    "result": None,
+                    "error": {
+                        "kind": "invalid_request",
+                        "message": "blocked",
+                        "retryable": False,
+                        "status_code": None,
+                        "attempt_number": None,
+                        "operation": "web_crawl",
+                        "timings": {"total_ms": 4},
+                    },
+                },
+            ],
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 2,
+                "retries": 0,
+                "duration_ms": 14,
+                "timings": {"total_ms": 14},
+            },
+            "summary": {"attempted": 2, "succeeded": 1, "failed": 1},
+        }
+    )
+
+    assert [str(item.url) for item in payload.items] == [
+        "https://example.com/a",
+        "https://example.com/b",
+    ]
 
 
 def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
@@ -102,6 +190,51 @@ def test_run_web_crawl_returns_success_fallback_for_low_content_quality() -> Non
     assert result.fallback_reason == "low-content-quality"
     assert result.text == ""
     assert result.markdown == ""
+
+
+def test_web_crawl_batch_returns_ordered_mixed_results(monkeypatch) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_batch_mixed_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+
+    payload = web_crawl.invoke(
+        {"urls": ["https://example.com/a", "https://example.com/b"]}
+    )
+    result = WebCrawlBatchSuccess.model_validate(payload)
+
+    assert result.summary.attempted == 2
+    assert [item.status for item in result.items] == ["succeeded", "failed"]
+
+
+def test_web_crawl_batch_preserves_fallback_success_for_pdf(monkeypatch) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_pdf_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+
+    payload = web_crawl.invoke({"urls": ["https://example.com/file.pdf"]})
+    result = WebCrawlBatchSuccess.model_validate(payload)
+
+    assert result.items[0].result is not None
+    assert result.items[0].result.fallback_reason == "unsupported-content-type"
+
+
+def test_web_crawl_batch_returns_per_item_invalid_request_for_policy_blocked_url(
+    monkeypatch,
+) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+    tool_instance = build_web_crawl_tool(
+        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
+            {"search": {"include_domains": ["example.com"]}}
+        )
+    )
+
+    payload = tool_instance.invoke(
+        {"urls": ["https://example.com/a", "https://blocked.com/b"]}
+    )
+    result = WebCrawlBatchSuccess.model_validate(payload)
+
+    assert result.items[1].status == "failed"
+    assert result.items[1].error is not None
+    assert result.items[1].error.kind == "invalid_request"
 
 
 def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
@@ -209,6 +342,62 @@ def test_build_web_crawl_action_record_accepts_pydantic_error_payload() -> None:
         "retryable": True,
         "attempts": 3,
         "status_code": 503,
+    }
+
+
+def test_build_web_crawl_action_record_summarizes_batch_payload() -> None:
+    record = build_web_crawl_action_record(
+        url="https://example.com/a",
+        payload={
+            "requested_urls": ["https://example.com/a", "https://example.com/b"],
+            "items": [
+                {
+                    "url": "https://example.com/a",
+                    "status": "failed",
+                    "result": None,
+                    "error": {
+                        "kind": "http_error",
+                        "message": "blocked",
+                        "retryable": False,
+                        "status_code": 403,
+                        "attempt_number": None,
+                        "operation": "web_crawl",
+                        "timings": {"total_ms": 5},
+                    },
+                },
+                {
+                    "url": "https://example.com/b",
+                    "status": "failed",
+                    "result": None,
+                    "error": {
+                        "kind": "http_error",
+                        "message": "unavailable",
+                        "retryable": False,
+                        "status_code": 503,
+                        "attempt_number": None,
+                        "operation": "web_crawl",
+                        "timings": {"total_ms": 7},
+                    },
+                },
+            ],
+            "meta": {
+                "operation": "web_crawl",
+                "attempts": 2,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12},
+            },
+            "summary": {"attempted": 2, "succeeded": 0, "failed": 2},
+        },
+    )
+
+    assert record == {
+        "action_type": "open_page_batch",
+        "url": "https://example.com/a",
+        "requested_urls": ["https://example.com/a", "https://example.com/b"],
+        "attempted": 2,
+        "succeeded": 0,
+        "failed": 2,
     }
 
 
@@ -321,6 +510,14 @@ def _boilerplate_handler(request: httpx.Request) -> httpx.Response:
         """,
         request=request,
     )
+
+
+def _batch_mixed_handler(request: httpx.Request) -> httpx.Response:
+    if str(request.url) == "https://example.com/a":
+        return _rich_article_handler(request)
+    if str(request.url) == "https://example.com/b":
+        return _retryable_failure_handler(request)
+    raise AssertionError(f"unexpected request url: {request.url}")
 
 
 def _retryable_failure_handler(request: httpx.Request) -> httpx.Response:

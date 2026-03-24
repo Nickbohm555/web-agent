@@ -1,5 +1,18 @@
 from .tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
-from .web_crawl import WebCrawlError, WebCrawlExcerpt, WebCrawlInput, WebCrawlSuccess, WebCrawlToolResult
+from .web_crawl import (
+    WebCrawlBatchInput,
+    WebCrawlBatchItemResult,
+    WebCrawlBatchSuccess,
+    WebCrawlBatchSummary,
+    WebCrawlBatchToolResult,
+    WebCrawlError,
+    WebCrawlExcerpt,
+    WebCrawlMeta,
+    WebCrawlInput,
+    WebCrawlSuccess,
+    WebCrawlToolInput,
+    WebCrawlToolResult,
+)
 from .web_search import (
     SearchMetadata,
     SearchRank,
@@ -17,10 +30,17 @@ __all__ = [
     "ToolErrorEnvelope",
     "ToolMeta",
     "ToolTimings",
+    "WebCrawlBatchInput",
+    "WebCrawlBatchItemResult",
+    "WebCrawlBatchSuccess",
+    "WebCrawlBatchSummary",
+    "WebCrawlBatchToolResult",
     "WebCrawlError",
     "WebCrawlExcerpt",
+    "WebCrawlMeta",
     "WebCrawlInput",
     "WebCrawlSuccess",
+    "WebCrawlToolInput",
     "WebCrawlToolResult",
     "WebSearchError",
     "WebSearchInput",

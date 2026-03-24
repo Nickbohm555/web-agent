@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal, Optional, Union
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 from .tool_errors import ToolErrorEnvelope, ToolMeta
 
@@ -21,17 +21,46 @@ def _strip_optional_text(value: Optional[str]) -> Optional[str]:
     return _strip_text(value)
 
 
-class WebCrawlInput(BaseModel):
+def _coerce_web_crawl_meta(value: object) -> "WebCrawlMeta":
+    if isinstance(value, WebCrawlMeta):
+        return value
+    if isinstance(value, ToolMeta):
+        return WebCrawlMeta.model_validate(value.model_dump())
+    if isinstance(value, dict):
+        return WebCrawlMeta.model_validate(value)
+    raise TypeError("meta must be a ToolMeta, WebCrawlMeta, or mapping")
+
+
+class WebCrawlToolInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    url: HttpUrl
+    url: Optional[HttpUrl] = None
+    urls: Optional[list[HttpUrl]] = Field(default=None, min_length=1, max_length=5)
     objective: Optional[str] = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_target_shape(self) -> "WebCrawlToolInput":
+        if (self.url is None) == (self.urls is None):
+            raise ValueError("exactly one of url or urls must be provided")
+        return self
 
     @field_validator("url")
     @classmethod
-    def validate_scheme(cls, value: HttpUrl) -> HttpUrl:
+    def validate_scheme(cls, value: Optional[HttpUrl]) -> Optional[HttpUrl]:
+        if value is None:
+            return None
         if value.scheme not in {"http", "https"}:
             raise ValueError("url must use http or https")
+        return value
+
+    @field_validator("urls")
+    @classmethod
+    def validate_url_schemes(cls, value: Optional[list[HttpUrl]]) -> Optional[list[HttpUrl]]:
+        if value is None:
+            return None
+        for item in value:
+            if item.scheme not in {"http", "https"}:
+                raise ValueError("urls must use http or https")
         return value
 
     @field_validator("objective")
@@ -57,6 +86,27 @@ class WebCrawlExcerpt(BaseModel):
         return _strip_text(value)
 
 
+class WebCrawlMeta(ToolMeta):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    strategy_used: Optional[str] = None
+    escalation_count: int = Field(default=0, ge=0)
+    session_profile_id: Optional[str] = None
+    block_reason: Optional[str] = None
+    rendered: bool = False
+    challenge_detected: bool = False
+
+    @field_validator("strategy_used", "session_profile_id", "block_reason")
+    @classmethod
+    def normalize_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        normalized = _strip_optional_text(value)
+        if normalized is None:
+            return None
+        if not normalized:
+            raise ValueError("meta text fields must not be empty")
+        return normalized
+
+
 class WebCrawlSuccess(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -69,12 +119,17 @@ class WebCrawlSuccess(BaseModel):
     status_code: int = Field(ge=100, le=599)
     content_type: str = Field(min_length=1)
     fallback_reason: Optional[CrawlFallbackReason] = None
-    meta: ToolMeta
+    meta: WebCrawlMeta
 
     @field_validator("text", "markdown", "content_type", "objective")
     @classmethod
     def normalize_text(cls, value: Optional[str]) -> Optional[str]:
         return _strip_optional_text(value)
+
+    @field_validator("meta", mode="before")
+    @classmethod
+    def normalize_meta(cls, value: object) -> WebCrawlMeta:
+        return _coerce_web_crawl_meta(value)
 
     def to_source_record(self) -> dict[str, str]:
         snippet_source = self.excerpts[0].text if self.excerpts else self.text
@@ -98,9 +153,21 @@ class WebCrawlSuccess(BaseModel):
 
 class WebCrawlError(ToolErrorEnvelope):
     model_config = ConfigDict(extra="forbid", strict=True)
+    meta: WebCrawlMeta
+
+    @field_validator("meta", mode="before")
+    @classmethod
+    def normalize_meta(cls, value: object) -> WebCrawlMeta:
+        return _coerce_web_crawl_meta(value)
 
 
-WebCrawlToolResult = Union[WebCrawlSuccess, WebCrawlError]
+WebCrawlInput = WebCrawlToolInput
+
+
+from .web_crawl_batch import WebCrawlBatchSuccess
+
+
+WebCrawlToolResult = Union[WebCrawlSuccess, WebCrawlBatchSuccess, WebCrawlError]
 
 
 class ExtractionResult(BaseModel):
