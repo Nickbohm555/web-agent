@@ -20,7 +20,7 @@ def test_execute_agent_run_request_returns_sync_success_for_quick_mode(
     monkeypatch.setattr(
         agent_run_service,
         "run_agent_once",
-        lambda prompt, mode, retrieval_policy: AgentRunResult(
+        lambda prompt, mode: AgentRunResult(
             run_id="run-quick",
             status="completed",
             final_answer={"text": "Quick answer."},
@@ -59,7 +59,7 @@ def test_execute_agent_run_request_returns_queued_response_for_deep_research(
     monkeypatch.setattr(
         agent_run_service,
         "run_agent_once",
-        lambda prompt, mode, retrieval_policy: AgentRunResult(
+        lambda prompt, mode: AgentRunResult(
             run_id="run-should-not-complete",
             status="completed",
             final_answer={"text": "This should not run."},

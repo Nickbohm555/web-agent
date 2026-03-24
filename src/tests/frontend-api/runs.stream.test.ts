@@ -125,12 +125,6 @@ describe("run stream API contracts", () => {
         body: JSON.stringify({
           prompt: "Find sources",
           mode: "deep_research",
-          retrievalPolicy: {
-            freshness: "week",
-            includeDomains: ["Docs.Example.com"],
-            maxAgeMs: 60_000,
-            fresh: true,
-          },
         }),
       });
 
@@ -150,21 +144,6 @@ describe("run stream API contracts", () => {
         runId: startPayload.runId,
         prompt: "Find sources",
         mode: "deep_research",
-        retrievalPolicy: {
-          search: {
-            country: "US",
-            language: "en",
-            freshness: "week",
-            domainScope: {
-              includeDomains: ["example.com"],
-              excludeDomains: [],
-            },
-          },
-          fetch: {
-            maxAgeMs: 60_000,
-            fresh: true,
-          },
-        },
         signal: expect.any(AbortSignal),
       });
     } finally {
@@ -224,21 +203,6 @@ describe("run stream API contracts", () => {
         runId: startPayload.runId,
         prompt: "Investigate background runs",
         mode: "deep_research",
-        retrievalPolicy: {
-          search: {
-            country: "US",
-            language: "en",
-            freshness: "any",
-            domainScope: {
-              includeDomains: [],
-              excludeDomains: [],
-            },
-          },
-          fetch: {
-            maxAgeMs: 300_000,
-            fresh: false,
-          },
-        },
         signal: expect.any(AbortSignal),
       });
 

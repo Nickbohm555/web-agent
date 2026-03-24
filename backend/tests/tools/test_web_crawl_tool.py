@@ -4,7 +4,6 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
 from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess, WebCrawlToolInput
 from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
@@ -191,16 +190,10 @@ def test_web_crawl_batch_preserves_fallback_success_for_pdf(monkeypatch) -> None
     assert result.items[0].result.fallback_reason == "unsupported-content-type"
 
 
-def test_web_crawl_batch_fetches_each_url_without_policy_filtering(
-    monkeypatch,
-) -> None:
+def test_web_crawl_batch_fetches_each_url(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
     monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
-    tool_instance = build_web_crawl_tool(
-        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
-            {"search": {"include_domains": ["example.com"]}}
-        )
-    )
+    tool_instance = build_web_crawl_tool()
 
     payload = tool_instance.invoke(
         {"urls": ["https://example.com/a", "https://blocked.com/b"]}
@@ -407,21 +400,10 @@ def test_run_web_crawl_returns_structured_retryable_error_metadata() -> None:
     assert result.meta.retries == 2
 
 
-def test_bounded_web_crawl_fetches_urls_even_when_retrieval_policy_is_present(
-    monkeypatch,
-) -> None:
+def test_bounded_web_crawl_fetches_urls(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
     monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
-    tool_instance = build_web_crawl_tool(
-        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
-            {
-                "search": {
-                    "include_domains": ["example.com"],
-                    "exclude_domains": ["blocked.com"],
-                }
-            }
-        )
-    )
+    tool_instance = build_web_crawl_tool()
 
     payload = tool_instance.invoke({"url": "https://blocked.com/article"})
     result = WebCrawlSuccess.model_validate(payload)

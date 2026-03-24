@@ -19,7 +19,6 @@ from backend.agent.runtime import (
 )
 from backend.agent.runtime_sources import extract_sources
 from backend.agent.schemas import AgentRunMode, AgentRunResult, AgentRuntimeProfile
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.web_crawl import web_crawl
 from backend.app.tools.web_search import web_search
 
@@ -37,17 +36,7 @@ def expected_runtime_config(mode: AgentRunMode = "agentic") -> dict[str, Any]:
             "max_search_results": profile.max_search_results,
             "max_crawl_chars": profile.max_crawl_chars,
         },
-        "retrieval_policy": AgentRunRetrievalPolicy().model_dump(),
     }
-
-
-def expected_runtime_config_with_policy(
-    retrieval_policy: AgentRunRetrievalPolicy,
-    mode: AgentRunMode = "agentic",
-) -> dict[str, Any]:
-    config = expected_runtime_config(mode)
-    config["retrieval_policy"] = retrieval_policy.model_dump()
-    return config
 
 
 @dataclass
@@ -112,24 +101,15 @@ class StubQuickSearchRunner:
     payload: dict[str, Any]
     captured_query: str | None = None
     captured_max_results: int | None = None
-    captured_freshness: str | None = None
-    captured_include_domains: list[str] | None = None
-    captured_exclude_domains: list[str] | None = None
 
     def __call__(
         self,
         *,
         query: str,
         max_results: int = 5,
-        freshness: str = "any",
-        include_domains: list[str] | None = None,
-        exclude_domains: list[str] | None = None,
     ) -> dict[str, Any]:
         self.captured_query = query
         self.captured_max_results = max_results
-        self.captured_freshness = freshness
-        self.captured_include_domains = include_domains
-        self.captured_exclude_domains = exclude_domains
         return self.payload
 
 
@@ -435,28 +415,12 @@ def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
     assert [str(source.url) for source in registry.sources()] == ["https://example.com/a"]
 
 
-def test_system_prompt_includes_effective_retrieval_policy_details() -> None:
+def test_system_prompt_includes_mode_guidance_and_tool_budget() -> None:
     profile = get_runtime_profile("agentic")
-    prompt = build_system_prompt(
-        profile,
-        AgentRunRetrievalPolicy.model_validate(
-            {
-                "search": {
-                    "freshness": "week",
-                    "include_domains": ["openai.com"],
-                },
-                "fetch": {
-                    "max_age_ms": 21_600_000,
-                    "fresh": True,
-                },
-            }
-        ),
-    )
+    prompt = build_system_prompt(profile)
 
     assert "Mode guidance:" in prompt
     assert "Tool budget:" in prompt
-    assert "include domains" not in prompt
-    assert "freshness=" not in prompt
 
 
 def test_system_prompt_accepts_prompt_specific_retrieval_brief() -> None:
@@ -573,7 +537,6 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     ]
     assert search_runner.captured_query == "latest agent news"
     assert search_runner.captured_max_results == 5
-    assert search_runner.captured_freshness == "any"
     assert crawl_runner.requested_urls == [
         "https://example.com/one",
         "https://example.com/two",
@@ -581,75 +544,7 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     assert agent.captured_inputs is None
 
 
-def test_run_agent_once_accepts_retrieval_policy_without_changing_quick_search() -> None:
-    search_runner = StubQuickSearchRunner(
-        payload={
-            "query": "latest agent news",
-            "results": [
-                {
-                    "title": "Example One",
-                    "url": "https://example.com/one",
-                    "snippet": "First summary",
-                    "rank": {"position": 1, "provider_position": 1},
-                }
-            ],
-            "metadata": {"result_count": 1, "provider": "serper"},
-            "meta": {
-                "operation": "web_search",
-                "attempts": 1,
-                "retries": 0,
-                "duration_ms": 12,
-                "timings": {"total_ms": 12, "provider_ms": 8},
-            },
-        }
-    )
-    crawl_runner = StubQuickCrawlRunner(
-        payloads_by_url={
-            "https://example.com/one": {
-                "url": "https://example.com/one",
-                "final_url": "https://example.com/one",
-                "text": "Expanded summary one.",
-                "markdown": "Expanded summary one.",
-                "status_code": 200,
-                "content_type": "text/html",
-                "fallback_reason": None,
-                "meta": {
-                    "operation": "web_crawl",
-                    "attempts": 1,
-                    "retries": 0,
-                    "duration_ms": 20,
-                    "timings": {"total_ms": 20},
-                },
-            }
-        }
-    )
-    retrieval_policy = AgentRunRetrievalPolicy.model_validate(
-        {
-            "search": {
-                "freshness": "week",
-                "include_domains": ["example.com"],
-                "exclude_domains": ["blocked.com"],
-            },
-        }
-    )
-
-    result = run_agent_once(
-        "latest agent news",
-        "quick",
-        retrieval_policy,
-        runtime_dependencies=RuntimeDependencies(
-            quick_search_runner=search_runner,
-            quick_crawl_runner=crawl_runner,
-        ),
-    )
-
-    assert result.status == "completed"
-    assert search_runner.captured_freshness == "any"
-    assert search_runner.captured_query == "latest agent news"
-    assert crawl_runner.requested_urls == ["https://example.com/one"]
-
-
-def test_run_agent_once_does_not_infer_retrieval_policy_from_prompt_intent() -> None:
+def test_run_agent_once_preserves_prompt_text_for_quick_search() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
             "query": "Responses API update",
@@ -702,7 +597,6 @@ def test_run_agent_once_does_not_infer_retrieval_policy_from_prompt_intent() -> 
     )
 
     assert result.status == "completed"
-    assert search_runner.captured_freshness == "any"
     assert search_runner.captured_query == (
         "Use official docs only to find the latest OpenAI Responses API update."
     )
@@ -786,7 +680,7 @@ def test_run_agent_once_rejects_invalid_quick_search_payloads() -> None:
         ),
     ],
 )
-def test_get_runtime_profile_exposes_distinct_policy_per_mode(
+def test_get_runtime_profile_exposes_distinct_runtime_profile_per_mode(
     mode: AgentRunMode,
     expected_model: str,
     expected_recursion_limit: int,
@@ -830,7 +724,7 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert factory.agent.captured_config == expected_runtime_config("deep_research")
 
 
-def test_run_agent_once_passes_default_retrieval_policy_into_agent_factory_and_config() -> None:
+def test_run_agent_once_passes_runtime_config_into_agent_factory_and_config() -> None:
     factory = CapturingAgentFactory(raw_result={"output": "Research answer."})
 
     result = run_agent_once(

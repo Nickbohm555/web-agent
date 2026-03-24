@@ -8,7 +8,6 @@ from backend.agent.runtime_constants import (
     STANDARD_AGENT_MAX_CRAWL_CHARS,
     STANDARD_AGENT_MAX_SEARCH_RESULTS,
 )
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.schemas.web_crawl import WebCrawlInput
 from backend.app.tools.web_crawl import run_web_crawl
 from backend.app.tools.web_search import build_web_search_tool
@@ -16,13 +15,11 @@ from backend.app.tools.web_search import build_web_search_tool
 
 def build_deep_research_retrieval_tools(
     *,
-    retrieval_policy: AgentRunRetrievalPolicy,
     max_search_results: int = STANDARD_AGENT_MAX_SEARCH_RESULTS,
     max_content_chars: int = STANDARD_AGENT_MAX_CRAWL_CHARS,
 ) -> tuple[Any, Any]:
     search_tool = build_web_search_tool(
         max_results_cap=max_search_results,
-        retrieval_policy=retrieval_policy,
     )
 
     @tool("open_url", args_schema=WebCrawlInput)
@@ -34,7 +31,6 @@ def build_deep_research_retrieval_tools(
         return run_web_crawl(
             url=url,
             urls=urls,
-            retrieval_policy=retrieval_policy,
         )
 
     if hasattr(open_url, "description"):

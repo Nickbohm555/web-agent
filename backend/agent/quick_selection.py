@@ -11,7 +11,7 @@ def select_quick_urls(
 ) -> list[str]:
     """Select the top unique allowed result URLs for quick crawling.
 
-    Example input: `select_quick_urls(response, retrieval_policy=policy, max_urls=3)`
+    Example input: `select_quick_urls(response, max_urls=3)`
     Example output: `["https://example.com/a", "https://example.com/b"]`
     """
     seen: set[str] = set()

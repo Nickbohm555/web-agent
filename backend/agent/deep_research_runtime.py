@@ -28,7 +28,6 @@ from backend.agent.deep_research_verification import (
     finalize_deep_research_answer,
     verify_deep_research_job,
 )
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.agent.schemas.deep_research import DeepResearchJob, DeepResearchStage
 from backend.api.schemas import AgentRunQueuedMetadata, AgentRunQueuedResponse
 
@@ -36,7 +35,6 @@ from backend.api.schemas import AgentRunQueuedMetadata, AgentRunQueuedResponse
 def start_deep_research(
     *,
     prompt: str,
-    retrieval_policy: AgentRunRetrievalPolicy,
     store: InMemoryDeepResearchStore | None = None,
     schedule_job=None,
     run_id_factory=None,
@@ -49,7 +47,6 @@ def start_deep_research(
         job_id=job_id,
         thread_id=thread_id,
         prompt=prompt,
-        retrieval_policy=retrieval_policy,
         stage=DeepResearchStage.QUEUED,
     )
     deep_research_store.save(job)

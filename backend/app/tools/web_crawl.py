@@ -6,7 +6,6 @@ from typing import Any
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.crawler.fetch_orchestrator import run_fetch_orchestrator
 from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.crawler.session_profiles import SessionProfileProvider
@@ -37,7 +36,6 @@ def create_http_fetch_worker() -> HttpFetchWorker:
 def build_web_crawl_tool(
     *,
     max_content_chars: int = 6000,
-    retrieval_policy: AgentRunRetrievalPolicy | None = None,
     fetch_worker: HttpFetchWorker | None = None,
     session_profile_provider: SessionProfileProvider | None = None,
     browser_fetcher=None,
@@ -70,7 +68,6 @@ def build_web_crawl_tool(
             url=url,
             urls=urls,
             fetch_worker=fetch_worker,
-            retrieval_policy=retrieval_policy,
             session_profile_provider=session_profile_provider,
             browser_fetcher=browser_fetcher,
         )
@@ -84,7 +81,6 @@ def run_web_crawl(
     url: str | None = None,
     urls: list[str] | None = None,
     fetch_worker: HttpFetchWorker | None = None,
-    retrieval_policy: AgentRunRetrievalPolicy | None = None,
     session_profile_provider: SessionProfileProvider | None = None,
     browser_fetcher=None,
 ) -> WebCrawlToolResult:
@@ -103,14 +99,12 @@ def run_web_crawl(
                 return run_web_crawl(
                     url=item_url,
                     fetch_worker=worker,
-                    retrieval_policy=retrieval_policy,
                     session_profile_provider=session_profile_provider,
                     browser_fetcher=browser_fetcher,
                 )
 
             return run_web_crawl_batch(
                 urls=[str(item) for item in validated_input.urls],
-                retrieval_policy=retrieval_policy,
                 crawl_one=crawl_batch_item,
             )
 

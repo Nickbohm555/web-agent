@@ -4,7 +4,6 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from time import perf_counter
 from typing import Callable
 
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.schemas.tool_errors import ToolError, ToolTimings
 from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlMeta, WebCrawlSuccess, WebCrawlToolResult
 from backend.app.tools.schemas.web_crawl_batch import (
@@ -21,7 +20,6 @@ def run_web_crawl_batch(
     *,
     urls: list[str],
     crawl_one: Callable[[str], WebCrawlToolResult],
-    retrieval_policy: AgentRunRetrievalPolicy | None = None,
 ) -> WebCrawlBatchSuccess:
     """Run deterministic parallel crawl fan-out and return ordered typed batch results.
 
@@ -30,7 +28,6 @@ def run_web_crawl_batch(
     """
     operation_start = perf_counter()
     requested_urls = list(urls)
-    del retrieval_policy
 
     with ThreadPoolExecutor(max_workers=min(len(requested_urls), MAX_BATCH_WORKERS)) as pool:
         futures: dict[Future[WebCrawlToolResult], str] = {}

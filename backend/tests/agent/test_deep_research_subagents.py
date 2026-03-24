@@ -4,7 +4,6 @@ from typing import Any
 
 import pytest
 
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.agent.deep_research_subagents import build_research_subagent
 from backend.agent.deep_research_supervisor import build_deep_research_supervisor
 
@@ -19,7 +18,7 @@ def test_deepagents_compatibility_gate_requires_create_deep_agent() -> None:
 
 
 def test_retrieval_subagent_exposes_canonical_tools() -> None:
-    spec = build_research_subagent(retrieval_policy=AgentRunRetrievalPolicy())
+    spec = build_research_subagent()
 
     assert spec["name"] == "research_subagent"
     assert sorted(tool.name for tool in spec["tools"]) == ["open_url", "web_search"]
@@ -38,7 +37,6 @@ def test_fanout_supervisor_builds_deep_agent_for_plan_subquestions() -> None:
     ]
 
     supervisor = build_deep_research_supervisor(
-        retrieval_policy=AgentRunRetrievalPolicy(),
         create_agent=fake_create_agent,
         plan_subquestions=subquestions,
     )

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from backend.agent.deep_agents.logging import log_deep_research_stage
 from backend.agent.deep_agents.schemas.persisted_status import PersistedStatusArtifact
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.agent.schemas.deep_research import DeepResearchJob, DeepResearchStage
 
 
@@ -20,7 +19,6 @@ def test_log_deep_research_stage_persists_status_and_structured_log_payload() ->
         job_id="run-deep-logging",
         thread_id="thread-run-deep-logging",
         prompt="Investigate logging support",
-        retrieval_policy=AgentRunRetrievalPolicy(),
         stage=DeepResearchStage.QUEUED,
         sub_questions=["Initial question"],
     )

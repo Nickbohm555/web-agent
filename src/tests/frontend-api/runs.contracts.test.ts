@@ -31,12 +31,6 @@ describe("run start API contracts", () => {
     const response = await callRoute({
       prompt: "  Find recent agent tooling updates  ",
       mode: "quick",
-      retrievalPolicy: {
-        freshness: "week",
-        includeDomains: ["Docs.Example.com"],
-        maxAgeMs: 60_000,
-        fresh: true,
-      },
     });
 
     expect(response.status).toBe(201);
@@ -90,14 +84,14 @@ describe("run start API contracts", () => {
     }
   });
 
-  it("rejects malformed retrieval policy payloads with explicit validation details", async () => {
+  it("rejects legacy retrieval policy payloads with explicit validation details", async () => {
     const { RunStartErrorEnvelope } = await import("../../frontend/contracts.js");
 
     const response = await callRoute({
       prompt: "Find sources",
       mode: "quick",
       retrievalPolicy: {
-        freshness: "invalid-window",
+        freshness: "week",
       },
     });
 
@@ -110,7 +104,10 @@ describe("run start API contracts", () => {
     }
     expect(envelope.error.code).toBe("VALIDATION_ERROR");
     if (envelope.error.details && "fieldErrors" in envelope.error.details) {
-      expect(envelope.error.details.fieldErrors.retrievalPolicy).toBeDefined();
+      expect(
+        Object.keys(envelope.error.details.fieldErrors).length > 0 ||
+        envelope.error.details.formErrors.length > 0,
+      ).toBe(true);
     } else {
       throw new Error("Expected validation error details.");
     }

@@ -3,7 +3,6 @@ import pytest
 from pydantic import ValidationError
 
 from backend.app.tools.schemas.tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.tools.schemas.web_search import (
     SearchMetadata,
     SearchRank,
@@ -767,15 +766,6 @@ def test_bounded_web_search_uses_plain_query_and_preserves_results() -> None:
 
     tool = build_web_search_tool(
         max_results_cap=3,
-        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
-            {
-                "search": {
-                    "freshness": "week",
-                    "include_domains": ["example.com"],
-                    "exclude_domains": ["blocked.com"],
-                }
-            }
-        ),
         search_runner=runner,
     )
 

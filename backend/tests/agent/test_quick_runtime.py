@@ -8,7 +8,7 @@ import pytest
 from backend.agent.quick_evidence import build_quick_evidence
 from backend.agent.quick_runtime import run_quick_runtime
 from backend.agent.quick_selection import select_quick_urls
-from backend.agent.schemas import AgentRunResult, AgentRunRetrievalPolicy
+from backend.agent.schemas import AgentRunResult
 from backend.app.tools.schemas.web_crawl import WebCrawlError
 from backend.app.tools.schemas.web_search import WebSearchResponse
 
@@ -18,24 +18,15 @@ class StubQuickSearchRunner:
     payload: dict[str, Any]
     captured_query: str | None = None
     captured_max_results: int | None = None
-    captured_freshness: str | None = None
-    captured_include_domains: list[str] | None = None
-    captured_exclude_domains: list[str] | None = None
 
     def __call__(
         self,
         *,
         query: str,
         max_results: int = 5,
-        freshness: str = "any",
-        include_domains: list[str] | None = None,
-        exclude_domains: list[str] | None = None,
     ) -> dict[str, Any]:
         self.captured_query = query
         self.captured_max_results = max_results
-        self.captured_freshness = freshness
-        self.captured_include_domains = include_domains
-        self.captured_exclude_domains = exclude_domains
         return self.payload
 
 
@@ -157,7 +148,6 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
         prompt="What is the pricing?",
         run_id="run-quick",
         started_at=0.0,
-        retrieval_policy=AgentRunRetrievalPolicy(),
         search_runner=search_runner,
         crawl_runner=crawl_runner,
     )
@@ -235,7 +225,6 @@ def test_run_quick_runtime_does_not_accept_answer_client_override() -> None:
             prompt="What is the refund policy?",
             run_id="run-quick",
             started_at=0.0,
-            retrieval_policy=AgentRunRetrievalPolicy(),
             search_runner=search_runner,
             crawl_runner=crawl_runner,
             answer_client=object(),
@@ -434,7 +423,6 @@ def test_run_quick_runtime_returns_failure_when_all_crawls_fail() -> None:
         prompt="What is the pricing?",
         run_id="run-quick",
         started_at=0.0,
-        retrieval_policy=AgentRunRetrievalPolicy(),
         search_runner=search_runner,
         crawl_runner=crawl_runner,
     )

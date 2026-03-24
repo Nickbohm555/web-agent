@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
-from urllib.parse import urlparse
+from typing import Any
 
 from pydantic import ValidationError
 
-from backend.agent.schemas import AgentRunRetrievalSearchPolicy
 from backend.app.tools.schemas.tool_errors import ToolError, ToolErrorEnvelope, ToolMeta, ToolTimings
 
 
@@ -88,82 +86,3 @@ def build_tool_action_error_record(
         action_record["status_code"] = envelope.error.status_code
     return action_record
 
-
-def is_url_allowed(
-    url: str,
-    *,
-    include_domains: Sequence[str],
-    exclude_domains: Sequence[str],
-) -> bool:
-    """Check whether a URL is allowed by include/exclude domain scope.
-
-    Example input: `is_url_allowed("https://docs.example.com", include_domains=["example.com"], exclude_domains=["blocked.com"])`
-    Example output: `True`
-    """
-    if not has_domain_scope(
-        include_domains=include_domains,
-        exclude_domains=exclude_domains,
-    ):
-        return True
-
-    hostname = normalize_hostname(url)
-    if hostname is None:
-        return False
-
-    if any(hostname_matches(hostname, blocked) for blocked in exclude_domains):
-        return False
-
-    if not include_domains:
-        return True
-
-    return any(hostname_matches(hostname, allowed) for allowed in include_domains)
-
-
-def hostname_matches(hostname: str, domain: str) -> bool:
-    """Match a hostname against an exact or subdomain scope.
-
-    Example input: `hostname_matches("docs.example.com", "example.com")`
-    Example output: `True`
-    """
-    return hostname == domain or hostname.endswith(f".{domain}")
-
-
-def has_domain_scope(
-    *,
-    include_domains: Sequence[str],
-    exclude_domains: Sequence[str],
-) -> bool:
-    """Return whether any domain restrictions are configured.
-
-    Example input: `has_domain_scope(include_domains=["example.com"], exclude_domains=[])`
-    Example output: `True`
-    """
-    return bool(include_domains or exclude_domains)
-
-
-def domain_scope_kwargs(search_policy: AgentRunRetrievalSearchPolicy) -> dict[str, list[str]]:
-    """Extract include/exclude domain lists from search policy.
-
-    Example input: `domain_scope_kwargs(policy)`
-    Example output: `{"include_domains": ["example.com"], "exclude_domains": ["blocked.com"]}`
-    """
-    return {
-        "include_domains": list(search_policy.include_domains),
-        "exclude_domains": list(search_policy.exclude_domains),
-    }
-
-
-def normalize_hostname(value: Any) -> str | None:
-    """Normalize a hostname from a URL or bare host value.
-
-    Example input: `normalize_hostname("https://Docs.Example.com/page")`
-    Example output: `"docs.example.com"`
-    """
-    normalized_value = str(value)
-    parsed = urlparse(
-        normalized_value if "://" in normalized_value else f"https://{normalized_value}"
-    )
-    hostname = parsed.hostname
-    if hostname is None:
-        return None
-    return hostname.strip().lower()

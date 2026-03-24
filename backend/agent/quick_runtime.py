@@ -20,7 +20,6 @@ from backend.agent.runtime_errors import (
 )
 from backend.agent.schemas import (
     AgentRunResult,
-    AgentRunRetrievalPolicy,
     AgentRunError,
     AgentStructuredAnswer,
 )
@@ -38,13 +37,12 @@ def run_quick_runtime(
     prompt: str,
     run_id: str,
     started_at: float,
-    retrieval_policy: AgentRunRetrievalPolicy,
     search_runner: QuickSearchRunner | None = None,
     crawl_runner: QuickCrawlRunner | None = None,
 ) -> AgentRunResult:
     """Run the deterministic quick retrieval pipeline.
 
-    Example input: `run_quick_runtime(prompt="What is the pricing?", run_id="run-1", started_at=0.0, retrieval_policy=AgentRunRetrievalPolicy())`
+    Example input: `run_quick_runtime(prompt="What is the pricing?", run_id="run-1", started_at=0.0)`
     Example output: `AgentRunResult(status="completed", ...)`
     """
     search_payload = run_quick_search(

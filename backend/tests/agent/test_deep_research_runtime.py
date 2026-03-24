@@ -8,7 +8,6 @@ from backend.agent.deep_research_runtime import (
     start_deep_research,
 )
 from backend.agent.deep_research_store import InMemoryDeepResearchStore
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.agent.schemas.deep_research import DeepResearchPlan, DeepResearchStage
 from backend.api.schemas import AgentRunQueuedResponse
 
@@ -71,7 +70,6 @@ def test_start_deep_research_returns_queued_response_and_persists_job() -> None:
 
     response = start_deep_research(
         prompt="Investigate market share",
-        retrieval_policy=AgentRunRetrievalPolicy(),
         store=store,
         schedule_job=scheduled_job_ids.append,
         run_id_factory=lambda: "run-deep-queued",
@@ -102,7 +100,6 @@ def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
 
     start_deep_research(
         prompt="Investigate deep research",
-        retrieval_policy=AgentRunRetrievalPolicy(),
         store=store,
         schedule_job=lambda _job_id: None,
         run_id_factory=lambda: "run-deep-complete",
@@ -200,7 +197,6 @@ def test_deep_research_runtime_progress_artifacts_use_workspace_paths() -> None:
 
     start_deep_research(
         prompt="Investigate deep research progress",
-        retrieval_policy=AgentRunRetrievalPolicy(),
         store=store,
         schedule_job=lambda _job_id: None,
         run_id_factory=lambda: "run-deep-progress",
@@ -248,7 +244,6 @@ def test_deep_research_runtime_evidence_normalizes_sources_from_subagents() -> N
 
     start_deep_research(
         prompt="Investigate deep research evidence",
-        retrieval_policy=AgentRunRetrievalPolicy(),
         store=store,
         schedule_job=lambda _job_id: None,
         run_id_factory=lambda: "run-deep-evidence",

@@ -14,22 +14,6 @@ import {
 import { createRunHistoryStore } from "../../frontend/run-history/store.js";
 import type { RunEventStreamFactory } from "../../frontend/routes/runs.js";
 
-const DEFAULT_RETRIEVAL_POLICY = {
-  search: {
-    country: "US",
-    language: "en",
-    freshness: "any",
-    domainScope: {
-      includeDomains: [],
-      excludeDomains: [],
-    },
-  },
-  fetch: {
-    maxAgeMs: 300_000,
-    fresh: false,
-  },
-} as const;
-
 describe("run history API", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -151,21 +135,6 @@ describe("run history API", () => {
       expect(detailPayload.events[0]?.tool_input).toEqual({
         prompt: "Find sources",
         mode: "quick",
-        retrievalPolicy: {
-          search: {
-            country: "US",
-            language: "en",
-            freshness: "any",
-            domainScope: {
-              includeDomains: [],
-              excludeDomains: [],
-            },
-          },
-          fetch: {
-            maxAgeMs: 300_000,
-            fresh: false,
-          },
-        },
       });
       expect(detailPayload.events.at(-1)?.final_answer).toBe(
         "Answer with citations.",
@@ -574,7 +543,6 @@ describe("run history API", () => {
           runId,
           prompt: `Verify ${mode} lifecycle`,
           mode,
-          retrievalPolicy: DEFAULT_RETRIEVAL_POLICY,
           signal: expect.any(AbortSignal),
         });
 
@@ -593,7 +561,6 @@ describe("run history API", () => {
         expect(snapshot.events[0]?.tool_input).toEqual({
           prompt: `Verify ${mode} lifecycle`,
           mode,
-          retrievalPolicy: DEFAULT_RETRIEVAL_POLICY,
         });
       } finally {
         await harness.close();
@@ -696,7 +663,6 @@ async function createHarness(options: {
       runId: string;
       prompt: string;
       mode: "quick" | "agentic" | "deep_research";
-      retrievalPolicy: typeof DEFAULT_RETRIEVAL_POLICY;
       signal: AbortSignal;
     },
   ) => Promise<

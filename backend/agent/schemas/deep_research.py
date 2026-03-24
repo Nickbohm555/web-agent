@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from backend.agent.schemas import (
     AgentRunError,
-    AgentRunRetrievalPolicy,
     AgentSourceReference,
     AgentStructuredAnswer,
 )
@@ -38,7 +37,6 @@ class DeepResearchJob(BaseModel):
     job_id: str = Field(min_length=1)
     thread_id: str = Field(min_length=1)
     prompt: str = Field(min_length=1)
-    retrieval_policy: AgentRunRetrievalPolicy = Field(default_factory=AgentRunRetrievalPolicy)
     stage: DeepResearchStage
     sub_questions: list[str] = Field(default_factory=list)
     sources: list[AgentSourceReference] = Field(default_factory=list)

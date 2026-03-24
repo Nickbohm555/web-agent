@@ -7,7 +7,6 @@ from typing import Any, Callable
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.config import get_settings
 from backend.app.tools.schemas.web_search import (
     SearchRank,
@@ -37,7 +36,6 @@ def create_serper_client() -> SerperClient:
 def build_web_search_tool(
     *,
     max_results_cap: int = 5,
-    retrieval_policy: AgentRunRetrievalPolicy | None = None,
     search_runner: Callable[..., WebSearchToolResult] | None = None,
 ):
     """Build the bounded LangChain web-search tool.

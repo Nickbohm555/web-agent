@@ -5,7 +5,6 @@ from typing import Any, Callable
 
 from backend.agent.deep_research_subagents import build_research_subagent
 from backend.agent.runtime_constants import DEEP_RESEARCH_RUNTIME_MODE, RUNTIME_PROFILES
-from backend.agent.schemas import AgentRunRetrievalPolicy
 
 
 SUPERVISOR_PROMPT = (
@@ -18,12 +17,11 @@ SUPERVISOR_PROMPT = (
 
 def build_deep_research_supervisor(
     *,
-    retrieval_policy: AgentRunRetrievalPolicy,
     create_agent: Callable[..., Any] | None = None,
     plan_subquestions: Sequence[str] | None = None,
 ) -> Any:
     deep_agent_factory = create_agent or _load_create_deep_agent()
-    subagent = build_research_subagent(retrieval_policy=retrieval_policy)
+    subagent = build_research_subagent()
     delegated_subagent_count = len(plan_subquestions or ())
 
     return deep_agent_factory(

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from backend.agent.schemas import AgentRunError, AgentRunMode, AgentRunResult, AgentRunRetrievalPolicy
+from backend.agent.schemas import AgentRunError, AgentRunMode, AgentRunResult
 from backend.api.errors import map_runtime_failure
 from backend.api.routes import agent_run as agent_run_route
 from backend.api.schemas import (
@@ -26,15 +26,14 @@ RUN_ROUTE_PATH = "/api/agent/run"
 class StubRuntimeRunner:
     def __init__(self, result: AgentRunResult) -> None:
         self.result = result
-        self.calls: list[tuple[str, AgentRunMode, AgentRunRetrievalPolicy]] = []
+        self.calls: list[tuple[str, AgentRunMode]] = []
 
     def __call__(
         self,
         prompt: str,
         mode: AgentRunMode,
-        retrieval_policy: AgentRunRetrievalPolicy,
     ) -> AgentRunResult:
-        self.calls.append((prompt, mode, retrieval_policy))
+        self.calls.append((prompt, mode))
         return self.result
 
 
@@ -69,35 +68,13 @@ def test_run_request_contract_rejects_unknown_mode() -> None:
         AgentRunRequest(prompt="find one source", mode="turbo")
 
 
-def test_run_request_contract_accepts_normalized_retrieval_policy() -> None:
-    payload = AgentRunRequest(
-        prompt="find one source",
-        mode="quick",
-        retrievalPolicy={
-            "search": {
-                "freshness": "week",
-                "include_domains": ["example.com"],
-            },
-            "fetch": {
-                "max_age_ms": 60_000,
-                "fresh": True,
-            },
-        },
-    )
-
-    assert payload.retrieval_policy.model_dump() == {
-        "search": {
-            "country": "US",
-            "language": "en",
-            "freshness": "week",
-            "include_domains": ["example.com"],
-            "exclude_domains": [],
-        },
-        "fetch": {
-            "max_age_ms": 60_000,
-            "fresh": True,
-        },
-    }
+def test_run_request_contract_forbids_legacy_retrieval_policy_fields() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        AgentRunRequest(
+            prompt="find one source",
+            mode="quick",
+            retrievalPolicy={"search": {"freshness": "week"}},
+        )
 
 
 def test_run_success_contract_normalizes_required_response_fields() -> None:
@@ -385,7 +362,7 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
     }
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", mode, AgentRunRetrievalPolicy())]
+    assert runner.calls == [("find one source", mode)]
 
 
 def test_run_route_queues_deep_research_requests(
@@ -489,63 +466,7 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     assert response.json() == expected_payload
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", mode, AgentRunRetrievalPolicy())]
-
-
-def test_run_route_forwards_retrieval_policy_to_runtime(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    runner = StubRuntimeRunner(
-        AgentRunResult(
-            run_id="run-success",
-            status="completed",
-            final_answer="Scoped answer.",
-            tool_call_count=1,
-            elapsed_ms=12,
-        )
-    )
-    monkeypatch.setattr(agent_run_service, "run_agent_once", runner)
-
-    response = client.post(
-        RUN_ROUTE_PATH,
-        json={
-            "prompt": "find one source",
-            "mode": "quick",
-            "retrievalPolicy": {
-                "search": {
-                    "freshness": "week",
-                    "include_domains": ["example.com"],
-                    "exclude_domains": ["blocked.com"],
-                },
-                "fetch": {
-                    "max_age_ms": 60_000,
-                    "fresh": True,
-                },
-            },
-        },
-    )
-
-    assert response.status_code == 200
-    assert runner.calls == [
-        (
-            "find one source",
-            "quick",
-            AgentRunRetrievalPolicy.model_validate(
-                {
-                    "search": {
-                        "freshness": "week",
-                        "include_domains": ["example.com"],
-                        "exclude_domains": ["blocked.com"],
-                    },
-                    "fetch": {
-                        "max_age_ms": 60_000,
-                        "fresh": True,
-                    },
-                }
-            ),
-        )
-    ]
+    assert runner.calls == [("find one source", mode)]
 
 
 def test_agent_run_request_accepts_background_deep_research_response_shape() -> None:

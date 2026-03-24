@@ -7,12 +7,10 @@ from backend.agent.runtime_constants import (
     STANDARD_AGENT_MAX_SEARCH_RESULTS,
 )
 from backend.agent.deep_research_retrieval_tools import build_deep_research_retrieval_tools
-from backend.agent.schemas import AgentRunRetrievalPolicy
 
 
 def build_research_subagent(
     *,
-    retrieval_policy: AgentRunRetrievalPolicy,
     max_search_results: int = STANDARD_AGENT_MAX_SEARCH_RESULTS,
     max_content_chars: int = STANDARD_AGENT_MAX_CRAWL_CHARS,
 ) -> dict[str, Any]:
@@ -29,7 +27,6 @@ def build_research_subagent(
         ),
         "tools": list(
             build_deep_research_retrieval_tools(
-                retrieval_policy=retrieval_policy,
                 max_search_results=max_search_results,
                 max_content_chars=max_content_chars,
             )

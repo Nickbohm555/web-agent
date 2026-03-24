@@ -13,7 +13,6 @@ import {
   type RetrievalActionEvent,
   type RunHistoryRunSnapshot,
   type RunMode,
-  type RunRetrievalPolicy,
   type RunSource,
   type StructuredAnswer,
   type RunStreamEvent,
@@ -29,13 +28,11 @@ export interface RunEventStreamContext {
 export interface RunExecutorContext extends RunEventStreamContext {
   prompt: string;
   mode: RunMode;
-  retrievalPolicy: RunRetrievalPolicy;
 }
 
 interface PendingRun {
   prompt: string;
   mode: RunMode;
-  retrievalPolicy: RunRetrievalPolicy;
 }
 
 interface BackgroundRunRecord {
@@ -117,7 +114,6 @@ export function createRunsRouter(): Router {
         tool_input: {
           prompt: request.prompt,
           mode: request.mode,
-          retrievalPolicy: serializeRunRetrievalPolicy(request.retrievalPolicy),
         },
         safety: createEmptyRunEventSafety(),
       });
@@ -557,7 +553,6 @@ export function createHttpAgentRunExecutor(
         body: JSON.stringify({
           prompt: context.prompt,
           mode: context.mode,
-          retrievalPolicy: serializeBackendRetrievalPolicy(context.retrievalPolicy),
         }),
         signal: context.signal,
       },
@@ -623,22 +618,6 @@ function resolveRunEventStreamFactory(
   }
 
   return undefined;
-}
-
-function serializeRunRetrievalPolicy(policy: RunRetrievalPolicy) {
-  const { search, fetch } = policy;
-  return {
-    search: serializeSearchPolicy(search),
-    fetch: serializeFetchPolicy(fetch),
-  };
-}
-
-function serializeBackendRetrievalPolicy(policy: RunRetrievalPolicy) {
-  const { search, fetch } = policy;
-  return {
-    search: serializeBackendSearchPolicy(search),
-    fetch: serializeBackendFetchPolicy(fetch),
-  };
 }
 
 function resolveNextEventSeq(
@@ -1260,7 +1239,6 @@ function createRunExecutorContext(
     signal,
     prompt: run.prompt,
     mode: run.mode,
-    retrievalPolicy: run.retrievalPolicy,
   };
 }
 
@@ -1340,54 +1318,6 @@ function toPreviewPayload(preview: string | undefined): { preview: string } | un
   return preview === undefined ? undefined : { preview };
 }
 
-function serializeSearchPolicy(searchPolicy: RunRetrievalPolicy["search"]) {
-  return {
-    country: searchPolicy.country,
-    language: searchPolicy.language,
-    freshness: searchPolicy.freshness,
-    domainScope: serializeDomainScope(searchPolicy.domainScope),
-  };
-}
-
-function serializeDomainScope(domainScope: RunRetrievalPolicy["search"]["domainScope"]) {
-  return {
-    includeDomains: [...domainScope.includeDomains],
-    excludeDomains: [...domainScope.excludeDomains],
-  };
-}
-
-function serializeBackendSearchPolicy(searchPolicy: RunRetrievalPolicy["search"]) {
-  return {
-    country: searchPolicy.country,
-    language: searchPolicy.language,
-    freshness: searchPolicy.freshness,
-    ...serializeBackendDomainScope(searchPolicy.domainScope),
-  };
-}
-
-function serializeBackendDomainScope(
-  domainScope: RunRetrievalPolicy["search"]["domainScope"],
-) {
-  return {
-    include_domains: [...domainScope.includeDomains],
-    exclude_domains: [...domainScope.excludeDomains],
-  };
-}
-
-function serializeFetchPolicy(fetchPolicy: RunRetrievalPolicy["fetch"]) {
-  return {
-    maxAgeMs: fetchPolicy.maxAgeMs,
-    fresh: fetchPolicy.fresh,
-  };
-}
-
-function serializeBackendFetchPolicy(fetchPolicy: RunRetrievalPolicy["fetch"]) {
-  return {
-    max_age_ms: fetchPolicy.maxAgeMs,
-    fresh: fetchPolicy.fresh,
-  };
-}
-
 function serializeRunStreamEvent(event: unknown): string {
   const parsed = parseRunStreamEvent(event);
   return `event: ${parsed.event}\ndata: ${JSON.stringify(parsed.data)}\n\n`;
@@ -1405,7 +1335,6 @@ function createRunStartRateLimitEnvelope(input: {
     request: {
       prompt: input.request.prompt,
       mode: input.request.mode,
-      retrievalPolicy: input.request.retrievalPolicy,
     },
     error: {
       code: "RATE_LIMITED" as const,

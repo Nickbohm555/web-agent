@@ -1,6 +1,5 @@
 import {
   parseRunStreamEvent,
-  type RunRetrievalPolicy,
   type RunMode,
   type RunCompleteEvent,
   type RunErrorEvent,
@@ -13,15 +12,6 @@ import {
 export interface RunStartRequest {
   prompt: string;
   mode: RunMode;
-  retrievalPolicy?: {
-    freshness?: RunRetrievalPolicy["search"]["freshness"];
-    includeDomains?: string[];
-    excludeDomains?: string[];
-    country?: string;
-    language?: string;
-    maxAgeMs?: number;
-    fresh?: boolean;
-  };
 }
 
 export interface RunStartResponse {
@@ -285,8 +275,7 @@ function isRunStartRequest(input: unknown): input is RunStartRequest {
   const record = asRecord(input);
   return (
     typeof record.prompt === "string" &&
-    isRunMode(record.mode) &&
-    (record.retrievalPolicy === undefined || isRecordLike(record.retrievalPolicy))
+    isRunMode(record.mode)
   );
 }
 
@@ -296,10 +285,6 @@ function asRecord(input: unknown): Record<string, unknown> {
   }
 
   return input as Record<string, unknown>;
-}
-
-function isRecordLike(input: unknown): input is Record<string, unknown> {
-  return typeof input === "object" && input !== null && !Array.isArray(input);
 }
 
 function isRunMode(input: unknown): input is RunMode {

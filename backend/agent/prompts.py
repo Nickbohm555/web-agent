@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.agent.schemas import AgentRunRetrievalPolicy, AgentRuntimeProfile
+from backend.agent.schemas import AgentRuntimeProfile
 
 BASE_SYSTEM_PROMPT = """
 You are a web research agent.
@@ -37,7 +37,6 @@ def get_mode_guidance(profile: AgentRuntimeProfile) -> str:
 
 def build_system_prompt(
     profile: AgentRuntimeProfile,
-    retrieval_policy: AgentRunRetrievalPolicy | None = None,
     retrieval_brief: str | None = None,
 ) -> str:
     appendix = get_mode_guidance(profile)
@@ -46,7 +45,6 @@ def build_system_prompt(
         f"Use web_search for no more than {profile.max_search_results} results per call. "
         f"Use open_url selectively and keep extracted evidence under about {profile.max_crawl_chars} characters per page."
     )
-    del retrieval_policy
     strategy_guidance = f"\n{retrieval_brief}" if retrieval_brief else ""
     return (
         f"{BASE_SYSTEM_PROMPT}\n\nMode guidance: {appendix}\n"

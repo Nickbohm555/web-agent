@@ -16,11 +16,7 @@ def execute_agent_run_request(
         queued = start_deep_research_request(payload)
         return JSONResponse(status_code=202, content=queued.model_dump())
 
-    result = run_agent_once(
-        payload.prompt,
-        payload.mode,
-        payload.retrieval_policy,
-    )
+    result = run_agent_once(payload.prompt, payload.mode)
 
     if result.status == "failed":
         mapped_error = map_runtime_failure(result)
@@ -35,6 +31,5 @@ def execute_agent_run_request(
 def start_deep_research_request(payload: AgentRunRequest):
     return start_deep_research(
         prompt=payload.prompt,
-        retrieval_policy=payload.retrieval_policy,
         thread_id_factory=build_deep_research_thread_id,
     )

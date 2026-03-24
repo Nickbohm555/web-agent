@@ -22,7 +22,6 @@ def execute_research_waves(
 ) -> DeepResearchJob:
     effective_supervisor_builder = supervisor_builder or build_deep_research_supervisor
     supervisor = effective_supervisor_builder(
-        retrieval_policy=job.retrieval_policy,
         plan_subquestions=job.sub_questions,
     )
     source_registry = RuntimeSourceRegistry.empty()

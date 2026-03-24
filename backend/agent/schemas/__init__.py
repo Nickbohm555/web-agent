@@ -17,7 +17,6 @@ AgentRunErrorCategory = Literal[
     "timeout",
     "internal_error",
 ]
-AgentRetrievalFreshness = Literal["any", "day", "week", "month", "year"]
 
 
 class AgentRunError(BaseModel):
@@ -26,56 +25,6 @@ class AgentRunError(BaseModel):
     category: AgentRunErrorCategory
     message: str = Field(min_length=1)
     retryable: bool
-
-
-class AgentRunRetrievalSearchPolicy(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    country: str = Field(default="US", min_length=1)
-    language: str = Field(default="en", min_length=1)
-    freshness: AgentRetrievalFreshness = "any"
-    include_domains: list[str] = Field(default_factory=list)
-    exclude_domains: list[str] = Field(default_factory=list)
-
-    @field_validator("country")
-    @classmethod
-    def normalize_country(cls, value: str) -> str:
-        normalized = value.strip().upper()
-        if not normalized:
-            raise ValueError("country must not be empty")
-        return normalized
-
-    @field_validator("language")
-    @classmethod
-    def normalize_language(cls, value: str) -> str:
-        normalized = value.strip().lower()
-        if not normalized:
-            raise ValueError("language must not be empty")
-        return normalized
-
-    @field_validator("include_domains", "exclude_domains")
-    @classmethod
-    def normalize_domains(cls, values: list[str]) -> list[str]:
-        normalized = sorted({value.strip().lower() for value in values if value.strip()})
-        return normalized
-
-
-class AgentRunRetrievalFetchPolicy(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    max_age_ms: int = Field(default=300_000, ge=0)
-    fresh: bool = False
-
-
-class AgentRunRetrievalPolicy(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    search: AgentRunRetrievalSearchPolicy = Field(
-        default_factory=AgentRunRetrievalSearchPolicy
-    )
-    fetch: AgentRunRetrievalFetchPolicy = Field(
-        default_factory=AgentRunRetrievalFetchPolicy
-    )
 
 
 class AgentSourceReference(BaseModel):
@@ -274,9 +223,6 @@ __all__ = [
     "AgentRunError",
     "AgentRunMode",
     "AgentRunResult",
-    "AgentRunRetrievalFetchPolicy",
-    "AgentRunRetrievalPolicy",
-    "AgentRunRetrievalSearchPolicy",
     "AgentRunStatus",
     "AgentRuntimeExecutionMode",
     "AgentRuntimeProfile",

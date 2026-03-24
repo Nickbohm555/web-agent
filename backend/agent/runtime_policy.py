@@ -1,21 +1,11 @@
 from __future__ import annotations
 
-from backend.agent.schemas import AgentRunRetrievalPolicy, AgentRuntimeProfile
+from typing import Any
+
+from backend.agent.schemas import AgentRuntimeProfile
 
 
-def resolve_effective_retrieval_policy(
-    *,
-    prompt: str,
-    retrieval_policy: AgentRunRetrievalPolicy | None,
-) -> AgentRunRetrievalPolicy:
-    del prompt
-    return retrieval_policy or AgentRunRetrievalPolicy()
-
-
-def build_runtime_config(
-    profile: AgentRuntimeProfile,
-    retrieval_policy: AgentRunRetrievalPolicy,
-) -> dict[str, Any]:
+def build_runtime_config(profile: AgentRuntimeProfile) -> dict[str, Any]:
     return {
         "recursion_limit": profile.recursion_limit,
         "run_mode": profile.name,
@@ -27,7 +17,6 @@ def build_runtime_config(
             "max_search_results": profile.max_search_results,
             "max_crawl_chars": profile.max_crawl_chars,
         },
-        "retrieval_policy": retrieval_policy.model_dump(),
     }
 
 
@@ -35,9 +24,7 @@ def build_retrieval_brief(
     *,
     prompt: str,
     profile: AgentRuntimeProfile,
-    retrieval_policy: AgentRunRetrievalPolicy,
 ) -> str:
-    del retrieval_policy
     normalized_prompt = " ".join(prompt.strip().split())
     if not normalized_prompt:
         return ""
