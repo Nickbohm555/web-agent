@@ -1134,10 +1134,12 @@ def test_run_agent_once_no_evidence_crawl_success_does_not_register_source() -> 
         runtime_dependencies=RuntimeDependencies(agent=agent),
     )
 
-    assert result.status == "completed"
-    assert result.final_answer is not None
-    assert result.final_answer.text == "No evidence answer."
+    assert result.status == "failed"
+    assert result.final_answer is None
     assert result.sources == []
+    assert result.error is not None
+    assert result.error.category == "tool_failure"
+    assert result.error.message == "agent crawl returned no evidence"
 
 
 def test_run_agent_once_normalizes_safe_source_urls_before_emitting_citations() -> None:

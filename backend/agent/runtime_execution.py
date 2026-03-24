@@ -28,9 +28,15 @@ from backend.agent.runtime_policy import (
     build_runtime_config,
     resolve_effective_retrieval_policy,
 )
-from backend.agent.runtime_sources import count_tool_calls, extract_final_answer, extract_sources
+from backend.agent.runtime_sources import (
+    count_tool_calls,
+    extract_final_answer,
+    extract_sources,
+    has_crawl_attempt,
+)
 from backend.agent.schemas import (
     AgentRunMode,
+    AgentRunError,
     AgentRunResult,
     AgentRunRetrievalPolicy,
     AgentRuntimeProfile,
@@ -295,6 +301,20 @@ def run_agent_profile_mode(
     )
     source_registry = extract_sources(raw_result)
     sources = source_registry.sources()
+    if has_crawl_attempt(raw_result) and not sources:
+        return AgentRunResult(
+            run_id=run_id,
+            status="failed",
+            final_answer=None,
+            sources=[],
+            tool_call_count=count_tool_calls(raw_result),
+            elapsed_ms=elapsed_ms(started_at),
+            error=AgentRunError(
+                category="tool_failure",
+                message="agent crawl returned no evidence",
+                retryable=False,
+            ),
+        )
     return AgentRunResult(
         run_id=run_id,
         status="completed",
