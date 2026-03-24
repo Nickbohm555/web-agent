@@ -30,6 +30,17 @@ def map_crawl_failure(
     effective_total_ms = fetch_result.meta.duration_ms if total_ms is None else total_ms
     effective_attempt_number = fetch_result.meta.attempts if attempt_number is None else attempt_number
     if isinstance(fetch_result, HttpFetchFailure):
+        if fetch_result.error.retryable:
+            envelope = build_tool_error_payload(
+                kind=fetch_result.error.kind,
+                message=fetch_result.error.message,
+                retryable=True,
+                total_ms=effective_total_ms,
+                operation="web_crawl",
+                status_code=fetch_result.status_code,
+                attempt_number=effective_attempt_number,
+            )
+            return WebCrawlError(error=envelope.error, meta=envelope.meta)
         classification = classify_http_result(fetch_result=fetch_result, extraction_result=None)
         return map_classification_error(
             kind=classification,

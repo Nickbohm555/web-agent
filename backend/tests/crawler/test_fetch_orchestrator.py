@@ -32,7 +32,8 @@ def test_normalize_http_content_returns_shared_content_model() -> None:
     assert result.body == "<html><body>Article</body></html>"
     assert result.content_type == "text/html"
     assert result.rendered is False
-    assert tuple(result) == ("<html><body>Article</body></html>", "text/html")
+    assert result.as_body_content_type() == ("<html><body>Article</body></html>", "text/html")
+    assert dict(result)["body"] == "<html><body>Article</body></html>"
 
 
 def test_normalize_browser_content_prefers_html_and_falls_back_to_text() -> None:
@@ -72,7 +73,8 @@ def test_normalize_browser_content_prefers_html_and_falls_back_to_text() -> None
     assert text_result.body == "Plain text fallback"
     assert text_result.raw_html is None
     assert text_result.extracted_text == "Plain text fallback"
-    assert tuple(text_result) == ("Plain text fallback", "text/html")
+    assert text_result.as_body_content_type() == ("Plain text fallback", "text/html")
+    assert dict(text_result)["content_type"] == "text/html"
 
 
 def test_map_crawl_failure_maps_http_failure_to_typed_error() -> None:
@@ -228,6 +230,42 @@ def test_fetch_orchestrator_maps_non_escalated_http_failure_to_web_crawl_error()
     assert result.error.operation == "web_crawl"
     assert result.meta.operation == "web_crawl"
     assert result.meta.duration_ms == 17
+
+
+def test_fetch_orchestrator_preserves_retryable_http_error_metadata() -> None:
+    orchestrator = FetchOrchestrator(
+        http_fetch_worker=_HttpWorkerStub(
+            result=HttpFetchFailure(
+                url="https://example.com/unavailable",
+                final_url="https://example.com/unavailable",
+                status_code=503,
+                content_type="text/html",
+                error=ToolError(
+                    kind="http_error",
+                    message="upstream unavailable",
+                    retryable=True,
+                    status_code=503,
+                    attempt_number=3,
+                    operation="http_fetch",
+                    timings=ToolTimings(total_ms=31),
+                ),
+                meta=_tool_meta(attempts=3, total_ms=31, operation="http_fetch"),
+            )
+        ),
+        browser_fetch_worker=_BrowserWorkerUnused(),
+    )
+
+    result = orchestrator.crawl(url="https://example.com/unavailable", objective=None)
+
+    assert isinstance(result, WebCrawlError)
+    assert result.error.kind == "http_error"
+    assert result.error.message == "upstream unavailable"
+    assert result.error.retryable is True
+    assert result.error.status_code == 503
+    assert result.error.attempt_number == 3
+    assert result.error.operation == "web_crawl"
+    assert result.meta.attempts == 3
+    assert result.meta.retries == 2
 
 
 def test_fetch_orchestrator_uses_normalized_browser_content_fields(monkeypatch: pytest.MonkeyPatch) -> None:

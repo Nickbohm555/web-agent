@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, Literal, Optional, Union
+from typing import Literal, Optional, Union
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
@@ -64,9 +64,8 @@ class NormalizedCrawlContent(BaseModel):
     def normalize_text(cls, value: Optional[str]) -> Optional[str]:
         return _strip_optional_text(value)
 
-    def __iter__(self) -> Iterator[str]:
-        yield self.body
-        yield self.content_type
+    def as_body_content_type(self) -> tuple[str, str]:
+        return self.body, self.content_type
 
 
 class WebCrawlExcerpt(BaseModel):

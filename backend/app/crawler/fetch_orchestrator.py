@@ -68,6 +68,8 @@ class FetchOrchestrator:
 
         http_result = self._http_fetch_worker.fetch(url=url)
         if isinstance(http_result, HttpFetchFailure):
+            if http_result.error.retryable:
+                return map_crawl_failure(http_result)
             classification = classify_http_result(
                 fetch_result=http_result,
                 extraction_result=None,
