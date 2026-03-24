@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from backend.agent.answer_synthesis import (
+    QuickAnswerClient,
+    build_quick_answer_evidence_bundle,
+    synthesize_quick_answer,
+)
 from backend.agent.quick_evidence import build_quick_evidence
 from backend.agent.quick_search import (
     DEFAULT_QUICK_SEARCH_MAX_RESULTS,
     QuickSearchRunner,
     run_quick_search,
-    synthesize_quick_answer,
 )
 from backend.agent.quick_selection import select_quick_urls
 from backend.agent.runtime_constants import QUICK_RUNTIME_MAX_CRAWLS
@@ -36,6 +40,7 @@ def run_quick_runtime(
     retrieval_policy: AgentRunRetrievalPolicy,
     search_runner: QuickSearchRunner | None = None,
     crawl_runner: QuickCrawlRunner | None = None,
+    answer_client: QuickAnswerClient | None = None,
 ) -> AgentRunResult:
     """Run the deterministic quick retrieval pipeline.
 
@@ -120,11 +125,30 @@ def run_quick_runtime(
             ),
         )
 
-    return AgentRunResult(
-        run_id=run_id,
-        status="completed",
-        final_answer=synthesize_quick_answer(search_response),
-        sources=list(evidence.sources),
-        tool_call_count=1 + len(crawl_payloads),
-        elapsed_ms=elapsed_ms(started_at),
+    quick_answer_evidence = build_quick_answer_evidence_bundle(
+        question=prompt,
+        sources=evidence.sources,
     )
+    try:
+        return synthesize_quick_answer(
+            run_id=run_id,
+            started_at=started_at,
+            question=prompt,
+            evidence=quick_answer_evidence,
+            client=answer_client,
+            tool_call_count=1 + len(crawl_payloads),
+        )
+    except Exception as exc:
+        return AgentRunResult(
+            run_id=run_id,
+            status="failed",
+            final_answer=None,
+            sources=list(evidence.sources),
+            tool_call_count=1 + len(crawl_payloads),
+            elapsed_ms=elapsed_ms(started_at),
+            error=AgentRunError(
+                category="provider_failure",
+                message=str(exc) or "quick answer synthesis failed",
+                retryable=True,
+            ),
+        )
