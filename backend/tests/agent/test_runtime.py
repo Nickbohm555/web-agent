@@ -132,6 +132,22 @@ class StubQuickSearchRunner:
         return self.payload
 
 
+@dataclass
+class StubQuickCrawlRunner:
+    payloads_by_url: dict[str, Any]
+    requested_urls: list[str] | None = None
+    requested_objectives: list[str | None] | None = None
+
+    def __call__(self, *, url: str, objective: str | None = None) -> dict[str, Any]:
+        if self.requested_urls is None:
+            self.requested_urls = []
+        if self.requested_objectives is None:
+            self.requested_objectives = []
+        self.requested_urls.append(url)
+        self.requested_objectives.append(objective)
+        return self.payloads_by_url[url]
+
+
 def test_run_agent_once_returns_normalized_result_without_provider_payload_leakage() -> None:
     agent = StubAgent(
         raw_result={
@@ -387,6 +403,42 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
             },
         }
     )
+    crawl_runner = StubQuickCrawlRunner(
+        payloads_by_url={
+            "https://example.com/one": {
+                "url": "https://example.com/one",
+                "final_url": "https://example.com/one",
+                "text": "Expanded summary one.",
+                "markdown": "Expanded summary one.",
+                "status_code": 200,
+                "content_type": "text/html",
+                "fallback_reason": None,
+                "meta": {
+                    "operation": "web_crawl",
+                    "attempts": 1,
+                    "retries": 0,
+                    "duration_ms": 20,
+                    "timings": {"total_ms": 20},
+                },
+            },
+            "https://example.com/two": {
+                "url": "https://example.com/two",
+                "final_url": "https://example.com/two",
+                "text": "Expanded summary two.",
+                "markdown": "Expanded summary two.",
+                "status_code": 200,
+                "content_type": "text/html",
+                "fallback_reason": None,
+                "meta": {
+                    "operation": "web_crawl",
+                    "attempts": 1,
+                    "retries": 0,
+                    "duration_ms": 20,
+                    "timings": {"total_ms": 20},
+                },
+            },
+        }
+    )
     agent = RaisingStubAgent(RuntimeError("quick mode should not invoke the agent"))
 
     result = run_agent_once(
@@ -395,11 +447,12 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
         runtime_dependencies=RuntimeDependencies(
             agent=agent,
             quick_search_runner=search_runner,
+            quick_crawl_runner=crawl_runner,
         ),
     )
 
     assert result.status == "completed"
-    assert result.tool_call_count == 1
+    assert result.tool_call_count == 3
     assert result.final_answer is not None
     assert "Example One: First summary." in result.final_answer.text
     assert "Sources:" in result.final_answer.text
@@ -409,20 +462,24 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
             "source_id": "https-example-com-one",
             "title": "Example One",
             "url": "https://example.com/one",
-            "snippet": "First summary",
+            "snippet": "Expanded summary one.",
         },
         {
             "source_id": "https-example-com-two",
             "title": "Example Two",
             "url": "https://example.com/two",
-            "snippet": "Second summary",
+            "snippet": "Expanded summary two.",
         },
     ]
     assert search_runner.captured_query == "latest agent news"
     assert search_runner.captured_max_results == 5
     assert search_runner.captured_freshness == "week"
-    assert search_runner.captured_include_domains == []
-    assert search_runner.captured_exclude_domains == []
+    assert search_runner.captured_include_domains is None
+    assert search_runner.captured_exclude_domains is None
+    assert crawl_runner.requested_urls == [
+        "https://example.com/one",
+        "https://example.com/two",
+    ]
     assert agent.captured_inputs is None
 
 
@@ -430,8 +487,15 @@ def test_run_agent_once_threads_retrieval_policy_into_runtime_and_quick_search()
     search_runner = StubQuickSearchRunner(
         payload={
             "query": "latest agent news",
-            "results": [],
-            "metadata": {"result_count": 0, "provider": "serper"},
+            "results": [
+                {
+                    "title": "Example One",
+                    "url": "https://example.com/one",
+                    "snippet": "First summary",
+                    "rank": {"position": 1, "provider_position": 1},
+                }
+            ],
+            "metadata": {"result_count": 1, "provider": "serper"},
             "meta": {
                 "operation": "web_search",
                 "attempts": 1,
@@ -439,6 +503,26 @@ def test_run_agent_once_threads_retrieval_policy_into_runtime_and_quick_search()
                 "duration_ms": 12,
                 "timings": {"total_ms": 12, "provider_ms": 8},
             },
+        }
+    )
+    crawl_runner = StubQuickCrawlRunner(
+        payloads_by_url={
+            "https://example.com/one": {
+                "url": "https://example.com/one",
+                "final_url": "https://example.com/one",
+                "text": "Expanded summary one.",
+                "markdown": "Expanded summary one.",
+                "status_code": 200,
+                "content_type": "text/html",
+                "fallback_reason": None,
+                "meta": {
+                    "operation": "web_crawl",
+                    "attempts": 1,
+                    "retries": 0,
+                    "duration_ms": 20,
+                    "timings": {"total_ms": 20},
+                },
+            }
         }
     )
     retrieval_policy = AgentRunRetrievalPolicy.model_validate(
@@ -455,21 +539,33 @@ def test_run_agent_once_threads_retrieval_policy_into_runtime_and_quick_search()
         "latest agent news",
         "quick",
         retrieval_policy,
-        runtime_dependencies=RuntimeDependencies(quick_search_runner=search_runner),
+        runtime_dependencies=RuntimeDependencies(
+            quick_search_runner=search_runner,
+            quick_crawl_runner=crawl_runner,
+        ),
     )
 
     assert result.status == "completed"
     assert search_runner.captured_freshness == "week"
-    assert search_runner.captured_include_domains == ["example.com"]
-    assert search_runner.captured_exclude_domains == ["blocked.com"]
+    assert search_runner.captured_query == "latest agent news site:example.com -site:blocked.com"
+    assert search_runner.captured_include_domains is None
+    assert search_runner.captured_exclude_domains is None
+    assert crawl_runner.requested_urls == ["https://example.com/one"]
 
 
 def test_run_agent_once_infers_retrieval_policy_from_prompt_intent() -> None:
     search_runner = StubQuickSearchRunner(
         payload={
             "query": "Responses API update",
-            "results": [],
-            "metadata": {"result_count": 0, "provider": "serper"},
+            "results": [
+                {
+                    "title": "OpenAI Responses API",
+                    "url": "https://openai.com/docs/responses",
+                    "snippet": "Updated docs",
+                    "rank": {"position": 1, "provider_position": 1},
+                }
+            ],
+            "metadata": {"result_count": 1, "provider": "serper"},
             "meta": {
                 "operation": "web_search",
                 "attempts": 1,
@@ -479,17 +575,44 @@ def test_run_agent_once_infers_retrieval_policy_from_prompt_intent() -> None:
             },
         }
     )
+    crawl_runner = StubQuickCrawlRunner(
+        payloads_by_url={
+            "https://openai.com/docs/responses": {
+                "url": "https://openai.com/docs/responses",
+                "final_url": "https://openai.com/docs/responses",
+                "text": "OpenAI responses docs",
+                "markdown": "OpenAI responses docs",
+                "status_code": 200,
+                "content_type": "text/html",
+                "fallback_reason": None,
+                "meta": {
+                    "operation": "web_crawl",
+                    "attempts": 1,
+                    "retries": 0,
+                    "duration_ms": 20,
+                    "timings": {"total_ms": 20},
+                },
+            }
+        }
+    )
 
     result = run_agent_once(
         "Use official docs only to find the latest OpenAI Responses API update.",
         "quick",
-        runtime_dependencies=RuntimeDependencies(quick_search_runner=search_runner),
+        runtime_dependencies=RuntimeDependencies(
+            quick_search_runner=search_runner,
+            quick_crawl_runner=crawl_runner,
+        ),
     )
 
     assert result.status == "completed"
     assert search_runner.captured_freshness == "week"
-    assert search_runner.captured_include_domains == ["openai.com"]
-    assert search_runner.captured_exclude_domains == []
+    assert search_runner.captured_query == (
+        "Use official docs only to find the latest OpenAI Responses API update. site:openai.com"
+    )
+    assert search_runner.captured_include_domains is None
+    assert search_runner.captured_exclude_domains is None
+    assert crawl_runner.requested_urls == ["https://openai.com/docs/responses"]
 
 
 def test_run_agent_once_maps_quick_search_provider_failures() -> None:
@@ -1117,6 +1240,26 @@ def test_run_agent_once_rejects_out_of_bounds_citation_spans() -> None:
 @pytest.mark.parametrize("mode", ["quick", "agentic", "deep_research"])
 def test_run_agent_once_has_a_happy_path_for_each_mode(mode: AgentRunMode) -> None:
     if mode == "quick":
+        crawl_runner = StubQuickCrawlRunner(
+            payloads_by_url={
+                "https://example.com/one": {
+                    "url": "https://example.com/one",
+                    "final_url": "https://example.com/one",
+                    "text": "Expanded summary one.",
+                    "markdown": "Expanded summary one.",
+                    "status_code": 200,
+                    "content_type": "text/html",
+                    "fallback_reason": None,
+                    "meta": {
+                        "operation": "web_crawl",
+                        "attempts": 1,
+                        "retries": 0,
+                        "duration_ms": 20,
+                        "timings": {"total_ms": 20},
+                    },
+                }
+            }
+        )
         result = run_agent_once(
             "latest agent news",
             mode,
@@ -1141,11 +1284,12 @@ def test_run_agent_once_has_a_happy_path_for_each_mode(mode: AgentRunMode) -> No
                             "timings": {"total_ms": 12, "provider_ms": 8},
                         },
                     }
-                )
+                ),
+                quick_crawl_runner=crawl_runner,
             ),
         )
         assert result.status == "completed"
-        assert result.tool_call_count == 1
+        assert result.tool_call_count == 2
         assert str(result.sources[0].url) == "https://example.com/one"
         return
 
