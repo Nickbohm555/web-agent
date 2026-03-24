@@ -5,7 +5,7 @@ from time import perf_counter
 
 from backend.app.crawler.browser_worker import BrowserFetchWorker
 from backend.app.crawler.content_normalizer import normalize_browser_content, normalize_http_content
-from backend.app.crawler.error_mapping import map_classification_error
+from backend.app.crawler.error_mapping import map_classification_error, map_crawl_failure
 from backend.app.crawler.extractor import extract_content
 from backend.app.crawler.fetch_strategy import (
     classify_http_result,
@@ -68,10 +68,6 @@ class FetchOrchestrator:
 
         http_result = self._http_fetch_worker.fetch(url=url)
         if isinstance(http_result, HttpFetchFailure):
-            if http_result.error.kind not in {"network_error", "unsupported_content_type"} and (
-                http_result.status_code not in {401, 403}
-            ):
-                return WebCrawlError(error=http_result.error, meta=http_result.meta)
             classification = classify_http_result(
                 fetch_result=http_result,
                 extraction_result=None,
@@ -86,7 +82,7 @@ class FetchOrchestrator:
                     block_reason=classification,
                     challenge_detected=classification == "challenge_detected",
                 )
-            return WebCrawlError(error=http_result.error, meta=http_result.meta)
+            return map_crawl_failure(http_result)
 
         return self._finish_http_result(
             fetch_result=http_result,
@@ -105,16 +101,16 @@ class FetchOrchestrator:
         url: str,
         started_at: float,
     ) -> CrawlSuccessEnvelope | WebCrawlError:
-        body, content_type = normalize_http_content(fetch_result)
+        normalized_content = normalize_http_content(fetch_result)
         extraction_result = extract_content(
-            body=body,
-            content_type=content_type,
+            body=normalized_content.body,
+            content_type=normalized_content.content_type,
             objective=objective,
         )
         classification = classify_http_result(
             fetch_result=None,
             extraction_result=extraction_result,
-            response_body=body,
+            response_body=normalized_content.body,
         )
         if classification == "success":
             return CrawlSuccessEnvelope(
@@ -165,25 +161,22 @@ class FetchOrchestrator:
             session_match=session_match,
         )
         if isinstance(browser_result, BrowserFetchFailure):
-            return map_classification_error(
-                kind="browser_navigation_failed",
+            return map_crawl_failure(
+                browser_result,
                 total_ms=_elapsed_ms(started_at),
-                status_code=browser_result.status_code,
-                attempt_number=browser_result.meta.attempts,
-                message=browser_result.error.message,
             )
 
-        body, content_type = normalize_browser_content(browser_result)
+        normalized_content = normalize_browser_content(browser_result)
         extraction_result = extract_content(
-            body=body,
-            content_type=content_type,
+            body=normalized_content.body,
+            content_type=normalized_content.content_type,
             objective=objective,
         )
         if extraction_result.state != "ok":
             classification = classify_http_result(
                 fetch_result=None,
                 extraction_result=extraction_result,
-                response_body=body,
+                response_body=normalized_content.body,
             )
             return map_classification_error(
                 kind=classification,
