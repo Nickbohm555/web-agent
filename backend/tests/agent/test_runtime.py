@@ -281,6 +281,12 @@ def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
     assert "always include an objective" in prompt
 
 
+def test_system_prompt_instructs_agent_to_batch_selected_url_opens() -> None:
+    prompt = build_system_prompt(profile=RUNTIME_PROFILES["agentic"])
+
+    assert "call web_crawl with multiple selected URLs in one call" in prompt
+
+
 def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
     registry = extract_sources(
         {

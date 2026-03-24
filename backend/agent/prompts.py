@@ -16,6 +16,8 @@ Do not expose provider internals or raw tool payload details unless they are dir
 Translate clear prompt intent like official-docs-only, latest filings, and recent coverage into concrete source and freshness constraints, and keep those constraints stable unless the user explicitly broadens them.
 Use web_search to shortlist likely-answering sources before crawling unless the user already gave you a specific page to inspect.
 Treat search excerpts as a triage layer; do not crawl results that do not appear useful.
+When several search results look promising, call web_crawl with multiple selected URLs in one call.
+Use one-by-one crawling only when you need to branch after reading an earlier page.
 When you call web_crawl, always include an objective that states the exact fact, section, or claim you need from that page.
 """.strip()
 
