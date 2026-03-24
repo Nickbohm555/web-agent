@@ -15,8 +15,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Tool Contract Alignment** - Rename the currently exposed open-page tool contract from `web_extract` to `open_url` and align retrieval names across all modes.
 - [ ] **Phase 2: Deep Agents Run Lifecycle** - Replace the placeholder deep-research flow with a `create_deep_agent(...)` supervisor that can clarify and resume.
 - [ ] **Phase 3: Deep Agents Persistence Backbone** - Use Deep Agents backends plus `langgraph-checkpoint-postgres` for durable planning state and inspectable progress.
-- [ ] **Phase 4: Deep Agents Research Fan-Out** - Run plan-derived subquestions through Deep Agents subagents that reuse existing retrieval behavior.
-- [ ] **Phase 5: Evidence-Grounded Completion** - Inject normalized evidence into subagent and final AI messages while gating final answers on sufficient coverage.
+- [ ] **Phase 4: Deep Agents Research Fan-Out** - Run plan-derived subquestions through Deep Agents subagents that return subanswers plus normalized evidence from existing retrieval behavior.
+- [ ] **Phase 5: Evidence-Grounded Completion** - Use middleware as an enforcement and normalization layer so synthesis only completes once evidence from each subagent result is extracted and sufficient.
 
 ## Phase Details
 
@@ -65,33 +65,35 @@ Plans:
 - [ ] 03-02: Add `langgraph-checkpoint-postgres` thread checkpointing plus inspectable progress logging and artifact persistence for resume.
 
 ### Phase 4: Deep Agents Research Fan-Out
-**Goal**: Users can have plan-derived research threads executed in parallel by Deep Agents subagents that reuse the system's existing search and page-opening capabilities.
+**Goal**: Users can have plan-derived research threads executed in parallel by Deep Agents subagents that each answer an assigned subquestion and return reusable evidence from the existing retrieval stack.
 **Depends on**: Phase 3
 **Requirements**: RSCH-01, RSCH-02
 **Success Criteria** (what must be TRUE):
   1. User can have the Deep Agents supervisor spawn parallel Deep Agents subagents for the subquestions produced by the plan.
   2. User can have each Deep Agents subagent use the same `web_search` and `open_url` retrieval behavior already supported by the project.
-  3. User can observe parallel research progress in persisted logs or artifacts as Deep Agents subagents complete their work.
+  3. User can have each Deep Agents subagent return a subanswer for its assigned subquestion together with search-result sources from `web_search` items and citations from crawled or opened pages.
+  4. User can observe parallel research progress in persisted logs or artifacts as Deep Agents subagents complete their work.
 **Plans**: TBD
 
 Plans:
 - [ ] 04-01: Wire Deep Agents `task`-style delegation from the supervisor to parallel research subagents.
-- [ ] 04-02: Connect Deep Agents research subagents to the existing retrieval tooling and execution policy.
+- [ ] 04-02: Connect Deep Agents research subagents to the existing retrieval tooling and make each result carry a subanswer plus normalized search sources and crawl citations.
 
 ### Phase 5: Evidence-Grounded Completion
-**Goal**: Users receive a final deep-research answer only after middleware injects normalized evidence into subagent AI messages and again into the final supervisor answer, while the top-level API shape stays unchanged.
+**Goal**: Users receive a final deep-research answer only after middleware has enforced evidence-bearing subagent outputs and the supervisor has extracted and normalized those results for synthesis, while the top-level API shape stays unchanged.
 **Depends on**: Phase 4
 **Requirements**: RSCH-03, RSCH-04, DEEP-04, TOOL-03
 **Success Criteria** (what must be TRUE):
-  1. User can have each research subagent return an AI message whose content has normalized search-result sources and crawl-result citations injected by middleware.
-  2. User can have the Deep Agents supervisor continue researching until it determines enough evidence exists to answer the original question deeply.
-  3. User receives a final deep-research answer only after the supervisor injects normalized evidence into the final AI message and decides the planned subquestions have been answered well enough.
-  4. User keeps the current top-level `deep_research` API response shape while evidence remains embedded inside AI message content.
+  1. User can have each research subagent return an AI message whose content includes a subanswer plus normalized search-result sources and crawl-result citations, with middleware acting as the reminder and enforcement layer that keeps those fields present.
+  2. User can have the Deep Agents supervisor extract and normalize the subanswer, search sources, and crawl citations from each subagent result before final synthesis.
+  3. User can have the Deep Agents supervisor continue researching until it determines enough evidence exists to answer the original question deeply.
+  4. User receives a final deep-research answer only after the supervisor decides the planned subquestions have been answered well enough and attaches normalized evidence in the final AI message content.
+  5. User keeps the current top-level `deep_research` API response shape while evidence remains embedded inside AI message content.
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: Inject normalized search sources and crawl citations into Deep Agents subagent AIMessage output through middleware.
-- [ ] 05-02: Inject normalized evidence into the final supervisor answer and gate completion on coverage without changing the existing top-level response envelope.
+- [ ] 05-01: Add middleware that reminds and enforces Deep Agents subagents to return subanswers with normalized search sources and crawl citations.
+- [ ] 05-02: Extract and normalize evidence from each subagent result for final supervisor synthesis and completion gating without changing the existing top-level response envelope.
 
 ## Progress
 

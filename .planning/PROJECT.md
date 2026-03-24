@@ -22,8 +22,8 @@ Deep research must be able to break a complex question into the right research t
 - [ ] Deep-research mode uses an orchestrator-driven Deep Agents workflow instead of the current queued placeholder flow
 - [ ] Deep-research runs can pause to ask a single clarifying question and resume after the user answers
 - [ ] Deep-research planning artifacts persist through doc-aligned Deep Agents backends, while thread history and resume use LangGraph/Postgres checkpointing
-- [ ] Deep-research research subagents execute parallel subquestions using the existing web retrieval behavior
-- [ ] Research subagent responses are normalized through middleware so AI messages carry search-result sources and crawl-result citations
+- [ ] Deep-research research subagents execute parallel subquestions using the existing web retrieval behavior and return a subanswer for each assigned subquestion
+- [ ] Research subagent responses carry a subanswer plus normalized search-result sources and crawl-result citations, with middleware enforcing and helping normalize that result shape for synthesis
 - [ ] Tool naming is aligned across quick, agentic, and deep-research modes so the currently exposed open-page tool contract moves to `open_url` and search remains `web_search`
 
 ### Out of Scope
@@ -54,7 +54,7 @@ The current frontend already has run-history and event plumbing, which makes it 
 | Deep-research will use a `create_deep_agent(...)`-centered Deep Agents workflow | The current queued flow does not satisfy the need for planning, delegation, and stop-when-enough coverage | — Pending |
 | Clarification happens as a single question at a time | Keeps the user interaction loop simple and matches the desired resume flow | — Pending |
 | Planning artifacts use Deep Agents backends while thread resume uses `langgraph-checkpoint-postgres` | Docs align `FilesystemBackend` with local disk use and recommend `StateBackend`, `StoreBackend`, or sandbox backends for web servers and HTTP APIs | — Pending |
-| Final sources and citations stay inside AI message content via middleware rather than becoming new top-level response fields | Preserves the existing API shape while still making evidence available to the orchestrator and final answer | — Pending |
+| Final evidence stays inside AI message content, while middleware enforces evidence-bearing subagent outputs and helps the supervisor normalize them | Preserves the existing API shape while still making subanswers, sources, and citations available to the orchestrator and final answer | — Pending |
 | Tool naming is normalized across all three execution modes | Consistent tool names reduce prompt/tool drift and align the current open-page contract to `open_url` while keeping `web_search` stable | — Pending |
 
 ## Evolution
