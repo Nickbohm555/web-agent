@@ -8,15 +8,15 @@ Status: Approved in chat
 Preserve the current two-tool research pattern:
 
 - `web_search` to gather candidate URLs and snippets
-- `web_crawl` to open pages and read their contents
+- `open_url` to open pages and read their contents
 
 while adding guaranteed parallel fan-out for page reads so the LLM can choose multiple promising URLs from search results and open them concurrently with deterministic backend behavior.
 
-This design is intended to merge into the final session-aware `web_crawl` contract rather than land as a separate intermediate crawl API.
+This design is intended to merge into the final session-aware `open_url` contract rather than land as a separate intermediate crawl API.
 
 ## Motivation
 
-The current runtime already lets the model inspect search snippets and decide which pages are worth reading. That matches the desired interaction model. The gap is execution: page reads are currently modeled as one `web_crawl` call per URL, which leaves concurrency up to agent behavior instead of backend guarantees.
+The current runtime already lets the model inspect search snippets and decide which pages are worth reading. That matches the desired interaction model. The gap is execution: page reads are currently modeled as one `open_url` call per URL, which leaves concurrency up to agent behavior instead of backend guarantees.
 
 For speed-sensitive search flows, prompt-level encouragement is not enough. We need a tool contract that guarantees concurrent reads when the model selects more than one URL.
 
@@ -36,14 +36,14 @@ The agent should:
 
 1. Call `web_search` to get titles, snippets, and URLs.
 2. Read the candidate list and decide which URLs are worth opening.
-3. Call `web_crawl` once with multiple chosen URLs when it wants to inspect several pages.
+3. Call `open_url` once with multiple chosen URLs when it wants to inspect several pages.
 4. Receive one structured batch result containing successful pages and per-URL failures.
 
 This preserves the "the LLM chose what to read" property while making the actual page reads parallel and faster.
 
 ## Recommended Approach
 
-Extend `web_crawl` so it supports both single-URL and multi-URL input.
+Extend `open_url` so it supports both single-URL and multi-URL input.
 
 Recommended input contract:
 
@@ -61,17 +61,17 @@ Validation rules:
 
 This preserves backward compatibility while giving the runtime a deterministic fan-out path.
 
-The important sequencing decision is that batch fan-out should be folded into the same final `web_crawl` contract used by the session-aware crawl work. Planning and implementation should converge on one combined entrypoint, one schema family, and one source/citation path.
+The important sequencing decision is that batch fan-out should be folded into the same final `open_url` contract used by the session-aware crawl work. Planning and implementation should converge on one combined entrypoint, one schema family, and one source/citation path.
 
 ## Why This Approach
 
 ### Compared with prompt-only parallelism
 
-Prompt-only guidance may encourage the model to issue multiple `web_crawl` calls in one turn, but it does not guarantee parallel execution and does not provide a clean batch result shape. It is too opportunistic for a speed-critical requirement.
+Prompt-only guidance may encourage the model to issue multiple `open_url` calls in one turn, but it does not guarantee parallel execution and does not provide a clean batch result shape. It is too opportunistic for a speed-critical requirement.
 
 ### Compared with a new `web_open_many` tool
 
-A separate batch tool would work technically, but it adds another tool concept and drifts away from the current two-tool mental model. Extending `web_crawl` keeps the public interaction simple: search, then open.
+A separate batch tool would work technically, but it adds another tool concept and drifts away from the current two-tool mental model. Extending `open_url` keeps the public interaction simple: search, then open.
 
 ## Proposed Runtime Contract
 
@@ -104,15 +104,15 @@ New schema files should live under `backend/app/tools/schemas/` and remain categ
 
 Recommended additions:
 
-- `web_crawl_batch.py`
+- `open_url_batch.py`
 - optionally a shared per-URL result model if it improves reuse
-- update `backend/app/contracts/web_crawl.py` alongside the new schemas so the compatibility layer matches the final combined contract
+- update `backend/app/contracts/open_url.py` alongside the new schemas so the compatibility layer matches the final combined contract
 
 Recommended models:
 
-- `WebCrawlBatchInput`
-- `WebCrawlBatchItemResult`
-- `WebCrawlBatchSuccess`
+- `OpenUrlBatchInput`
+- `OpenUrlBatchItemResult`
+- `OpenUrlBatchSuccess`
 
 Suggested shape:
 
@@ -149,7 +149,7 @@ Suggested shape:
         "retryable": true,
         "status_code": 504,
         "attempt_number": 1,
-        "operation": "web_crawl",
+        "operation": "open_url",
         "timings": {
           "total_ms": 2000
         }
@@ -157,7 +157,7 @@ Suggested shape:
     }
   ],
   "meta": {
-    "operation": "web_crawl",
+    "operation": "open_url",
     "attempts": 1,
     "retries": 0,
     "duration_ms": 2100,
@@ -179,19 +179,19 @@ Batch item success should reuse the current single-page success semantics as clo
 
 ## Execution Design
 
-To keep runtime paths explicit and files focused, batch orchestration should be split into small modules rather than added directly into one large `web_crawl.py` file.
+To keep runtime paths explicit and files focused, batch orchestration should be split into small modules rather than added directly into one large `open_url.py` file.
 
 Recommended responsibility split:
 
-- `backend/app/tools/web_crawl.py`
+- `backend/app/tools/open_url.py`
   - tool entrypoint
   - single-vs-batch dispatch
   - policy checks at the tool boundary
-- `backend/app/tools/web_crawl_batch.py`
+- `backend/app/tools/open_url_batch.py`
   - batch orchestration
   - concurrency control
   - result aggregation
-- `backend/app/tools/schemas/web_crawl_batch.py`
+- `backend/app/tools/schemas/open_url_batch.py`
   - batch request/response models
 - existing crawler modules
   - continue doing per-page fetch and extraction
@@ -223,7 +223,7 @@ Batch behavior should:
 - validate each URL before fetch
 - reject the whole request only for request-shape errors such as missing `url`/`urls`, empty `urls`, malformed URLs, or batch size above the hard cap
 - surface policy-blocked URLs as per-item `invalid_request` failures so mixed batches can still return useful page reads
-- keep domain scoping behavior aligned with existing `web_crawl`
+- keep domain scoping behavior aligned with existing `open_url`
 - preserve existing content-size truncation behavior per successful page where needed
 
 The tool should enforce a hard upper bound on batch size to protect latency, provider load, and context growth.
@@ -234,7 +234,7 @@ The system prompt should be updated so the agent is explicitly instructed to:
 
 - use `web_search` to shortlist candidate URLs
 - decide what to open from titles and snippets
-- call `web_crawl` with multiple selected URLs in one call when several pages appear worth reading
+- call `open_url` with multiple selected URLs in one call when several pages appear worth reading
 - avoid serialized one-by-one crawling unless it must branch after reading an earlier page
 
 This keeps the LLM in charge of selection while making the backend responsible for guaranteed fan-out.
@@ -258,7 +258,7 @@ Batch crawl results must integrate cleanly with the existing source registry and
 
 Rules:
 
-- every successful batch item is flattened into the same source extraction path currently used for `WebCrawlSuccess`
+- every successful batch item is flattened into the same source extraction path currently used for `OpenUrlSuccess`
 - fallback-success items remain valid sources if they produce a normal crawl success payload
 - failed batch items do not become sources
 - `runtime_sources.extract_sources()` or its crawl-specific helpers must be extended to recognize batch crawl payloads and emit one source record per successful item
@@ -284,10 +284,10 @@ If feasible, include a test that demonstrates the batch path completes faster th
 
 Phase 1:
 
-- reconcile this design with the approved session-aware crawl spec into one final `web_crawl` contract
+- reconcile this design with the approved session-aware crawl spec into one final `open_url` contract
 - add batch schemas
 - add batch execution module
-- extend `web_crawl` entrypoint to accept `urls`
+- extend `open_url` entrypoint to accept `urls`
 - keep single-URL behavior untouched
 
 Phase 2:
@@ -309,12 +309,12 @@ Phase 3:
 
 ## Final Recommendation
 
-Implement guaranteed parallel fan-out by extending `web_crawl` to support batch input while preserving the current two-tool pattern.
+Implement guaranteed parallel fan-out by extending `open_url` to support batch input while preserving the current two-tool pattern.
 
 This gives the LLM the exact role we want:
 
 - `web_search` shows the menu
 - the LLM chooses what to read
-- `web_crawl` opens the chosen pages in parallel
+- `open_url` opens the chosen pages in parallel
 
 That is the closest fit to the desired behavior, the strongest answer to the speed requirement, and the cleanest evolution of the current architecture.

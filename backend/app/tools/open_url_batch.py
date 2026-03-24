@@ -5,33 +5,33 @@ from time import perf_counter
 from typing import Callable
 
 from backend.app.tools.schemas.tool_errors import ToolError, ToolTimings
-from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlMeta, WebCrawlSuccess, WebCrawlToolResult
-from backend.app.tools.schemas.web_crawl_batch import (
-    WebCrawlBatchItemResult,
-    WebCrawlBatchSuccess,
-    WebCrawlBatchSummary,
+from backend.app.tools.schemas.open_url import OpenUrlError, OpenUrlMeta, OpenUrlSuccess, OpenUrlToolResult
+from backend.app.tools.schemas.open_url_batch import (
+    OpenUrlBatchItemResult,
+    OpenUrlBatchSuccess,
+    OpenUrlBatchSummary,
 )
 
 PER_URL_TIMEOUT_SECONDS = 15
 MAX_BATCH_WORKERS = 5
 
 
-def run_web_crawl_batch(
+def run_open_url_batch(
     *,
     urls: list[str],
-    crawl_one: Callable[[str], WebCrawlToolResult],
-) -> WebCrawlBatchSuccess:
+    crawl_one: Callable[[str], OpenUrlToolResult],
+) -> OpenUrlBatchSuccess:
     """Run deterministic parallel crawl fan-out and return ordered typed batch results.
 
-    Example input: `run_web_crawl_batch(urls=["https://example.com/a"], crawl_one=my_crawl)`
-    Example output: `WebCrawlBatchSuccess(requested_urls=["https://example.com/a"], items=[...], ...)`
+    Example input: `run_open_url_batch(urls=["https://example.com/a"], crawl_one=my_crawl)`
+    Example output: `OpenUrlBatchSuccess(requested_urls=["https://example.com/a"], items=[...], ...)`
     """
     operation_start = perf_counter()
     requested_urls = list(urls)
 
     with ThreadPoolExecutor(max_workers=min(len(requested_urls), MAX_BATCH_WORKERS)) as pool:
-        futures: dict[Future[WebCrawlToolResult], str] = {}
-        results_by_url: dict[str, WebCrawlBatchItemResult] = {}
+        futures: dict[Future[OpenUrlToolResult], str] = {}
+        results_by_url: dict[str, OpenUrlBatchItemResult] = {}
 
         for url in requested_urls:
             futures[pool.submit(crawl_one, url)] = url
@@ -42,11 +42,11 @@ def run_web_crawl_batch(
     succeeded = sum(1 for item in ordered_items if item.status == "succeeded")
     failed = len(ordered_items) - succeeded
     total_ms = _elapsed_ms(operation_start)
-    return WebCrawlBatchSuccess(
+    return OpenUrlBatchSuccess(
         requested_urls=requested_urls,
         items=ordered_items,
-        meta=WebCrawlMeta(
-            operation="web_crawl",
+        meta=OpenUrlMeta(
+            operation="open_url",
             attempts=max(len(requested_urls), 1),
             retries=0,
             duration_ms=total_ms,
@@ -56,7 +56,7 @@ def run_web_crawl_batch(
             rendered=False,
             challenge_detected=False,
         ),
-        summary=WebCrawlBatchSummary(
+        summary=OpenUrlBatchSummary(
             attempted=len(requested_urls),
             succeeded=succeeded,
             failed=failed,
@@ -65,9 +65,9 @@ def run_web_crawl_batch(
 
 
 def _await_batch_futures(
-    futures: dict[Future[WebCrawlToolResult], str],
-) -> dict[str, WebCrawlBatchItemResult]:
-    results_by_url: dict[str, WebCrawlBatchItemResult] = {}
+    futures: dict[Future[OpenUrlToolResult], str],
+) -> dict[str, OpenUrlBatchItemResult]:
+    results_by_url: dict[str, OpenUrlBatchItemResult] = {}
     pending = set(futures)
 
     while pending:
@@ -95,18 +95,18 @@ def _await_batch_futures(
     return results_by_url
 
 
-def _build_batch_item(*, url: str, payload: WebCrawlToolResult) -> WebCrawlBatchItemResult:
+def _build_batch_item(*, url: str, payload: OpenUrlToolResult) -> OpenUrlBatchItemResult:
     success = _try_validate_success(payload)
     if success is not None:
-        return WebCrawlBatchItemResult(
+        return OpenUrlBatchItemResult(
             url=url,
             status="succeeded",
             result=success,
             error=None,
         )
 
-    error = WebCrawlError.model_validate(payload)
-    return WebCrawlBatchItemResult(
+    error = OpenUrlError.model_validate(payload)
+    return OpenUrlBatchItemResult(
         url=url,
         status="failed",
         result=None,
@@ -114,39 +114,39 @@ def _build_batch_item(*, url: str, payload: WebCrawlToolResult) -> WebCrawlBatch
     )
 
 
-def _build_timeout_item(url: str) -> WebCrawlBatchItemResult:
-    return WebCrawlBatchItemResult(
+def _build_timeout_item(url: str) -> OpenUrlBatchItemResult:
+    return OpenUrlBatchItemResult(
         url=url,
         status="failed",
         result=None,
         error=ToolError(
             kind="timeout",
-            message="web crawl timed out",
+            message="open_url timed out",
             retryable=False,
-            operation="web_crawl",
+            operation="open_url",
             timings=ToolTimings(total_ms=PER_URL_TIMEOUT_SECONDS * 1000),
         ),
     )
 
 
-def _build_exception_item(url: str, exc: Exception) -> WebCrawlBatchItemResult:
-    return WebCrawlBatchItemResult(
+def _build_exception_item(url: str, exc: Exception) -> OpenUrlBatchItemResult:
+    return OpenUrlBatchItemResult(
         url=url,
         status="failed",
         result=None,
         error=ToolError(
             kind="internal_error",
-            message=str(exc) or "unexpected web_crawl failure",
+            message=str(exc) or "unexpected open_url failure",
             retryable=False,
-            operation="web_crawl",
+            operation="open_url",
             timings=ToolTimings(total_ms=0),
         ),
     )
 
 
-def _try_validate_success(payload: WebCrawlToolResult) -> WebCrawlSuccess | None:
+def _try_validate_success(payload: OpenUrlToolResult) -> OpenUrlSuccess | None:
     try:
-        return WebCrawlSuccess.model_validate(payload)
+        return OpenUrlSuccess.model_validate(payload)
     except Exception:
         return None
 

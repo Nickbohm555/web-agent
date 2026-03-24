@@ -67,11 +67,11 @@ def test_extraction_result_from_fetch_failure_maps_network_error_state() -> None
             message="request failed before a response was received",
             retryable=True,
             attempt_number=3,
-            operation="web_crawl",
+            operation="open_url",
             timings=ToolTimings(total_ms=125),
         ),
         meta=ToolMeta(
-            operation="web_crawl",
+            operation="open_url",
             attempts=3,
             retries=2,
             duration_ms=125,

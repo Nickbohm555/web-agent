@@ -34,7 +34,7 @@ from backend.agent.schemas import (
     AgentRunResult,
     AgentRuntimeProfile,
 )
-from backend.app.tools.web_crawl import build_web_crawl_tool, run_web_crawl, web_crawl
+from backend.app.tools.open_url import build_open_url_tool, run_open_url, open_url
 from backend.app.tools.web_search import build_web_search_tool, web_search
 
 
@@ -136,7 +136,7 @@ def build_runtime_dependencies() -> RuntimeDependencies:
     return RuntimeDependencies(
         agent_factory=build_default_agent,
         quick_search_runner=run_quick_search,
-        quick_crawl_runner=run_web_crawl,
+        quick_crawl_runner=run_open_url,
         quick_runtime_runner=run_quick_mode,
         deep_research_runner=run_deep_research_mode,
     )
@@ -147,7 +147,7 @@ def get_runtime_profile(mode: AgentRunMode) -> AgentRuntimeProfile:
 
 
 def get_canonical_tools() -> tuple[Any, Any]:
-    return (web_search, web_crawl)
+    return (web_search, open_url)
 
 
 def get_tools_for_profile(
@@ -160,7 +160,7 @@ def get_tools_for_profile(
         build_web_search_tool(
             max_results_cap=profile.max_search_results,
         ),
-        build_web_crawl_tool(
+        build_open_url_tool(
             max_content_chars=profile.max_crawl_chars,
         ),
     )
@@ -400,7 +400,7 @@ def get_quick_runtime_runner(runtime_dependencies: RuntimeDependencies) -> Quick
 
 
 def get_quick_crawl_runner(runtime_dependencies: RuntimeDependencies) -> QuickCrawlRunner:
-    return runtime_dependencies.quick_crawl_runner or run_web_crawl
+    return runtime_dependencies.quick_crawl_runner or run_open_url
 
 
 def get_deep_research_runtime_runner(

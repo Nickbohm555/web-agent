@@ -4,7 +4,7 @@ from typing import Optional
 
 from backend.app.crawler.schemas.browser_fetch import BrowserFetchFailure
 from backend.app.tools.schemas.tool_errors import ToolError, ToolTimings
-from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlMeta
+from backend.app.tools.schemas.open_url import OpenUrlError, OpenUrlMeta
 
 
 def map_crawl_failure(
@@ -21,20 +21,20 @@ def map_crawl_failure(
     block_reason: Optional[str] = None,
     rendered: bool = False,
     challenge_detected: bool = False,
-) -> WebCrawlError:
+) -> OpenUrlError:
     timings = ToolTimings(total_ms=total_ms)
-    return WebCrawlError(
+    return OpenUrlError(
         error=ToolError(
             kind=kind,
             message=message,
             retryable=retryable,
             status_code=status_code,
             attempt_number=attempt_number if retryable else None,
-            operation="web_crawl",
+            operation="open_url",
             timings=timings,
         ),
-        meta=WebCrawlMeta(
-            operation="web_crawl",
+        meta=OpenUrlMeta(
+            operation="open_url",
             attempts=max(attempt_number, 1),
             retries=max(attempt_number - 1, 0),
             duration_ms=total_ms,
@@ -55,7 +55,7 @@ def map_browser_failure(
     total_ms: int,
     session_profile_id: Optional[str],
     escalation_count: int,
-) -> WebCrawlError:
+) -> OpenUrlError:
     return map_crawl_failure(
         kind=failure.error.kind,
         message=failure.error.message,

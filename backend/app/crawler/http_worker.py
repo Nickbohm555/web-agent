@@ -65,7 +65,7 @@ class HttpFetchWorker:
                 content_type=normalized_content_type(response),
                 body=body,
                 meta=ToolMeta(
-                    operation="web_crawl",
+                    operation="open_url",
                     attempts=retry_result.attempts,
                     retries=retry_result.attempts - 1,
                     duration_ms=total_ms,
@@ -87,11 +87,11 @@ class HttpFetchWorker:
                     retryable=exc.retryable,
                     status_code=exc.status_code,
                     attempt_number=attempts,
-                    operation="web_crawl",
+                    operation="open_url",
                     timings=timings,
                 ),
                 meta=ToolMeta(
-                    operation="web_crawl",
+                    operation="open_url",
                     attempts=attempts,
                     retries=max(attempts - 1, 0),
                     duration_ms=total_ms,

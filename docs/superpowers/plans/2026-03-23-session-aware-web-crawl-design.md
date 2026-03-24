@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Upgrade `web_crawl(url, objective)` into a session-aware, multi-strategy crawl pipeline that can escalate from HTTP to browser-backed retrieval, seed stored session state by domain, and return typed success only when real evidence is recovered.
+**Goal:** Upgrade `open_url(url, objective)` into a session-aware, multi-strategy crawl pipeline that can escalate from HTTP to browser-backed retrieval, seed stored session state by domain, and return typed success only when real evidence is recovered.
 
-**Architecture:** Keep `web_crawl` as the only agent-facing crawl surface, but move fetch decision-making into deterministic crawler modules. Resolve a matched session profile first, run HTTP when allowed, classify the result, escalate to a Playwright browser worker when needed, normalize HTTP/browser content into one extraction path, and map no-evidence endings into typed failures instead of silent success. Keep modules atomic: schemas stay feature-local under `backend/app/crawler/schemas/`, orchestration stays in small focused files, and runtime/source registration only treats evidence-bearing crawl successes as sources.
+**Architecture:** Keep `open_url` as the only agent-facing crawl surface, but move fetch decision-making into deterministic crawler modules. Resolve a matched session profile first, run HTTP when allowed, classify the result, escalate to a Playwright browser worker when needed, normalize HTTP/browser content into one extraction path, and map no-evidence endings into typed failures instead of silent success. Keep modules atomic: schemas stay feature-local under `backend/app/crawler/schemas/`, orchestration stays in small focused files, and runtime/source registration only treats evidence-bearing crawl successes as sources.
 
 **Tech Stack:** FastAPI backend, Pydantic v2 schemas, `httpx`, Playwright Python, `trafilatura`, LangChain tool wrappers, `pytest`, Docker Compose
 
@@ -27,7 +27,7 @@
 - `backend/app/crawler/content_normalizer.py`
   - Normalize HTTP and browser payloads into one extraction-ready content model.
 - `backend/app/crawler/error_mapping.py`
-  - Map internal crawl failures/classifications into typed `WebCrawlError` payloads.
+  - Map internal crawl failures/classifications into typed `OpenUrlError` payloads.
 - `backend/app/crawler/schemas/session_profile.py`
   - `SessionProfile`, `SessionCookie`, `SessionHeader`, `StorageSeedEntry`, `DomainSessionMatch`.
 - `backend/app/crawler/schemas/browser_fetch.py`
@@ -53,17 +53,17 @@
   - Extend HTTP result models only if orchestration needs additional stable fields.
 - `backend/app/crawler/schemas/__init__.py`
   - Export new crawler-local schemas.
-- `backend/app/tools/schemas/web_crawl.py`
+- `backend/app/tools/schemas/open_url.py`
   - Extend crawl success/error metadata and remove any shape drift with new classifications.
 - `backend/app/tools/schemas/__init__.py`
   - Re-export updated crawl tool schemas if needed.
-- `backend/app/tools/web_crawl.py`
+- `backend/app/tools/open_url.py`
   - Replace direct `HttpFetchWorker` orchestration with the new fetch orchestrator while keeping the same tool surface and accurate tool description.
 - `backend/agent/runtime_sources.py`
   - Only register crawl sources when success payloads contain evidence-bearing content.
 - `backend/agent/runtime_execution.py`
   - Warn or tighten behavior around tool-backed completions with zero sources after crawl attempts.
-- `backend/tests/tools/test_web_crawl_tool.py`
+- `backend/tests/tools/test_open_url_tool.py`
   - Update tool contract tests for strategy metadata, escalation, and typed no-evidence failures.
 - `backend/tests/agent/test_runtime.py`
   - Add runtime regressions for zero-evidence completions and source registration behavior.
@@ -77,20 +77,20 @@
 ### Existing Files To Read Before Editing
 
 - `docs/superpowers/specs/2026-03-23-session-aware-web-crawl-design.md`
-- `backend/app/tools/web_crawl.py`
-- `backend/app/tools/schemas/web_crawl.py`
+- `backend/app/tools/open_url.py`
+- `backend/app/tools/schemas/open_url.py`
 - `backend/app/crawler/http_worker.py`
 - `backend/app/crawler/extractor.py`
 - `backend/agent/runtime_sources.py`
 - `backend/agent/runtime_execution.py`
-- `backend/tests/tools/test_web_crawl_tool.py`
+- `backend/tests/tools/test_open_url_tool.py`
 - `backend/tests/agent/test_runtime.py`
 
 ### Planned Cleanup / Migration
 
-- Stop importing crawl schemas from misplaced top-level files in `backend/app/schemas/web_crawl.py` and `backend/app/schemas/__init__.py`.
-- Remove now-redundant top-level crawl schema exports once all imports point at `backend/app/tools/schemas/web_crawl.py` and `backend/app/crawler/schemas/*`.
-- Keep `backend/app/contracts/web_crawl.py` aligned or remove stale bridging only if the rest of the repo no longer needs it.
+- Stop importing crawl schemas from misplaced top-level files in `backend/app/schemas/open_url.py` and `backend/app/schemas/__init__.py`.
+- Remove now-redundant top-level crawl schema exports once all imports point at `backend/app/tools/schemas/open_url.py` and `backend/app/crawler/schemas/*`.
+- Keep `backend/app/contracts/open_url.py` aligned or remove stale bridging only if the rest of the repo no longer needs it.
 
 ### Implementation Notes
 
@@ -364,7 +364,7 @@ git commit -m "feat: add playwright crawl worker"
 - Create: `backend/app/crawler/content_normalizer.py`
 - Create: `backend/app/crawler/error_mapping.py`
 - Modify: `backend/app/crawler/schemas/http_fetch.py`
-- Modify: `backend/app/tools/schemas/web_crawl.py`
+- Modify: `backend/app/tools/schemas/open_url.py`
 - Test: `backend/tests/crawler/test_fetch_orchestrator.py`
 
 - [ ] **Step 1: Write the failing normalization/error tests**
@@ -427,67 +427,67 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/app/crawler/content_normalizer.py backend/app/crawler/error_mapping.py backend/app/crawler/schemas/http_fetch.py backend/app/tools/schemas/web_crawl.py backend/tests/crawler/test_fetch_orchestrator.py
+git add backend/app/crawler/content_normalizer.py backend/app/crawler/error_mapping.py backend/app/crawler/schemas/http_fetch.py backend/app/tools/schemas/open_url.py backend/tests/crawler/test_fetch_orchestrator.py
 git commit -m "feat: add crawl normalization and error mapping"
 ```
 
-## Task 5: Add Fetch Orchestrator And Rewire `web_crawl`
+## Task 5: Add Fetch Orchestrator And Rewire `open_url`
 
 **Files:**
 - Create: `backend/app/crawler/fetch_orchestrator.py`
-- Modify: `backend/app/tools/web_crawl.py`
+- Modify: `backend/app/tools/open_url.py`
 - Modify: `backend/app/crawler/extractor.py`
 - Modify: `backend/app/crawler/http_worker.py`
 - Modify: `backend/app/crawler/schemas/__init__.py`
 - Test: `backend/tests/crawler/test_fetch_orchestrator.py`
-- Test: `backend/tests/tools/test_web_crawl_tool.py`
+- Test: `backend/tests/tools/test_open_url_tool.py`
 
 - [ ] **Step 1: Write the failing orchestrator/tool tests**
 
 ```python
-from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess
-from backend.app.tools.web_crawl import run_web_crawl
+from backend.app.tools.schemas.open_url import OpenUrlError, OpenUrlSuccess
+from backend.app.tools.open_url import run_open_url
 
 
-def test_run_web_crawl_escalates_from_http_403_to_browser_success(fake_orchestrator) -> None:
-    payload = run_web_crawl(
+def test_run_open_url_escalates_from_http_403_to_browser_success(fake_orchestrator) -> None:
+    payload = run_open_url(
         url="https://en.wikipedia.org/wiki/Agent",
         objective="Find the lead summary",
         fetch_orchestrator=fake_orchestrator,
     )
 
-    result = WebCrawlSuccess.model_validate(payload)
+    result = OpenUrlSuccess.model_validate(payload)
     assert result.strategy_used == "browser"
     assert result.escalation_count == 1
     assert result.challenge_detected is False
 
 
-def test_run_web_crawl_returns_typed_failure_when_no_evidence_is_recovered(fake_orchestrator) -> None:
-    payload = run_web_crawl(
+def test_run_open_url_returns_typed_failure_when_no_evidence_is_recovered(fake_orchestrator) -> None:
+    payload = run_open_url(
         url="https://example.com/login",
         objective="Find the pricing table",
         fetch_orchestrator=fake_orchestrator.with_no_evidence_failure(),
     )
 
-    result = WebCrawlError.model_validate(payload)
+    result = OpenUrlError.model_validate(payload)
     assert result.error.kind == "low_content_quality"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_web_crawl_tool.py -k "escalates or no_evidence" -v`
-Expected: FAIL because `run_web_crawl()` does not accept orchestrator injection and still returns success for thin pages
+Run: `pytest backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_open_url_tool.py -k "escalates or no_evidence" -v`
+Expected: FAIL because `run_open_url()` does not accept orchestrator injection and still returns success for thin pages
 
 - [ ] **Step 3: Write minimal orchestrator integration**
 
 ```python
-def run_web_crawl(
+def run_open_url(
     *,
     url: str,
     objective: str | None = None,
     fetch_orchestrator: FetchOrchestrator | None = None,
-) -> WebCrawlToolResult:
-    validated_input = WebCrawlInput(url=url, objective=objective)
+) -> OpenUrlToolResult:
+    validated_input = OpenUrlInput(url=url, objective=objective)
     orchestrator = fetch_orchestrator or create_fetch_orchestrator()
     orchestrated = orchestrator.run(url=str(validated_input.url), objective=validated_input.objective)
     if orchestrated.error is not None:
@@ -510,14 +510,14 @@ def run_web_crawl(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_web_crawl_tool.py -k "escalates or no_evidence" -v`
+Run: `pytest backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_open_url_tool.py -k "escalates or no_evidence" -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/app/crawler/fetch_orchestrator.py backend/app/tools/web_crawl.py backend/app/crawler/extractor.py backend/app/crawler/http_worker.py backend/app/crawler/schemas/__init__.py backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_web_crawl_tool.py
-git commit -m "feat: orchestrate session-aware web crawl"
+git add backend/app/crawler/fetch_orchestrator.py backend/app/tools/open_url.py backend/app/crawler/extractor.py backend/app/crawler/http_worker.py backend/app/crawler/schemas/__init__.py backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_open_url_tool.py
+git commit -m "feat: orchestrate session-aware open_url"
 ```
 
 ## Task 6: Tighten Runtime Source Handling And Zero-Evidence Completion Warnings
@@ -539,7 +539,7 @@ def test_runtime_does_not_register_crawl_source_when_crawl_has_no_evidence() -> 
             "messages": [
                 {
                     "role": "tool",
-                    "name": "web_crawl",
+                    "name": "open_url",
                     "content": {
                         "url": "https://example.com/login",
                         "final_url": "https://example.com/login",
@@ -556,7 +556,7 @@ def test_runtime_does_not_register_crawl_source_when_crawl_has_no_evidence() -> 
                         "block_reason": "login-gate",
                         "rendered": True,
                         "challenge_detected": False,
-                        "meta": {"operation": "web_crawl", "attempts": 1, "retries": 0, "duration_ms": 12, "timings": {"total_ms": 12}},
+                        "meta": {"operation": "open_url", "attempts": 1, "retries": 0, "duration_ms": 12, "timings": {"total_ms": 12}},
                     },
                 }
             ],
@@ -583,7 +583,7 @@ def has_evidence(self) -> bool:
 
 def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any) -> None:
     ...
-    crawl_result = WebCrawlSuccess.model_validate(payload)
+    crawl_result = OpenUrlSuccess.model_validate(payload)
     if not crawl_result.has_evidence():
         return
     source_record = crawl_result.to_source_record()
@@ -606,10 +606,10 @@ git commit -m "fix: block zero-evidence crawl sources"
 
 **Files:**
 - Modify: `backend/app/schemas/__init__.py`
-- Delete: `backend/app/schemas/web_crawl.py`
-- Modify: `backend/app/contracts/web_crawl.py`
-- Modify: any imports found by `rg -n "backend\\.app\\.schemas\\.web_crawl|from backend\\.app\\.schemas import .*WebCrawl" backend`
-- Test: `backend/tests/tools/test_web_crawl_tool.py`
+- Delete: `backend/app/schemas/open_url.py`
+- Modify: `backend/app/contracts/open_url.py`
+- Modify: any imports found by `rg -n "backend\\.app\\.schemas\\.open_url|from backend\\.app\\.schemas import .*OpenUrl" backend`
+- Test: `backend/tests/tools/test_open_url_tool.py`
 - Test: `backend/tests/agent/test_runtime.py`
 
 - [ ] **Step 1: Write the failing import regression test**
@@ -619,39 +619,39 @@ import importlib
 import pytest
 
 
-def test_legacy_top_level_web_crawl_schema_module_is_removed() -> None:
+def test_legacy_top_level_open_url_schema_module_is_removed() -> None:
     with pytest.raises(ModuleNotFoundError):
-        importlib.import_module("backend.app.schemas.web_crawl")
+        importlib.import_module("backend.app.schemas.open_url")
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest backend/tests/tools/test_web_crawl_tool.py -k "legacy_top_level_web_crawl_schema_module" -v`
-Expected: FAIL because `backend.app.schemas.web_crawl` still exists
+Run: `pytest backend/tests/tools/test_open_url_tool.py -k "legacy_top_level_open_url_schema_module" -v`
+Expected: FAIL because `backend.app.schemas.open_url` still exists
 
 - [ ] **Step 3: Write minimal migration cleanup**
 
 ```python
-# backend/app/contracts/web_crawl.py
-from backend.app.tools.schemas.web_crawl import (
-    WebCrawlError,
-    WebCrawlExcerpt,
-    WebCrawlInput,
-    WebCrawlSuccess,
-    WebCrawlToolResult,
+# backend/app/contracts/open_url.py
+from backend.app.tools.schemas.open_url import (
+    OpenUrlError,
+    OpenUrlExcerpt,
+    OpenUrlInput,
+    OpenUrlSuccess,
+    OpenUrlToolResult,
 )
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest backend/tests/tools/test_web_crawl_tool.py -k "legacy_top_level_web_crawl_schema_module" -v`
+Run: `pytest backend/tests/tools/test_open_url_tool.py -k "legacy_top_level_open_url_schema_module" -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/app/schemas/__init__.py backend/app/contracts/web_crawl.py backend/tests/tools/test_web_crawl_tool.py
-git rm backend/app/schemas/web_crawl.py
+git add backend/app/schemas/__init__.py backend/app/contracts/open_url.py backend/tests/tools/test_open_url_tool.py
+git rm backend/app/schemas/open_url.py
 git commit -m "refactor: relocate crawl schemas to feature modules"
 ```
 
@@ -659,13 +659,13 @@ git commit -m "refactor: relocate crawl schemas to feature modules"
 
 **Files:**
 - Modify: `backend/tests/crawler/test_http_worker.py` (only if HTTP worker shape changed)
-- Modify: `backend/tests/tools/test_web_crawl_tool.py`
+- Modify: `backend/tests/tools/test_open_url_tool.py`
 - Modify: `backend/tests/agent/test_runtime.py`
 - Docs: `docs/superpowers/plans/2026-03-23-session-aware-web-crawl-design.md` (check boxes only, if you track progress in-repo)
 
 - [ ] **Step 1: Run focused backend test groups**
 
-Run: `pytest backend/tests/crawler/test_session_profiles.py backend/tests/crawler/test_fetch_strategy.py backend/tests/crawler/test_browser_worker.py backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_web_crawl_tool.py backend/tests/agent/test_runtime.py -v`
+Run: `pytest backend/tests/crawler/test_session_profiles.py backend/tests/crawler/test_fetch_strategy.py backend/tests/crawler/test_browser_worker.py backend/tests/crawler/test_fetch_orchestrator.py backend/tests/tools/test_open_url_tool.py backend/tests/agent/test_runtime.py -v`
 Expected: PASS
 
 - [ ] **Step 2: Run the broader backend regression suite**
@@ -687,13 +687,13 @@ Expected: backend service is `running` and `healthy`
 
 ```bash
 git add backend backend/tests docker-compose.yml
-git commit -m "feat: ship session-aware web crawl pipeline"
+git commit -m "feat: ship session-aware open_url pipeline"
 git push origin HEAD
 ```
 
 ## Notes For The Implementer
 
-- The Wikipedia regression from the spec should live in `backend/tests/tools/test_web_crawl_tool.py` or `backend/tests/crawler/test_fetch_orchestrator.py` with a deterministic fake HTTP response that produces an escalation classification instead of relying on live network traffic.
-- `web_crawl` tool description must explicitly describe auto-matched session profiles, browser escalation triggers, and typed failure output once implementation lands.
+- The Wikipedia regression from the spec should live in `backend/tests/tools/test_open_url_tool.py` or `backend/tests/crawler/test_fetch_orchestrator.py` with a deterministic fake HTTP response that produces an escalation classification instead of relying on live network traffic.
+- `open_url` tool description must explicitly describe auto-matched session profiles, browser escalation triggers, and typed failure output once implementation lands.
 - If Playwright system packages make `backend/Dockerfile` noisy, keep the install steps isolated and commented sparingly so the file stays readable.
 - If `docker-compose.yml` does not need changes after backend rebuild succeeds, do not touch it just to mention browser support.

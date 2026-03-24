@@ -21,24 +21,24 @@ def _strip_optional_text(value: Optional[str]) -> Optional[str]:
     return _strip_text(value)
 
 
-def _coerce_web_crawl_meta(value: object) -> "WebCrawlMeta":
-    if isinstance(value, WebCrawlMeta):
+def _coerce_open_url_meta(value: object) -> "OpenUrlMeta":
+    if isinstance(value, OpenUrlMeta):
         return value
     if isinstance(value, ToolMeta):
-        return WebCrawlMeta.model_validate(value.model_dump())
+        return OpenUrlMeta.model_validate(value.model_dump())
     if isinstance(value, dict):
-        return WebCrawlMeta.model_validate(value)
-    raise TypeError("meta must be a ToolMeta, WebCrawlMeta, or mapping")
+        return OpenUrlMeta.model_validate(value)
+    raise TypeError("meta must be a ToolMeta, OpenUrlMeta, or mapping")
 
 
-class WebCrawlToolInput(BaseModel):
+class OpenUrlToolInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     url: Optional[HttpUrl] = None
     urls: Optional[list[HttpUrl]] = Field(default=None, min_length=1, max_length=5)
 
     @model_validator(mode="after")
-    def validate_target_shape(self) -> "WebCrawlToolInput":
+    def validate_target_shape(self) -> "OpenUrlToolInput":
         if (self.url is None) == (self.urls is None):
             raise ValueError("exactly one of url or urls must be provided")
         return self
@@ -63,7 +63,7 @@ class WebCrawlToolInput(BaseModel):
         return value
 
 
-class WebCrawlExcerpt(BaseModel):
+class OpenUrlExcerpt(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     text: str = Field(min_length=1)
@@ -75,7 +75,7 @@ class WebCrawlExcerpt(BaseModel):
         return _strip_text(value)
 
 
-class WebCrawlMeta(ToolMeta):
+class OpenUrlMeta(ToolMeta):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     strategy_used: Optional[str] = None
@@ -96,18 +96,18 @@ class WebCrawlMeta(ToolMeta):
         return normalized
 
 
-class WebCrawlSuccess(BaseModel):
+class OpenUrlSuccess(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     url: HttpUrl
     final_url: HttpUrl
     text: str
     markdown: str
-    excerpts: list[WebCrawlExcerpt] = Field(default_factory=list)
+    excerpts: list[OpenUrlExcerpt] = Field(default_factory=list)
     status_code: int = Field(ge=100, le=599)
     content_type: str = Field(min_length=1)
     fallback_reason: Optional[CrawlFallbackReason] = None
-    meta: WebCrawlMeta
+    meta: OpenUrlMeta
 
     @field_validator("text", "markdown", "content_type")
     @classmethod
@@ -116,8 +116,8 @@ class WebCrawlSuccess(BaseModel):
 
     @field_validator("meta", mode="before")
     @classmethod
-    def normalize_meta(cls, value: object) -> WebCrawlMeta:
-        return _coerce_web_crawl_meta(value)
+    def normalize_meta(cls, value: object) -> OpenUrlMeta:
+        return _coerce_open_url_meta(value)
 
     def to_source_record(self) -> dict[str, str]:
         snippet_source = self.excerpts[0].text if self.excerpts else self.text
@@ -139,23 +139,23 @@ class WebCrawlSuccess(BaseModel):
         return bool(self.excerpts or self.text or self.markdown)
 
 
-class WebCrawlError(ToolErrorEnvelope):
+class OpenUrlError(ToolErrorEnvelope):
     model_config = ConfigDict(extra="forbid", strict=True)
-    meta: WebCrawlMeta
+    meta: OpenUrlMeta
 
     @field_validator("meta", mode="before")
     @classmethod
-    def normalize_meta(cls, value: object) -> WebCrawlMeta:
-        return _coerce_web_crawl_meta(value)
+    def normalize_meta(cls, value: object) -> OpenUrlMeta:
+        return _coerce_open_url_meta(value)
 
 
-WebCrawlInput = WebCrawlToolInput
+OpenUrlInput = OpenUrlToolInput
 
 
-from .web_crawl_batch import WebCrawlBatchSuccess
+from .open_url_batch import OpenUrlBatchSuccess
 
 
-WebCrawlToolResult = Union[WebCrawlSuccess, WebCrawlBatchSuccess, WebCrawlError]
+OpenUrlToolResult = Union[OpenUrlSuccess, OpenUrlBatchSuccess, OpenUrlError]
 
 
 class ExtractionResult(BaseModel):
@@ -164,7 +164,7 @@ class ExtractionResult(BaseModel):
     state: ExtractionState
     text: str
     markdown: str
-    excerpts: list[WebCrawlExcerpt] = Field(default_factory=list)
+    excerpts: list[OpenUrlExcerpt] = Field(default_factory=list)
     fallback_reason: Optional[CrawlFallbackReason] = None
 
     @field_validator("text", "markdown")

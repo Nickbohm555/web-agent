@@ -2,11 +2,11 @@
 
 ## Goal
 
-Upgrade `web_crawl` from a plain HTTP page fetch into a first-class session-aware crawl pipeline that can recover evidence from public pages, rendered pages, and authenticated pages backed by stored session state.
+Upgrade `open_url` from a plain HTTP page fetch into a first-class session-aware crawl pipeline that can recover evidence from public pages, rendered pages, and authenticated pages backed by stored session state.
 
 The agent must keep a single crawl tool surface:
 
-- `web_crawl(url, objective)`
+- `open_url(url, objective)`
 
 The crawler must internally resolve the right fetch strategy, auto-match a stored session profile by domain, escalate from HTTP to browser when needed, and return typed success only when useful evidence was actually recovered.
 
@@ -31,7 +31,7 @@ Today, the runtime can still produce a completed answer even when crawl evidence
 
 ## Recommended Approach
 
-Keep `web_crawl` as the only agent-facing crawl tool, but make it an orchestrated multi-strategy fetch pipeline with browser fallback as a first-class path.
+Keep `open_url` as the only agent-facing crawl tool, but make it an orchestrated multi-strategy fetch pipeline with browser fallback as a first-class path.
 
 The recommended execution order is:
 
@@ -68,13 +68,13 @@ Existing modules remain focused:
 
 - `http_worker.py` handles cheap HTTP fetches.
 - `extractor.py` handles evidence extraction from normalized content.
-- `web_crawl.py` remains the tool boundary and contract owner.
+- `open_url.py` remains the tool boundary and contract owner.
 
 ## Session Profiles
 
 Session profiles are backend-managed configuration records, not prompt inputs.
 
-They are auto-matched by domain when `web_crawl` is called. For example:
+They are auto-matched by domain when `open_url` is called. For example:
 
 - `domains=["wikipedia.org"]`
 - `domains=["app.example.com", "dashboard.example.com"]`
@@ -157,9 +157,9 @@ The browser worker should support deterministic, profile-configured bootstrap on
 
 ## Execution Flow
 
-End-to-end `web_crawl` flow:
+End-to-end `open_url` flow:
 
-1. `web_crawl` receives `url` and `objective`.
+1. `open_url` receives `url` and `objective`.
 2. Domain scope validation runs first.
 3. Session profile resolver finds a matching profile or returns no match.
 4. Fetch strategy decides initial mode.
@@ -195,7 +195,7 @@ Important behavioral change:
 
 Observability must be upgraded at the runtime and tool boundaries.
 
-For each `web_crawl` run, logs should include:
+For each `open_url` run, logs should include:
 
 - URL
 - matched session profile id
@@ -236,7 +236,7 @@ Phase the work to keep risk controlled:
 2. Add fetch strategy and orchestration modules.
 3. Implement browser worker with seeded session state.
 4. Extend crawl result metadata and error classifications.
-5. Update `web_crawl` to use the orchestrator.
+5. Update `open_url` to use the orchestrator.
 6. Tighten runtime behavior around zero-evidence completions.
 7. Add regression tests and targeted logs.
 

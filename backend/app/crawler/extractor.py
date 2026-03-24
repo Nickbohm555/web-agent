@@ -3,7 +3,7 @@ from __future__ import annotations
 from backend.app.crawler.content_types import is_supported_content_type
 from backend.app.crawler.schemas import HttpFetchFailure
 from backend.app.crawler.excerpt_selection import segment_passages
-from backend.app.tools.schemas.web_crawl import ExtractionResult
+from backend.app.tools.schemas.open_url import ExtractionResult
 
 import trafilatura
 

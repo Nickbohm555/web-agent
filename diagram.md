@@ -47,7 +47,7 @@ Prompt
                 │       └── build agent and config
                 │           ├── web_search
                 │           │   └── search response
-                │           └── web_crawl
+                │           └── open_url
                 │               └── crawl response
                 │                   └── final answer and sources
                 │                       └── success response
@@ -56,7 +56,7 @@ Prompt
                         └── build agent and config
                             ├── web_search
                             │   └── search response
-                            └── web_crawl
+                            └── open_url
                                 └── crawl response
                                     └── final answer and sources
                                         └── success response
@@ -271,10 +271,10 @@ run_agent_once(
 }
 ```
 
-### `web_crawl`
+### `open_url`
 
-- LangChain tool name: `web_crawl`
-- Input schema: `WebCrawlInput`
+- LangChain tool name: `open_url`
+- Input schema: `OpenUrlInput`
 
 ```json
 {
@@ -358,8 +358,8 @@ These are the feature areas from [`clone.md`](/Users/nickbohm/Desktop/Tinkering/
 
 ### 2. Extract API Objective-Driven Page Extraction
 
-- Implemented here as `web_crawl`.
-- Runtime path: `web_crawl -> run_web_crawl -> HttpFetchWorker.fetch -> extract_content`.
+- Implemented here as `open_url`.
+- Runtime path: `open_url -> run_open_url -> HttpFetchWorker.fetch -> extract_content`.
 - Current repo behavior includes optional `objective` input, excerpt selection for long pages, normalized markdown/text output, and fallback handling for low-quality or unsupported content.
 
 ### 3. Source Policy Domain And Freshness Controls
@@ -403,6 +403,6 @@ These are the feature areas from [`clone.md`](/Users/nickbohm/Desktop/Tinkering/
 - `backend/agent/runtime_policy.py`
 - `backend/agent/quick_search.py`
 - `backend/app/contracts/web_search.py`
-- `backend/app/contracts/web_crawl.py`
+- `backend/app/contracts/open_url.py`
 - `backend/app/tools/web_search.py`
-- `backend/app/tools/web_crawl.py`
+- `backend/app/tools/open_url.py`

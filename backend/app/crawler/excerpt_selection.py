@@ -4,7 +4,7 @@ import math
 import re
 from collections import Counter
 
-from backend.app.tools.schemas.web_crawl import WebCrawlExcerpt
+from backend.app.tools.schemas.open_url import OpenUrlExcerpt
 
 MIN_PASSAGE_CHARS = 40
 LEXICAL_PREFILTER_LIMIT = 6
@@ -42,7 +42,7 @@ def select_objective_excerpts(
     text: str,
     markdown: str,
     objective: str | None,
-) -> list[WebCrawlExcerpt]:
+) -> list[OpenUrlExcerpt]:
     if not objective:
         return []
 
@@ -60,9 +60,9 @@ def select_objective_excerpts(
     return [passage for passage, _score in scored_passages[:MAX_EXCERPTS]]
 
 
-def segment_passages(*, markdown: str, text: str) -> list[WebCrawlExcerpt]:
+def segment_passages(*, markdown: str, text: str) -> list[OpenUrlExcerpt]:
     blocks = PASSAGE_BREAK_PATTERN.split(markdown)
-    passages: list[WebCrawlExcerpt] = []
+    passages: list[OpenUrlExcerpt] = []
     seen_texts: set[str] = set()
 
     for block in blocks:
@@ -82,7 +82,7 @@ def segment_passages(*, markdown: str, text: str) -> list[WebCrawlExcerpt]:
     return [fallback_excerpt] if fallback_excerpt is not None else []
 
 
-def build_excerpt(block: str) -> WebCrawlExcerpt | None:
+def build_excerpt(block: str) -> OpenUrlExcerpt | None:
     normalized_markdown = normalize_whitespace(block)
     if len(normalized_markdown) < MIN_PASSAGE_CHARS:
         return None
@@ -96,15 +96,15 @@ def build_excerpt(block: str) -> WebCrawlExcerpt | None:
     if len(normalized_text) < MIN_PASSAGE_CHARS:
         return None
 
-    return WebCrawlExcerpt(text=normalized_text, markdown=normalized_markdown)
+    return OpenUrlExcerpt(text=normalized_text, markdown=normalized_markdown)
 
 
 def score_passages(
     *,
     objective: str,
-    passages: list[WebCrawlExcerpt],
+    passages: list[OpenUrlExcerpt],
     use_vector_rerank: bool,
-) -> list[tuple[WebCrawlExcerpt, float]]:
+) -> list[tuple[OpenUrlExcerpt, float]]:
     lexical_ranked = sorted(
         (
             (passage, lexical_score(objective=objective, passage=passage.text))

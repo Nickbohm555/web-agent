@@ -9,7 +9,7 @@ from backend.agent.quick_evidence import build_quick_evidence
 from backend.agent.quick_runtime import run_quick_runtime
 from backend.agent.quick_selection import select_quick_urls
 from backend.agent.schemas import AgentRunResult
-from backend.app.tools.schemas.web_crawl import WebCrawlError
+from backend.app.tools.schemas.open_url import OpenUrlError
 from backend.app.tools.schemas.web_search import WebSearchResponse
 
 
@@ -103,7 +103,7 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
                 "content_type": "text/html",
                 "fallback_reason": None,
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 10,
@@ -119,7 +119,7 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
                 "content_type": "text/html",
                 "fallback_reason": None,
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 10,
@@ -135,7 +135,7 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
                 "content_type": "text/html",
                 "fallback_reason": None,
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 10,
@@ -211,7 +211,7 @@ def test_run_quick_runtime_does_not_accept_answer_client_override() -> None:
                 "content_type": "text/html",
                 "fallback_reason": None,
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 10,
@@ -312,25 +312,25 @@ def test_build_quick_evidence_keeps_successful_crawl_sources() -> None:
             "content_type": "text/html",
             "fallback_reason": None,
             "meta": {
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "attempts": 1,
                 "retries": 0,
                 "duration_ms": 10,
                 "timings": {"total_ms": 10},
             },
         },
-        WebCrawlError.model_validate(
+        OpenUrlError.model_validate(
             {
                 "error": {
                     "kind": "network_error",
                     "message": "crawl failed",
                     "retryable": True,
                     "attempt_number": 1,
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "timings": {"total_ms": 10},
                 },
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 10,
@@ -388,11 +388,11 @@ def test_run_quick_runtime_returns_failure_when_all_crawls_fail() -> None:
                     "message": "crawl failed",
                     "retryable": True,
                     "attempt_number": 1,
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "timings": {"total_ms": 10},
                 },
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 10,
@@ -405,11 +405,11 @@ def test_run_quick_runtime_returns_failure_when_all_crawls_fail() -> None:
                     "message": "crawl failed",
                     "retryable": True,
                     "attempt_number": 1,
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "timings": {"total_ms": 10},
                 },
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 10,

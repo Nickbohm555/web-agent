@@ -6,7 +6,7 @@ Scope: Move final answer citations and sources into the primary agent response p
 
 ## Goal
 
-Ensure the shipped `final_answer`, `citations`, `basis`, and `sources` are built from evidence actually read through `web_crawl`, not reconstructed afterward from loosely structured agent messages or search payloads.
+Ensure the shipped `final_answer`, `citations`, `basis`, and `sources` are built from evidence actually read through `open_url`, not reconstructed afterward from loosely structured agent messages or search payloads.
 
 ## Non-Goals
 
@@ -20,7 +20,7 @@ Ensure the shipped `final_answer`, `citations`, `basis`, and `sources` are built
 
 Current behavior:
 
-- The agent runs with `web_search` and `web_crawl`.
+- The agent runs with `web_search` and `open_url`.
 - After the run completes, the backend inspects raw runtime output and message payloads to recover `final_answer`, `citations`, and `sources`.
 - Source extraction and citation recovery are handled as post-hoc parsing in `backend/agent/runtime_sources.py`.
 - Placeholder answers can be replaced with a source summary after the fact if sources were found.
@@ -28,7 +28,7 @@ Current behavior:
 Problems:
 
 - Citation correctness depends on framework message shape and model output shape.
-- `web_search` and `web_crawl` evidence are not cleanly separated in the final-answer path.
+- `web_search` and `open_url` evidence are not cleanly separated in the final-answer path.
 - The backend can emit a successful answer even when the agent did not explicitly finish with valid crawl-backed support.
 - The runtime source parsing layer is doing recovery work that should instead be represented as explicit runtime state.
 
@@ -41,7 +41,7 @@ Problems:
 Implications:
 
 - Search results remain planning metadata.
-- Only `web_crawl` can create answer-eligible evidence.
+- Only `open_url` can create answer-eligible evidence.
 
 ### 2. The Backend Owns Final Answer Construction
 
@@ -84,7 +84,7 @@ For `agentic` and any other agent-driven crawl-backed answer path:
 
 1. The agent receives the user prompt and retrieval policy.
 2. The agent uses `web_search` to discover candidate URLs.
-3. The agent uses `web_crawl` with explicit objectives to read promising pages.
+3. The agent uses `open_url` with explicit objectives to read promising pages.
 4. Each successful crawl is normalized into canonical evidence records in a run-scoped registry.
 5. When ready to answer, the agent emits a structured selection payload that references only crawled source ids or chunk ids.
 6. The backend answer finalizer reads the crawl registry plus the selection payload.
@@ -237,7 +237,7 @@ Expected runtime changes:
 ### Phase 1: Add the Registry
 
 - Introduce run-scoped crawl evidence models and storage.
-- Populate them only from successful `web_crawl` results.
+- Populate them only from successful `open_url` results.
 
 ### Phase 2: Add Selection Output
 

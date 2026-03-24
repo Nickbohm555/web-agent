@@ -5,46 +5,46 @@ import pytest
 from pydantic import ValidationError
 
 from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
-from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess, WebCrawlToolInput
-from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
+from backend.app.tools.schemas.open_url import OpenUrlError, OpenUrlSuccess, OpenUrlToolInput
+from backend.app.tools.schemas.open_url_batch import OpenUrlBatchSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
-from backend.app.tools.web_crawl import (
-    build_web_crawl_action_record,
-    build_web_crawl_tool,
-    run_web_crawl,
-    web_crawl,
+from backend.app.tools.open_url import (
+    build_open_url_action_record,
+    build_open_url_tool,
+    open_url,
+    run_open_url,
 )
 
 
-web_crawl_module = importlib.import_module("backend.app.tools.web_crawl")
+open_url_module = importlib.import_module("backend.app.tools.open_url")
 
 
-def test_web_crawl_input_accepts_single_url() -> None:
-    model = WebCrawlToolInput(url="https://example.com/article")
+def test_open_url_input_accepts_single_url() -> None:
+    model = OpenUrlToolInput(url="https://example.com/article")
 
     assert str(model.url) == "https://example.com/article"
 
 
-def test_web_crawl_tool_input_accepts_urls_and_rejects_url_plus_urls() -> None:
+def test_open_url_tool_input_accepts_urls_and_rejects_url_plus_urls() -> None:
     with pytest.raises(ValidationError):
-        WebCrawlToolInput(
+        OpenUrlToolInput(
             url="https://example.com/a",
             urls=["https://example.com/b"],
         )
 
 
-def test_web_crawl_tool_input_rejects_missing_url_and_urls() -> None:
+def test_open_url_tool_input_rejects_missing_url_and_urls() -> None:
     with pytest.raises(ValidationError):
-        WebCrawlToolInput()
+        OpenUrlToolInput()
 
 
-def test_web_crawl_tool_input_rejects_more_than_five_urls() -> None:
+def test_open_url_tool_input_rejects_more_than_five_urls() -> None:
     with pytest.raises(ValidationError):
-        WebCrawlToolInput(urls=[f"https://example.com/{index}" for index in range(6)])
+        OpenUrlToolInput(urls=[f"https://example.com/{index}" for index in range(6)])
 
 
-def test_web_crawl_batch_success_preserves_input_order() -> None:
-    payload = WebCrawlBatchSuccess.model_validate(
+def test_open_url_batch_success_preserves_input_order() -> None:
+    payload = OpenUrlBatchSuccess.model_validate(
         {
             "requested_urls": ["https://example.com/a", "https://example.com/b"],
             "items": [
@@ -61,7 +61,7 @@ def test_web_crawl_batch_success_preserves_input_order() -> None:
                         "content_type": "text/html",
                         "fallback_reason": None,
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 1,
                             "retries": 0,
                             "duration_ms": 10,
@@ -80,13 +80,13 @@ def test_web_crawl_batch_success_preserves_input_order() -> None:
                         "retryable": False,
                         "status_code": None,
                         "attempt_number": None,
-                        "operation": "web_crawl",
+                        "operation": "open_url",
                         "timings": {"total_ms": 4},
                     },
                 },
             ],
             "meta": {
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "attempts": 2,
                 "retries": 0,
                 "duration_ms": 14,
@@ -102,14 +102,14 @@ def test_web_crawl_batch_success_preserves_input_order() -> None:
     ]
 
 
-def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
+def test_open_url_tool_invokes_successful_extraction(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
-    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+    monkeypatch.setattr(open_url_module, "create_http_fetch_worker", lambda: worker)
 
-    payload = web_crawl.invoke({"url": "https://example.com/article"})
-    result = WebCrawlSuccess.model_validate(payload)
+    payload = open_url.invoke({"url": "https://example.com/article"})
+    result = OpenUrlSuccess.model_validate(payload)
 
-    assert web_crawl.name == "open_url"
+    assert open_url.name == "open_url"
     assert str(result.url) == "https://example.com/article"
     assert str(result.final_url) == "https://example.com/article"
     assert result.fallback_reason is None
@@ -117,22 +117,22 @@ def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
     assert result.markdown
 
 
-def test_web_crawl_tool_uses_lead_excerpt(monkeypatch) -> None:
+def test_open_url_tool_uses_lead_excerpt(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
-    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+    monkeypatch.setattr(open_url_module, "create_http_fetch_worker", lambda: worker)
 
-    payload = web_crawl.invoke({"url": "https://example.com/article"})
-    result = WebCrawlSuccess.model_validate(payload)
+    payload = open_url.invoke({"url": "https://example.com/article"})
+    result = OpenUrlSuccess.model_validate(payload)
 
     assert result.excerpts
     assert "consistent retrieval contracts" in result.excerpts[0].text.lower()
 
 
-def test_run_web_crawl_preserves_redirect_final_url() -> None:
+def test_run_open_url_preserves_redirect_final_url() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_redirect_handler))
 
-    payload = run_web_crawl(url="https://example.com/start", fetch_worker=worker)
-    result = WebCrawlSuccess.model_validate(payload)
+    payload = run_open_url(url="https://example.com/start", fetch_worker=worker)
+    result = OpenUrlSuccess.model_validate(payload)
 
     assert str(result.url) == "https://example.com/start"
     assert str(result.final_url) == "https://example.com/final"
@@ -140,11 +140,11 @@ def test_run_web_crawl_preserves_redirect_final_url() -> None:
     assert result.fallback_reason is None
 
 
-def test_run_web_crawl_returns_success_fallback_for_unsupported_content_type() -> None:
+def test_run_open_url_returns_success_fallback_for_unsupported_content_type() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_pdf_handler))
 
-    payload = run_web_crawl(url="https://example.com/file.pdf", fetch_worker=worker)
-    result = WebCrawlSuccess.model_validate(payload)
+    payload = run_open_url(url="https://example.com/file.pdf", fetch_worker=worker)
+    result = OpenUrlSuccess.model_validate(payload)
 
     assert result.status_code == 200
     assert result.content_type == "application/pdf"
@@ -153,11 +153,11 @@ def test_run_web_crawl_returns_success_fallback_for_unsupported_content_type() -
     assert result.markdown == ""
 
 
-def test_run_web_crawl_returns_success_fallback_for_low_content_quality() -> None:
+def test_run_open_url_returns_success_fallback_for_low_content_quality() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_boilerplate_handler))
 
-    payload = run_web_crawl(url="https://example.com/thin", fetch_worker=worker)
-    result = WebCrawlSuccess.model_validate(payload)
+    payload = run_open_url(url="https://example.com/thin", fetch_worker=worker)
+    result = OpenUrlSuccess.model_validate(payload)
 
     assert result.status_code == 200
     assert result.content_type == "text/html"
@@ -166,45 +166,45 @@ def test_run_web_crawl_returns_success_fallback_for_low_content_quality() -> Non
     assert result.markdown == ""
 
 
-def test_web_crawl_batch_returns_ordered_mixed_results(monkeypatch) -> None:
+def test_open_url_batch_returns_ordered_mixed_results(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_batch_mixed_handler))
-    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+    monkeypatch.setattr(open_url_module, "create_http_fetch_worker", lambda: worker)
 
-    payload = web_crawl.invoke(
+    payload = open_url.invoke(
         {"urls": ["https://example.com/a", "https://example.com/b"]}
     )
-    result = WebCrawlBatchSuccess.model_validate(payload)
+    result = OpenUrlBatchSuccess.model_validate(payload)
 
     assert result.summary.attempted == 2
     assert [item.status for item in result.items] == ["succeeded", "failed"]
 
 
-def test_web_crawl_batch_preserves_fallback_success_for_pdf(monkeypatch) -> None:
+def test_open_url_batch_preserves_fallback_success_for_pdf(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_pdf_handler))
-    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+    monkeypatch.setattr(open_url_module, "create_http_fetch_worker", lambda: worker)
 
-    payload = web_crawl.invoke({"urls": ["https://example.com/file.pdf"]})
-    result = WebCrawlBatchSuccess.model_validate(payload)
+    payload = open_url.invoke({"urls": ["https://example.com/file.pdf"]})
+    result = OpenUrlBatchSuccess.model_validate(payload)
 
     assert result.items[0].result is not None
     assert result.items[0].result.fallback_reason == "unsupported-content-type"
 
 
-def test_web_crawl_batch_fetches_each_url(monkeypatch) -> None:
+def test_open_url_batch_fetches_each_url(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
-    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
-    tool_instance = build_web_crawl_tool()
+    monkeypatch.setattr(open_url_module, "create_http_fetch_worker", lambda: worker)
+    tool_instance = build_open_url_tool()
 
     payload = tool_instance.invoke(
         {"urls": ["https://example.com/a", "https://blocked.com/b"]}
     )
-    result = WebCrawlBatchSuccess.model_validate(payload)
+    result = OpenUrlBatchSuccess.model_validate(payload)
 
     assert [item.status for item in result.items] == ["succeeded", "succeeded"]
 
 
-def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
-    record = build_web_crawl_action_record(
+def test_build_open_url_action_record_summarizes_success_payload() -> None:
+    record = build_open_url_action_record(
         url="https://example.com/article",
         payload={
             "url": "https://example.com/article",
@@ -221,7 +221,7 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
             "content_type": "text/html",
             "fallback_reason": None,
             "meta": {
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "attempts": 1,
                 "retries": 0,
                 "duration_ms": 12,
@@ -241,8 +241,8 @@ def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
     }
 
 
-def test_build_web_crawl_action_record_summarizes_error_payload() -> None:
-    record = build_web_crawl_action_record(
+def test_build_open_url_action_record_summarizes_error_payload() -> None:
+    record = build_open_url_action_record(
         url="https://example.com/article",
         payload={
             "error": {
@@ -251,11 +251,11 @@ def test_build_web_crawl_action_record_summarizes_error_payload() -> None:
                 "retryable": True,
                 "status_code": 503,
                 "attempt_number": 3,
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "timings": {"total_ms": 100},
             },
             "meta": {
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "attempts": 3,
                 "retries": 2,
                 "duration_ms": 100,
@@ -275,21 +275,21 @@ def test_build_web_crawl_action_record_summarizes_error_payload() -> None:
     }
 
 
-def test_build_web_crawl_action_record_accepts_pydantic_error_payload() -> None:
-    record = build_web_crawl_action_record(
+def test_build_open_url_action_record_accepts_pydantic_error_payload() -> None:
+    record = build_open_url_action_record(
         url="https://example.com/article",
-        payload=WebCrawlError(
+        payload=OpenUrlError(
             error=ToolError(
                 kind="http_error",
                 message="upstream unavailable",
                 retryable=True,
                 status_code=503,
                 attempt_number=3,
-                operation="web_crawl",
+                operation="open_url",
                 timings=ToolTimings(total_ms=100),
             ),
             meta=ToolMeta(
-                operation="web_crawl",
+                operation="open_url",
                 attempts=3,
                 retries=2,
                 duration_ms=100,
@@ -309,8 +309,8 @@ def test_build_web_crawl_action_record_accepts_pydantic_error_payload() -> None:
     }
 
 
-def test_build_web_crawl_action_record_summarizes_batch_payload() -> None:
-    record = build_web_crawl_action_record(
+def test_build_open_url_action_record_summarizes_batch_payload() -> None:
+    record = build_open_url_action_record(
         url="https://example.com/a",
         payload={
             "requested_urls": ["https://example.com/a", "https://example.com/b"],
@@ -325,7 +325,7 @@ def test_build_web_crawl_action_record_summarizes_batch_payload() -> None:
                         "retryable": False,
                         "status_code": 403,
                         "attempt_number": None,
-                        "operation": "web_crawl",
+                        "operation": "open_url",
                         "timings": {"total_ms": 5},
                     },
                 },
@@ -339,13 +339,13 @@ def test_build_web_crawl_action_record_summarizes_batch_payload() -> None:
                         "retryable": False,
                         "status_code": 503,
                         "attempt_number": None,
-                        "operation": "web_crawl",
+                        "operation": "open_url",
                         "timings": {"total_ms": 7},
                     },
                 },
             ],
             "meta": {
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "attempts": 2,
                 "retries": 0,
                 "duration_ms": 12,
@@ -365,9 +365,9 @@ def test_build_web_crawl_action_record_summarizes_batch_payload() -> None:
     }
 
 
-def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -> None:
+def test_build_open_url_tool_truncates_extracted_content_for_agentic_budget() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
-    tool_instance = build_web_crawl_tool(
+    tool_instance = build_open_url_tool(
         max_content_chars=40,
         fetch_worker=worker,
     )
@@ -377,7 +377,7 @@ def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -
             "url": "https://example.com/article",
         }
     )
-    result = WebCrawlSuccess.model_validate(payload)
+    result = OpenUrlSuccess.model_validate(payload)
 
     assert tool_instance.name == "open_url"
     assert 0 < len(result.text) <= 40
@@ -385,28 +385,28 @@ def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -
     assert result.excerpts
 
 
-def test_run_web_crawl_returns_structured_retryable_error_metadata() -> None:
+def test_run_open_url_returns_structured_retryable_error_metadata() -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_retryable_failure_handler))
 
-    payload = run_web_crawl(url="https://example.com/unavailable", fetch_worker=worker)
-    result = WebCrawlError.model_validate(payload)
+    payload = run_open_url(url="https://example.com/unavailable", fetch_worker=worker)
+    result = OpenUrlError.model_validate(payload)
 
     assert result.error.kind == "http_error"
     assert result.error.retryable is True
     assert result.error.status_code == 503
     assert result.error.attempt_number == 3
-    assert result.error.operation == "web_crawl"
+    assert result.error.operation == "open_url"
     assert result.meta.attempts == 3
     assert result.meta.retries == 2
 
 
-def test_bounded_web_crawl_fetches_urls(monkeypatch) -> None:
+def test_bounded_open_url_fetches_urls(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
-    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
-    tool_instance = build_web_crawl_tool()
+    monkeypatch.setattr(open_url_module, "create_http_fetch_worker", lambda: worker)
+    tool_instance = build_open_url_tool()
 
     payload = tool_instance.invoke({"url": "https://blocked.com/article"})
-    result = WebCrawlSuccess.model_validate(payload)
+    result = OpenUrlSuccess.model_validate(payload)
 
     assert str(result.url) == "https://blocked.com/article"
 

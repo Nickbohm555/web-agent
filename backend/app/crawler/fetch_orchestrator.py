@@ -18,7 +18,7 @@ from backend.app.crawler.schemas.browser_fetch import BrowserContextSeed, Browse
 from backend.app.crawler.schemas.session_profile import SessionProfile
 from backend.app.crawler.session_profiles import SessionProfileProvider, get_session_profiles, resolve_session_profile
 from backend.app.tools.schemas.tool_errors import ToolTimings
-from backend.app.tools.schemas.web_crawl import WebCrawlMeta, WebCrawlSuccess, WebCrawlToolInput, WebCrawlToolResult
+from backend.app.tools.schemas.open_url import OpenUrlMeta, OpenUrlSuccess, OpenUrlToolInput, OpenUrlToolResult
 
 BrowserFetcher = Callable[..., BrowserFetchResult]
 
@@ -29,8 +29,8 @@ def run_fetch_orchestrator(
     fetch_worker: Optional[HttpFetchWorker] = None,
     session_profile_provider: Optional[SessionProfileProvider] = None,
     browser_fetcher: Optional[BrowserFetcher] = None,
-) -> WebCrawlToolResult:
-    validated_input = WebCrawlToolInput(url=url)
+) -> OpenUrlToolResult:
+    validated_input = OpenUrlToolInput(url=url)
     operation_start = perf_counter()
     profiles = get_session_profiles(session_profile_provider)
     session_profile = resolve_session_profile(str(validated_input.url), profiles=profiles)
@@ -121,13 +121,13 @@ def run_fetch_orchestrator(
 
 def _run_browser_path(
     *,
-    validated_input: WebCrawlToolInput,
+    validated_input: OpenUrlToolInput,
     session_profile: Optional[SessionProfile],
     browser_fetcher: Optional[BrowserFetcher],
     escalation_count: int,
     block_reason: Optional[str],
     operation_start: float,
-) -> WebCrawlToolResult:
+) -> OpenUrlToolResult:
     seed = _build_browser_context_seed(session_profile)
     result = browser_fetch(
         url=str(validated_input.url),
@@ -176,7 +176,7 @@ def _build_browser_context_seed(session_profile: Optional[SessionProfile]) -> Br
 
 def _build_success(
     *,
-    validated_input: WebCrawlToolInput,
+    validated_input: OpenUrlToolInput,
     final_url: str,
     extraction_result,
     status_code: int,
@@ -188,8 +188,8 @@ def _build_success(
     challenge_detected: bool,
     block_reason: Optional[str],
     total_ms: int,
-) -> WebCrawlSuccess:
-    return WebCrawlSuccess(
+) -> OpenUrlSuccess:
+    return OpenUrlSuccess(
         url=validated_input.url,
         final_url=final_url,
         text=extraction_result.text,
@@ -198,8 +198,8 @@ def _build_success(
         status_code=status_code,
         content_type=content_type,
         fallback_reason=extraction_result.fallback_reason,
-        meta=WebCrawlMeta(
-            operation="web_crawl",
+        meta=OpenUrlMeta(
+            operation="open_url",
             attempts=max(escalation_count + 1, 1),
             retries=max(escalation_count, 0),
             duration_ms=total_ms,

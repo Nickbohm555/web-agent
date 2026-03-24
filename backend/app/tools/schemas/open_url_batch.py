@@ -5,30 +5,30 @@ from typing import Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 from .tool_errors import ToolError
-from .web_crawl import (
-    WebCrawlError,
-    WebCrawlMeta,
-    WebCrawlSuccess,
-    _coerce_web_crawl_meta,
+from .open_url import (
+    OpenUrlError,
+    OpenUrlMeta,
+    OpenUrlSuccess,
+    _coerce_open_url_meta,
 )
 
 
-class WebCrawlBatchInput(BaseModel):
+class OpenUrlBatchInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     urls: list[HttpUrl] = Field(min_length=1, max_length=5)
 
 
-class WebCrawlBatchItemResult(BaseModel):
+class OpenUrlBatchItemResult(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     url: HttpUrl
     status: Literal["succeeded", "failed"]
-    result: Optional[WebCrawlSuccess] = None
+    result: Optional[OpenUrlSuccess] = None
     error: Optional[ToolError] = None
 
     @model_validator(mode="after")
-    def validate_payload_shape(self) -> "WebCrawlBatchItemResult":
+    def validate_payload_shape(self) -> "OpenUrlBatchItemResult":
         if self.status == "succeeded":
             if self.result is None or self.error is not None:
                 raise ValueError("succeeded batch items must include result and omit error")
@@ -37,7 +37,7 @@ class WebCrawlBatchItemResult(BaseModel):
         return self
 
 
-class WebCrawlBatchSummary(BaseModel):
+class OpenUrlBatchSummary(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     attempted: int = Field(ge=0)
@@ -45,27 +45,27 @@ class WebCrawlBatchSummary(BaseModel):
     failed: int = Field(ge=0)
 
     @model_validator(mode="after")
-    def validate_counts(self) -> "WebCrawlBatchSummary":
+    def validate_counts(self) -> "OpenUrlBatchSummary":
         if self.attempted != self.succeeded + self.failed:
             raise ValueError("attempted must equal succeeded + failed")
         return self
 
 
-class WebCrawlBatchSuccess(BaseModel):
+class OpenUrlBatchSuccess(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     requested_urls: list[HttpUrl] = Field(min_length=1, max_length=5)
-    items: list[WebCrawlBatchItemResult] = Field(min_length=1)
-    meta: WebCrawlMeta
-    summary: WebCrawlBatchSummary
+    items: list[OpenUrlBatchItemResult] = Field(min_length=1)
+    meta: OpenUrlMeta
+    summary: OpenUrlBatchSummary
 
     @field_validator("meta", mode="before")
     @classmethod
-    def normalize_meta(cls, value: object) -> WebCrawlMeta:
-        return _coerce_web_crawl_meta(value)
+    def normalize_meta(cls, value: object) -> OpenUrlMeta:
+        return _coerce_open_url_meta(value)
 
     @model_validator(mode="after")
-    def validate_item_order(self) -> "WebCrawlBatchSuccess":
+    def validate_item_order(self) -> "OpenUrlBatchSuccess":
         if len(self.requested_urls) != len(self.items):
             raise ValueError("requested_urls must match items length")
 
@@ -75,4 +75,4 @@ class WebCrawlBatchSuccess(BaseModel):
         return self
 
 
-WebCrawlBatchToolResult = Union[WebCrawlBatchSuccess, WebCrawlError]
+OpenUrlBatchToolResult = Union[OpenUrlBatchSuccess, OpenUrlError]

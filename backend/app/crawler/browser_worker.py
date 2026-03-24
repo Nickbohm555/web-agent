@@ -53,7 +53,7 @@ def _build_unavailable_browser_failure(
             kind="browser_navigation_failed",
             message="browser fetch implementation is not configured",
             retryable=False,
-            operation="web_crawl",
+            operation="open_url",
             timings=timings,
         ),
         seed_applied=StorageStateApplied(
@@ -63,7 +63,7 @@ def _build_unavailable_browser_failure(
             session_storage=bool(seed.session_storage),
         ),
         meta=ToolMeta(
-            operation="web_crawl",
+            operation="open_url",
             attempts=1,
             retries=0,
             duration_ms=total_ms,

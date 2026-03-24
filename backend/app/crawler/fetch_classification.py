@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchSuccess
 from backend.app.crawler.schemas.fetch_strategy import FetchClassification
-from backend.app.tools.schemas.web_crawl import ExtractionResult
+from backend.app.tools.schemas.open_url import ExtractionResult
 
 
 def classify_http_fetch(

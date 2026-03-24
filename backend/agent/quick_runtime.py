@@ -24,7 +24,7 @@ from backend.agent.schemas import (
     AgentStructuredAnswer,
 )
 from backend.app.tools.schemas.web_search import WebSearchResponse
-from backend.app.tools.web_crawl import run_web_crawl
+from backend.app.tools.open_url import run_open_url
 
 
 class QuickCrawlRunner(Protocol):
@@ -80,17 +80,17 @@ def run_quick_runtime(
     crawl_payloads: list[Any] = []
     for url in selected_urls:
         try:
-            payload = (crawl_runner or run_web_crawl)(url=url)
+            payload = (crawl_runner or run_open_url)(url=url)
         except Exception as exc:
             payload = {
                 "error": {
                     "kind": "internal_error",
                     "message": str(exc) or "quick crawl failed",
                     "retryable": False,
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                 },
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 0,

@@ -6,7 +6,7 @@ from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.crawler.schemas.browser_fetch import BrowserContextSeed, StorageStateApplied
 from backend.app.crawler.schemas.session_profile import SessionProfile
 from backend.app.crawler.session_profiles import InMemorySessionProfileProvider
-from backend.app.tools.schemas.web_crawl import WebCrawlSuccess
+from backend.app.tools.schemas.open_url import OpenUrlSuccess
 
 
 def test_orchestrator_escalates_to_browser_for_403() -> None:
@@ -45,7 +45,7 @@ def test_orchestrator_escalates_to_browser_for_403() -> None:
             ),
         ),
     )
-    result = WebCrawlSuccess.model_validate(payload)
+    result = OpenUrlSuccess.model_validate(payload)
 
     assert result.meta.strategy_used == "browser"
     assert result.meta.escalation_count == 1

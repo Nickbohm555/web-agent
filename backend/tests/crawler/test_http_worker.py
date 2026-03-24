@@ -2,17 +2,17 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from backend.app.tools.schemas.web_crawl import (
-    WebCrawlError,
-    WebCrawlExcerpt,
-    WebCrawlInput,
-    WebCrawlSuccess,
+from backend.app.tools.schemas.open_url import (
+    OpenUrlError,
+    OpenUrlExcerpt,
+    OpenUrlInput,
+    OpenUrlSuccess,
 )
 from backend.app.crawler.http_worker import HttpFetchFailure, HttpFetchSuccess, HttpFetchWorker
 
 
-def test_web_crawl_input_accepts_absolute_http_urls() -> None:
-    payload = WebCrawlInput(url="https://example.com/articles/agent")
+def test_open_url_input_accepts_absolute_http_urls() -> None:
+    payload = OpenUrlInput(url="https://example.com/articles/agent")
 
     assert str(payload.url) == "https://example.com/articles/agent"
 
@@ -23,15 +23,15 @@ def test_web_crawl_input_accepts_absolute_http_urls() -> None:
         ({"url": "ftp://example.com/file.txt"}, "url"),
     ],
 )
-def test_web_crawl_input_rejects_invalid_urls(payload: dict[str, str], field_name: str) -> None:
+def test_open_url_input_rejects_invalid_urls(payload: dict[str, str], field_name: str) -> None:
     with pytest.raises(ValidationError) as exc_info:
-        WebCrawlInput(**payload)
+        OpenUrlInput(**payload)
 
     assert field_name in str(exc_info.value)
 
 
-def test_web_crawl_success_accepts_contract_valid_payload() -> None:
-    response = WebCrawlSuccess.model_validate(
+def test_open_url_success_accepts_contract_valid_payload() -> None:
+    response = OpenUrlSuccess.model_validate(
         {
             "url": "https://example.com/original",
             "final_url": "https://example.com/final",
@@ -47,7 +47,7 @@ def test_web_crawl_success_accepts_contract_valid_payload() -> None:
             "content_type": " text/html ",
             "fallback_reason": None,
             "meta": {
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "attempts": 2,
                 "retries": 1,
                 "duration_ms": 42,
@@ -59,7 +59,7 @@ def test_web_crawl_success_accepts_contract_valid_payload() -> None:
     assert response.text == "Main article text"
     assert response.markdown == "# Main article text"
     assert response.excerpts == [
-        WebCrawlExcerpt(
+        OpenUrlExcerpt(
             text="Step 1 installs dependencies.",
             markdown="- Step 1 installs dependencies.",
         )
@@ -67,18 +67,18 @@ def test_web_crawl_success_accepts_contract_valid_payload() -> None:
     assert response.content_type == "text/html"
 
 
-def test_web_crawl_error_accepts_shared_error_envelope() -> None:
-    response = WebCrawlError.model_validate(
+def test_open_url_error_accepts_shared_error_envelope() -> None:
+    response = OpenUrlError.model_validate(
         {
             "error": {
                 "kind": "http_error",
                 "message": "origin returned a terminal HTTP status",
                 "retryable": False,
                 "status_code": 404,
-                "operation": "web_crawl",
+                "operation": "open_url",
             },
             "meta": {
-                "operation": "web_crawl",
+                "operation": "open_url",
                 "attempts": 1,
                 "retries": 0,
                 "duration_ms": 12,
@@ -88,7 +88,7 @@ def test_web_crawl_error_accepts_shared_error_envelope() -> None:
     )
 
     assert response.error.kind == "http_error"
-    assert response.meta.operation == "web_crawl"
+    assert response.meta.operation == "open_url"
 
 
 def test_http_fetch_worker_returns_html_success() -> None:

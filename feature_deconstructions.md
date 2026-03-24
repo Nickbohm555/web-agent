@@ -14,7 +14,7 @@ How it was built:
 
 Mapping to our product:
 - Add a first-class run profile so quick lookup, agentic search, and deep research share one UX but use different execution policies.
-- Keep normalized retrieval primitives (`web_search`, `web_crawl`) as the substrate, then layer planning depth and background execution above them.
+- Keep normalized retrieval primitives (`web_search`, `open_url`) as the substrate, then layer planning depth and background execution above them.
 - Use the existing run history and SSE surfaces for deep research rather than the older synchronous agent endpoint.
 
 ## Feature: Tool streaming and citation-rich web output — OpenAI

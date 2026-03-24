@@ -19,7 +19,7 @@ from backend.agent.runtime import (
 )
 from backend.agent.runtime_sources import extract_sources
 from backend.agent.schemas import AgentRunMode, AgentRunResult, AgentRuntimeProfile
-from backend.app.tools.web_crawl import web_crawl
+from backend.app.tools.open_url import open_url
 from backend.app.tools.web_search import web_search
 
 
@@ -268,8 +268,8 @@ def test_deep_research_no_longer_reuses_agentic_prompt_appendix_only() -> None:
 
 
 def test_canonical_tool_binding_matches_phase_two_tool_names() -> None:
-    assert (web_search.name, web_crawl.name) == CANONICAL_TOOL_NAMES
-    _assert_canonical_tool_names((web_search, web_crawl))
+    assert (web_search.name, open_url.name) == CANONICAL_TOOL_NAMES
+    _assert_canonical_tool_names((web_search, open_url))
 
 
 def test_canonical_tool_binding_rejects_name_drift() -> None:
@@ -327,7 +327,7 @@ def test_agentic_profile_uses_bounded_profile_tools() -> None:
 
     assert (search_tool.name, crawl_tool.name) == CANONICAL_TOOL_NAMES
     assert search_tool is not web_search
-    assert crawl_tool is not web_crawl
+    assert crawl_tool is not open_url
 
 
 def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
@@ -374,7 +374,7 @@ def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
                                     "content_type": "text/html",
                                     "fallback_reason": None,
                                     "meta": {
-                                        "operation": "web_crawl",
+                                        "operation": "open_url",
                                         "attempts": 1,
                                         "retries": 0,
                                         "duration_ms": 10,
@@ -393,13 +393,13 @@ def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
                                     "retryable": False,
                                     "status_code": None,
                                     "attempt_number": None,
-                                    "operation": "web_crawl",
+                                    "operation": "open_url",
                                     "timings": {"total_ms": 1},
                                 },
                             },
                         ],
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 2,
                             "retries": 0,
                             "duration_ms": 11,
@@ -478,7 +478,7 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
                 "content_type": "text/html",
                 "fallback_reason": None,
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 20,
@@ -494,7 +494,7 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
                 "content_type": "text/html",
                 "fallback_reason": None,
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 20,
@@ -577,7 +577,7 @@ def test_run_agent_once_preserves_prompt_text_for_quick_search() -> None:
                 "content_type": "text/html",
                 "fallback_reason": None,
                 "meta": {
-                    "operation": "web_crawl",
+                    "operation": "open_url",
                     "attempts": 1,
                     "retries": 0,
                     "duration_ms": 20,
@@ -715,7 +715,7 @@ def test_run_agent_once_uses_profile_driven_agent_factory() -> None:
     assert factory.captured_profile == get_runtime_profile("deep_research")
     assert factory.captured_tools is not None
     assert tuple(tool.name for tool in factory.captured_tools) == CANONICAL_TOOL_NAMES
-    assert factory.captured_tools != (web_search, web_crawl)
+    assert factory.captured_tools != (web_search, open_url)
     assert factory.captured_system_prompt is not None
     assert "Retrieval strategy:" in factory.captured_system_prompt
     assert "Answer objective: investigate a topic" in factory.captured_system_prompt
@@ -1019,7 +1019,7 @@ def test_run_agent_once_assembles_consulted_sources_from_search_and_crawl_messag
                         "content_type": "text/html",
                         "fallback_reason": None,
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 1,
                             "retries": 0,
                             "duration_ms": 20,
@@ -1093,7 +1093,7 @@ def test_run_agent_once_no_evidence_crawl_success_does_not_register_source() -> 
                         "content_type": "text/html",
                         "fallback_reason": "low-content-quality",
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 1,
                             "retries": 0,
                             "duration_ms": 20,
@@ -1136,11 +1136,11 @@ def test_run_agent_once_preserves_retryable_crawl_error_without_sources() -> Non
                             "retryable": True,
                             "status_code": 503,
                             "attempt_number": 2,
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "timings": {"total_ms": 120, "provider_ms": 90},
                         },
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 2,
                             "retries": 1,
                             "duration_ms": 120,
@@ -1184,11 +1184,11 @@ def test_run_agent_once_preserves_terminal_crawl_error_without_sources() -> None
                             "retryable": True,
                             "status_code": 503,
                             "attempt_number": 1,
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "timings": {"total_ms": 80, "provider_ms": 60},
                         },
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 1,
                             "retries": 0,
                             "duration_ms": 80,
@@ -1206,11 +1206,11 @@ def test_run_agent_once_preserves_terminal_crawl_error_without_sources() -> None
                             "retryable": False,
                             "status_code": 400,
                             "attempt_number": 2,
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "timings": {"total_ms": 10},
                         },
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 2,
                             "retries": 1,
                             "duration_ms": 10,
@@ -1254,11 +1254,11 @@ def test_run_agent_once_prefers_terminal_zero_evidence_crawl_success_without_sou
                             "retryable": True,
                             "status_code": 503,
                             "attempt_number": 1,
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "timings": {"total_ms": 80, "provider_ms": 60},
                         },
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 1,
                             "retries": 0,
                             "duration_ms": 80,
@@ -1279,7 +1279,7 @@ def test_run_agent_once_prefers_terminal_zero_evidence_crawl_success_without_sou
                         "content_type": "text/html",
                         "fallback_reason": "low-content-quality",
                         "meta": {
-                            "operation": "web_crawl",
+                            "operation": "open_url",
                             "attempts": 2,
                             "retries": 1,
                             "duration_ms": 20,
@@ -1414,9 +1414,9 @@ def test_run_agent_once_parses_repr_encoded_tool_payloads_into_source_registry()
                         "final_url=HttpUrl('https://example.com/a') "
                         "text='Expanded article body.' "
                         "markdown='# Example source' "
-                        "excerpts=[WebCrawlExcerpt(text='Expanded article body.', markdown='# Example source')] "
+                        "excerpts=[OpenUrlExcerpt(text='Expanded article body.', markdown='# Example source')] "
                         "status_code=200 content_type='text/html' fallback_reason=None "
-                        "meta=WebCrawlMeta(operation='web_crawl', attempts=1, retries=0, "
+                        "meta=OpenUrlMeta(operation='open_url', attempts=1, retries=0, "
                         "duration_ms=20, timings=ToolTimings(total_ms=20, provider_ms=None), "
                         "strategy_used='http', escalation_count=0, session_profile_id=None, "
                         "block_reason=None, rendered=False, challenge_detected=False)"
@@ -1469,9 +1469,9 @@ def test_run_agent_once_replaces_placeholder_agent_answer_when_sources_exist() -
                         "final_url=HttpUrl('https://example.com/a') "
                         "text='Expanded article body.' "
                         "markdown='# Example source' "
-                        "excerpts=[WebCrawlExcerpt(text='Expanded article body.', markdown='# Example source')] "
+                        "excerpts=[OpenUrlExcerpt(text='Expanded article body.', markdown='# Example source')] "
                         "status_code=200 content_type='text/html' fallback_reason=None "
-                        "meta=WebCrawlMeta(operation='web_crawl', attempts=1, retries=0, "
+                        "meta=OpenUrlMeta(operation='open_url', attempts=1, retries=0, "
                         "duration_ms=20, timings=ToolTimings(total_ms=20, provider_ms=None), "
                         "strategy_used='http', escalation_count=0, session_profile_id=None, "
                         "block_reason=None, rendered=False, challenge_detected=False)"
@@ -1580,7 +1580,7 @@ def test_run_agent_once_has_a_happy_path_for_each_mode(mode: AgentRunMode) -> No
                     "content_type": "text/html",
                     "fallback_reason": None,
                     "meta": {
-                        "operation": "web_crawl",
+                        "operation": "open_url",
                         "attempts": 1,
                         "retries": 0,
                         "duration_ms": 20,

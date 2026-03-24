@@ -4,25 +4,25 @@ Current Section: 10
 ## Section 1: Extend Web Crawl Contracts For Objective-Driven Extraction ✓
 
 Task:
-Add an optional `objective` input to `web_crawl` and expand the crawl success payload to support focused excerpt-style outputs without breaking existing normalized crawl behavior.
+Add an optional `objective` input to `open_url` and expand the crawl success payload to support focused excerpt-style outputs without breaking existing normalized crawl behavior.
 
 Context:
-Your current crawl contract only accepts a URL and returns truncated full-page text plus markdown, which forces the agent to reason over irrelevant content on long pages. The first step is to make the crawl surface objective-aware while keeping the existing `web_crawl` tool name, safety behavior, and success/error envelopes stable. This should remain backward-compatible for callers that do not supply an objective.
+Your current crawl contract only accepts a URL and returns truncated full-page text plus markdown, which forces the agent to reason over irrelevant content on long pages. The first step is to make the crawl surface objective-aware while keeping the existing `open_url` tool name, safety behavior, and success/error envelopes stable. This should remain backward-compatible for callers that do not supply an objective.
 
 Where to Look / Add:
-- `backend/app/contracts/web_crawl.py`
-- `backend/app/tools/web_crawl.py`
-- `backend/tests/tools/test_web_crawl_tool.py`
+- `backend/app/contracts/open_url.py`
+- `backend/app/tools/open_url.py`
+- `backend/tests/tools/test_open_url_tool.py`
 - `backend/tests/crawler/test_http_worker.py`
 
 How to Test:
-- `pytest backend/tests/tools/test_web_crawl_tool.py -q`
+- `pytest backend/tests/tools/test_open_url_tool.py -q`
 - `pytest backend/tests/crawler/test_http_worker.py -q`
-Success looks like `web_crawl` accepting both legacy URL-only requests and new objective-bearing requests while still validating cleanly at the contract layer. We know this section is working when objective-aware inputs produce contract-valid success payloads and legacy callers remain unaffected.
+Success looks like `open_url` accepting both legacy URL-only requests and new objective-bearing requests while still validating cleanly at the contract layer. We know this section is working when objective-aware inputs produce contract-valid success payloads and legacy callers remain unaffected.
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
-Completed: Added optional `objective` request support, added contract-valid excerpt payload fields to `web_crawl` success responses, preserved legacy URL-only behavior, and verified with `pytest backend/tests/tools/test_web_crawl_tool.py -q` and `pytest backend/tests/crawler/test_http_worker.py -q`.
+Completed: Added optional `objective` request support, added contract-valid excerpt payload fields to `open_url` success responses, preserved legacy URL-only behavior, and verified with `pytest backend/tests/tools/test_open_url_tool.py -q` and `pytest backend/tests/crawler/test_http_worker.py -q`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
@@ -33,22 +33,22 @@ Task:
 Implement passage segmentation and objective-based excerpt selection so crawl results can return the most relevant page segments instead of only raw full-page content.
 
 Context:
-This is the main accuracy lift. The current extraction path in `web_crawl` returns whatever the extractor produces and then applies a hard character truncation, which is cheap but noisy on long documents. Use a lightweight in-memory approach: split extracted content into passages, do lexical prefiltering first, then apply selective embedding-based ranking only when the page is long enough and an objective is present. This keeps the feature useful without forcing expensive full-page embedding on every crawl.
+This is the main accuracy lift. The current extraction path in `open_url` returns whatever the extractor produces and then applies a hard character truncation, which is cheap but noisy on long documents. Use a lightweight in-memory approach: split extracted content into passages, do lexical prefiltering first, then apply selective embedding-based ranking only when the page is long enough and an objective is present. This keeps the feature useful without forcing expensive full-page embedding on every crawl.
 
 Where to Look / Add:
-- `backend/app/tools/web_crawl.py`
+- `backend/app/tools/open_url.py`
 - `backend/app/crawler/extractor.py`
-- `backend/tests/tools/test_web_crawl_tool.py`
+- `backend/tests/tools/test_open_url_tool.py`
 - `backend/tests/crawler/test_extractor.py`
 
 How to Test:
-- `pytest backend/tests/tools/test_web_crawl_tool.py -q`
+- `pytest backend/tests/tools/test_open_url_tool.py -q`
 - `pytest backend/tests/crawler/test_extractor.py -q`
 Success looks like long-page crawl responses surfacing concise, relevant excerpts when an objective is present, while fallback behavior remains sensible when no strong match exists. We know this section is working when tests can prove objective-aware selection prefers the right passages and still preserves stable output for non-objective requests.
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
-Completed: Added passage segmentation with duplicate suppression, objective-aware lexical scoring with long-page cosine reranking, and lead-passage fallback excerpts, then verified with `pytest backend/tests/tools/test_web_crawl_tool.py -q`, `pytest backend/tests/crawler/test_extractor.py -q`, `pytest backend/tests/crawler/test_http_worker.py -q`, `npm run typecheck`, `npm run test`, and `npm run build`.
+Completed: Added passage segmentation with duplicate suppression, objective-aware lexical scoring with long-page cosine reranking, and lead-passage fallback excerpts, then verified with `pytest backend/tests/tools/test_open_url_tool.py -q`, `pytest backend/tests/crawler/test_extractor.py -q`, `pytest backend/tests/crawler/test_http_worker.py -q`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
@@ -109,10 +109,10 @@ Commit and push this section atomically once its tests pass.
 ## Section 5: Teach The Agent Runtime To Use Objective-Driven Retrieval Strategically
 
 Task:
-Update runtime and prompt guidance so agentic and deep-research runs use focused objectives in `web_crawl` and make deliberate use of improved search outputs and retrieval policy controls.
+Update runtime and prompt guidance so agentic and deep-research runs use focused objectives in `open_url` and make deliberate use of improved search outputs and retrieval policy controls.
 
 Context:
-The extraction and search upgrades will not materially improve answers unless the runtime uses them deliberately. Right now the system prompt and tool wiring still describe `web_crawl` as a generic page fetch and `web_search` as a generic search primitive, which encourages broad reading and weak source selection. The runtime should preserve the same bounded tool model while steering the agent to search and open pages with clear purposes tied to the user prompt and inferred policy constraints.
+The extraction and search upgrades will not materially improve answers unless the runtime uses them deliberately. Right now the system prompt and tool wiring still describe `open_url` as a generic page fetch and `web_search` as a generic search primitive, which encourages broad reading and weak source selection. The runtime should preserve the same bounded tool model while steering the agent to search and open pages with clear purposes tied to the user prompt and inferred policy constraints.
 
 Where to Look / Add:
 - `backend/agent/prompts.py`
@@ -121,13 +121,13 @@ Where to Look / Add:
 
 How to Test:
 - `pytest backend/tests/agent/test_runtime.py -q`
-- `pytest backend/tests/tools/test_web_crawl_tool.py -q`
+- `pytest backend/tests/tools/test_open_url_tool.py -q`
 - `pytest backend/tests/tools/test_web_search_tool.py -q`
 Success looks like runtime fixtures showing the agent issuing more targeted search and crawl calls with explicit objectives and tighter source selection. We know this section is working when prompt and runtime changes improve retrieval behavior without changing canonical tool names or breaking existing mode/profile bounds.
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
-Completed: ✓ Updated runtime prompt wiring so agentic and deep-research runs receive explicit retrieval strategy guidance, require objective-bearing `web_crawl` calls, reinforce excerpt-driven search triage, and verified with `pytest backend/tests/agent/test_runtime.py -q`, `pytest backend/tests/tools/test_web_crawl_tool.py -q`, `pytest backend/tests/tools/test_web_search_tool.py -q`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
+Completed: ✓ Updated runtime prompt wiring so agentic and deep-research runs receive explicit retrieval strategy guidance, require objective-bearing `open_url` calls, reinforce excerpt-driven search triage, and verified with `pytest backend/tests/agent/test_runtime.py -q`, `pytest backend/tests/tools/test_open_url_tool.py -q`, `pytest backend/tests/tools/test_web_search_tool.py -q`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.
@@ -191,7 +191,7 @@ Task:
 Add focused regression coverage for objective-driven extraction, improved search excerpts, and automatic retrieval policy behavior before the final integrated validation pass.
 
 Context:
-These retrieval changes affect evidence quality directly, so they need a targeted regression phase before the full end-to-end verification loop. In particular, guard against regressions in crawl truncation, source extraction, runtime tool budgets, and route-layer assumptions about `web_crawl` and `web_search` payload shapes. This section should prove the retrieval stack is materially better and still bounded before broader UI and answer-validation checks.
+These retrieval changes affect evidence quality directly, so they need a targeted regression phase before the full end-to-end verification loop. In particular, guard against regressions in crawl truncation, source extraction, runtime tool budgets, and route-layer assumptions about `open_url` and `web_search` payload shapes. This section should prove the retrieval stack is materially better and still bounded before broader UI and answer-validation checks.
 
 Where to Look / Add:
 - `backend/tests/tools/`
@@ -200,14 +200,14 @@ Where to Look / Add:
 - `src/tests/frontend/`
 
 How to Test:
-- `pytest backend/tests/tools/test_web_crawl_tool.py -q`
+- `pytest backend/tests/tools/test_open_url_tool.py -q`
 - `pytest backend/tests/tools/test_web_search_tool.py -q`
 - `pytest backend/tests/agent/test_runtime.py -q`
 Success looks like the upgraded retrieval flow passing focused backend and integration regressions without contract or safety drift. We know this section is working when targeted fixtures show better evidence selection, tighter excerpts, and consistent policy application while bounded runtime behavior remains intact.
 
 Completion Note:
 Do not end this section until it has been thoroughly tested.
-Completed: ✓ Validated the retrieval regression set across objective-driven crawl, reranked search, runtime policy inference, and broader JS contract/build checks with `pytest backend/tests/tools/test_web_crawl_tool.py -q`, `pytest backend/tests/tools/test_web_search_tool.py -q`, `pytest backend/tests/agent/test_runtime.py -q`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
+Completed: ✓ Validated the retrieval regression set across objective-driven crawl, reranked search, runtime policy inference, and broader JS contract/build checks with `pytest backend/tests/tools/test_open_url_tool.py -q`, `pytest backend/tests/tools/test_web_search_tool.py -q`, `pytest backend/tests/agent/test_runtime.py -q`, `npm install`, `npm run typecheck`, `npm run test`, and `npm run build`.
 
 Commit Note:
 Commit and push this section atomically once its tests pass.

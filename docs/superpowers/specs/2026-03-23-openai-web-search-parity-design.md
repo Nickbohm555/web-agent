@@ -6,7 +6,7 @@ Scope: Align the current `quick`, `agentic`, and `deep_research` run modes with 
 
 ## Goal
 
-Preserve the current stack built around custom `web_search` and `web_crawl` tools, but make each run mode behave like a distinct product category rather than three budget variations of the same runtime.
+Preserve the current stack built around custom `web_search` and `open_url` tools, but make each run mode behave like a distinct product category rather than three budget variations of the same runtime.
 
 Target categories:
 
@@ -33,7 +33,7 @@ Assessment:
 
 Current behavior:
 
-- Uses a bounded agent loop with `web_search` and `web_crawl`
+- Uses a bounded agent loop with `web_search` and `open_url`
 - Applies retrieval policy inference and prompt guidance
 - Uses constrained search and crawl budgets
 
@@ -72,7 +72,7 @@ Do not migrate to OpenAI-native web search or OpenAI-managed deep-research model
 Rationale:
 
 - The goal is product parity, not provider parity.
-- The current stack already has custom `web_search` and `web_crawl` behavior, retrieval policy inference, domain scoping, and event tracing.
+- The current stack already has custom `web_search` and `open_url` behavior, retrieval policy inference, domain scoping, and event tracing.
 - Migrating to OpenAI-native deep-research models would conflict with the current custom-tool architecture and introduce a separate capability surface.
 
 ### 2. Make the Three Modes Truly Distinct
@@ -106,7 +106,7 @@ Target behavior:
 1. Infer retrieval policy from the prompt.
 2. Run `web_search` once.
 3. Select the top 3 allowed results using deterministic rules.
-4. Run `web_crawl` on those URLs with bounded extraction.
+4. Run `open_url` on those URLs with bounded extraction.
 5. Build one evidence bundle from the crawled pages.
 6. Make one final LLM call to return the structured answer.
 
@@ -129,7 +129,7 @@ Model guidance:
 
 Target behavior:
 
-- Use the current `web_search` and `web_crawl` tools
+- Use the current `web_search` and `open_url` tools
 - Allow model-managed search and crawl sequencing
 - Keep bounded budgets and prompt guidance
 - Preserve the existing synchronous request-response behavior

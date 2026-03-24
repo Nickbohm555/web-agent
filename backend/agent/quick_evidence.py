@@ -5,7 +5,7 @@ from typing import Any, Sequence
 
 from backend.agent.runtime_sources import RuntimeSourceRegistry
 from backend.agent.schemas import AgentSourceReference
-from backend.app.tools.schemas.web_crawl import WebCrawlSuccess
+from backend.app.tools.schemas.open_url import OpenUrlSuccess
 from backend.app.tools.schemas.web_search import WebSearchResponse
 
 
@@ -13,7 +13,7 @@ from backend.app.tools.schemas.web_search import WebSearchResponse
 class QuickEvidence:
     prompt: str
     search_response: WebSearchResponse
-    successful_crawls: tuple[WebCrawlSuccess, ...]
+    successful_crawls: tuple[OpenUrlSuccess, ...]
     selected_urls: tuple[str, ...]
     sources: tuple[AgentSourceReference, ...]
 
@@ -32,10 +32,10 @@ def build_quick_evidence(
     registry = RuntimeSourceRegistry.empty()
     search_title_by_url = {str(result.url): result.title for result in search_response.results}
 
-    successful_crawls: list[WebCrawlSuccess] = []
+    successful_crawls: list[OpenUrlSuccess] = []
     for payload in crawl_payloads:
         try:
-            success = WebCrawlSuccess.model_validate(payload)
+            success = OpenUrlSuccess.model_validate(payload)
         except Exception:
             continue
 

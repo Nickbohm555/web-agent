@@ -17,8 +17,8 @@ from backend.agent.schemas import (
     AgentStructuredAnswer,
 )
 from backend.app.tools.schemas.tool_errors import ToolErrorEnvelope
-from backend.app.tools.schemas.web_crawl import WebCrawlSuccess
-from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
+from backend.app.tools.schemas.open_url import OpenUrlSuccess
+from backend.app.tools.schemas.open_url_batch import OpenUrlBatchSuccess
 from backend.app.tools.schemas.web_search import WebSearchResponse
 
 
@@ -239,7 +239,7 @@ def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
             continue
 
         try:
-            WebCrawlSuccess.model_validate(payload)
+            OpenUrlSuccess.model_validate(payload)
         except ValidationError:
             continue
 
@@ -265,7 +265,7 @@ def has_zero_evidence_crawl_success(raw_result: Any) -> bool:
             continue
 
         try:
-            crawl_result = WebCrawlSuccess.model_validate(payload)
+            crawl_result = OpenUrlSuccess.model_validate(payload)
         except ValidationError:
             continue
 
@@ -376,7 +376,7 @@ def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any)
         return
 
     try:
-        batch_result = WebCrawlBatchSuccess.model_validate(payload)
+        batch_result = OpenUrlBatchSuccess.model_validate(payload)
     except ValidationError:
         batch_result = None
 
@@ -394,7 +394,7 @@ def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any)
         return
 
     try:
-        crawl_result = WebCrawlSuccess.model_validate(payload)
+        crawl_result = OpenUrlSuccess.model_validate(payload)
     except ValidationError:
         merge_repr_encoded_tool_sources_into_registry(
             registry,
