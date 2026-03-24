@@ -1,0 +1,29 @@
+flowchart TB
+    subgraph A["Approach 1: Single End-to-End Search Flow"]
+        A1[User research task] --> A2[Search engine returns ranked results]
+        A2 --> A3[System expands top-ranked results]
+        A3 --> A4[System packages fetched content]
+        A4 --> A5[LLM reads preselected sources]
+        A5 --> A6[Final answer]
+
+        A3 -. tradeoff .-> A7[LLM loses freedom to choose sources based on its own context]
+        A4 -. tradeoff .-> A8[Relevance is decided mostly by ranking and system heuristics]
+    end
+
+    subgraph B["Approach 2: LLM-Summarized Search Results"]
+        B1[User research task] --> B2[Search engine returns results]
+        B2 --> B3[LLM or helper step summarizes each result for the task]
+        B3 --> B4[Research agent consumes summaries instead of full ground truth]
+        B4 --> B5[Reasoning or think_tool may be used to continue research]
+        B5 --> B6[Final answer]
+
+        B3 -. benefit .-> B7[Reduces noise and simplifies search for weaker models]
+        B3 -. cost .-> B8[Novel findings can be dropped if the summarizer repeats prior results]
+        B4 -. cost .-> B9[Facts become detached from original sources]
+        B4 -. cost .-> B10[Harder to resolve contradictions and filter weak origins]
+        B5 -. note .-> B11[think_tool helps non-reasoning models but is weaker than native reasoning models]
+    end
+
+    C[Takeaway] --> D[Optimize tools for the model class you actually want to support]
+    D --> E[Stronger reasoning models benefit from direct access to sources and ground truth]
+    D --> F[Support layers for weaker models can improve usability but may reduce research quality]
