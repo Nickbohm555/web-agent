@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import importlib
 
 import httpx
@@ -5,9 +7,10 @@ import httpx
 from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.crawler.browser_worker import BrowserFetchWorker
 from backend.app.tools.schemas.tool_errors import ToolError, ToolMeta, ToolTimings
-from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlSuccess
+from backend.app.tools.schemas.web_crawl import ExtractionResult, WebCrawlError, WebCrawlSuccess
 from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.crawler.schemas.browser_fetch import BrowserFetchSuccess
+from backend.app.crawler.fetch_orchestrator import CrawlSuccessEnvelope
 from backend.app.tools.web_crawl import (
     build_web_crawl_action_record,
     build_web_crawl_tool,
@@ -136,6 +139,48 @@ def test_run_web_crawl_surfaces_strategy_metadata_on_success() -> None:
     assert result.session_profile_id is None
     assert result.rendered is False
     assert result.challenge_detected is False
+
+
+def test_run_web_crawl_returns_typed_error_when_orchestrator_recovers_zero_evidence() -> None:
+    payload = run_web_crawl(
+        url="https://example.com/article",
+        fetch_orchestrator=_OrchestratorStub(
+            result=CrawlSuccessEnvelope(
+                final_url="https://example.com/article",
+                status_code=200,
+                content_type="text/html",
+                extraction_result=ExtractionResult(
+                    state="ok",
+                    text="",
+                    markdown="",
+                    excerpts=[],
+                    fallback_reason=None,
+                ),
+                meta=ToolMeta(
+                    operation="web_crawl",
+                    attempts=2,
+                    retries=1,
+                    duration_ms=18,
+                    timings=ToolTimings(total_ms=18),
+                ),
+                strategy_used="browser",
+                escalation_count=1,
+                session_profile_id="auth-profile",
+                block_reason="auth_required",
+                rendered=True,
+                challenge_detected=False,
+            )
+        ),
+    )
+    result = WebCrawlError.model_validate(payload)
+
+    assert result.error.kind == "low_content_quality"
+    assert result.error.message == "page did not yield enough evidence after retrieval attempts"
+    assert result.error.retryable is False
+    assert result.error.status_code == 200
+    assert result.error.attempt_number == 2
+    assert result.meta.attempts == 2
+    assert result.meta.retries == 1
 
 
 def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
@@ -398,3 +443,11 @@ def _rich_article_html() -> str:
       </body>
     </html>
     """
+
+
+class _OrchestratorStub:
+    def __init__(self, *, result) -> None:
+        self._result = result
+
+    def crawl(self, *, url: str, objective: str | None):
+        return self._result

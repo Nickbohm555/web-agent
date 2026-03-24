@@ -142,6 +142,15 @@ def run_web_crawl(
             objective=validated_input.objective,
         )
         if isinstance(result, CrawlSuccessEnvelope):
+            if not _has_recovered_evidence(result.extraction_result):
+                return _build_crawl_error_payload(
+                    total_ms=result.meta.duration_ms,
+                    kind="low_content_quality",
+                    message="page did not yield enough evidence after retrieval attempts",
+                    retryable=False,
+                    status_code=result.status_code,
+                    attempt_number=result.meta.attempts,
+                )
             return _build_crawl_success_payload(
                 validated_input=validated_input,
                 final_url=result.final_url,
@@ -191,11 +200,13 @@ def _build_crawl_error_payload(
     kind: str,
     message: str,
     retryable: bool,
+    status_code: int | None = None,
+    attempt_number: int = 1,
     operation: str = "web_crawl",
 ) -> WebCrawlError:
     """Build a typed crawl error envelope.
 
-    Example input: `_build_crawl_error_payload(total_ms=12, kind="invalid_request", message="bad url", retryable=False)`
+    Example input: `_build_crawl_error_payload(total_ms=12, kind="invalid_request", message="bad url", retryable=False, status_code=400, attempt_number=1)`
     Example output: `WebCrawlError(error=ToolError(kind="invalid_request", ...), ...)`
     """
     envelope = build_tool_error_payload(
@@ -204,6 +215,8 @@ def _build_crawl_error_payload(
         retryable=retryable,
         total_ms=total_ms,
         operation=operation,
+        status_code=status_code,
+        attempt_number=attempt_number,
     )
     return WebCrawlError(error=envelope.error, meta=envelope.meta)
 
@@ -271,6 +284,19 @@ def _truncate_crawl_payload(payload: WebCrawlToolResult, *, max_content_chars: i
             "text": truncated_text,
             "markdown": truncated_markdown,
         }
+    )
+
+
+def _has_recovered_evidence(extraction_result: ExtractionResult) -> bool:
+    """Report whether extracted crawl output contains usable evidence.
+
+    Example input: `_has_recovered_evidence(ExtractionResult(state="ok", text="Summary", markdown="Summary"))`
+    Example output: `True`
+    """
+    return bool(
+        extraction_result.text
+        or extraction_result.markdown
+        or extraction_result.excerpts
     )
 
 

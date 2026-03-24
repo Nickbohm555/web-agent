@@ -381,6 +381,85 @@ def test_fetch_orchestrator_reports_orchestrator_attempts_for_escalated_browser_
     assert result.meta.operation == "web_crawl"
 
 
+def test_fetch_orchestrator_returns_browser_success_after_http_block_with_strategy_metadata() -> None:
+    session_profile = fetch_orchestrator_module.SessionProfile.model_validate(
+        {
+            "id": "auth-profile",
+            "domains": ["example.com"],
+        }
+    )
+    orchestrator = FetchOrchestrator(
+        http_fetch_worker=_HttpWorkerStub(
+            result=HttpFetchFailure(
+                url="https://example.com/protected",
+                final_url="https://example.com/protected",
+                status_code=401,
+                content_type="text/html",
+                error=ToolError(
+                    kind="http_error",
+                    message="login required",
+                    retryable=False,
+                    status_code=401,
+                    attempt_number=1,
+                    operation="http_fetch",
+                    timings=ToolTimings(total_ms=11),
+                ),
+                meta=_tool_meta(attempts=1, total_ms=11, operation="http_fetch"),
+            )
+        ),
+        browser_fetch_worker=_BrowserWorkerStub(
+            result=BrowserFetchSuccess(
+                url="https://example.com/protected",
+                final_url="https://example.com/dashboard",
+                status_code=200,
+                content_type="text/html",
+                html="""
+                <html>
+                  <body>
+                    <main>
+                      <article>
+                        <p>Authenticated dashboards should expose enough primary content for evidence extraction after the crawler escalates into a browser session.</p>
+                        <p>This rendered result includes policy updates, account summaries, and usage details so downstream tools can reason about the protected page.</p>
+                        <p>The orchestrator should preserve the strategy metadata that explains why browser retrieval was necessary in the first place.</p>
+                      </article>
+                    </main>
+                  </body>
+                </html>
+                """,
+                text=(
+                    "Authenticated dashboards should expose enough primary content for evidence "
+                    "extraction after the crawler escalates into a browser session. This rendered "
+                    "result includes policy updates, account summaries, and usage details so "
+                    "downstream tools can reason about the protected page. The orchestrator "
+                    "should preserve the strategy metadata that explains why browser retrieval "
+                    "was necessary in the first place."
+                ),
+                rendered=True,
+                meta=_tool_meta(attempts=1, total_ms=23, operation="browser_fetch"),
+            )
+        ),
+        session_profiles=[session_profile],
+    )
+
+    result = orchestrator.crawl(url="https://example.com/protected", objective="Find the dashboard")
+
+    assert isinstance(result, fetch_orchestrator_module.CrawlSuccessEnvelope)
+    assert result.final_url == "https://example.com/dashboard"
+    assert result.status_code == 200
+    assert result.content_type == "text/html"
+    assert result.extraction_result.state == "ok"
+    assert "Authenticated dashboards should expose enough primary content" in result.extraction_result.text
+    assert "browser retrieval was necessary" in result.extraction_result.markdown
+    assert result.strategy_used == "browser"
+    assert result.escalation_count == 1
+    assert result.session_profile_id == "auth-profile"
+    assert result.block_reason == "auth_required"
+    assert result.rendered is True
+    assert result.challenge_detected is False
+    assert result.meta.duration_ms >= 0
+    assert result.meta.timings.total_ms == result.meta.duration_ms
+
+
 def _tool_meta(*, attempts: int, total_ms: int, operation: str = "web_crawl") -> ToolMeta:
     return ToolMeta(
         operation=operation,
