@@ -6,3 +6,5 @@ keys.txt
 .env.*
 __pycache__/
 *.py[cod]
+.playwright-cli/
+.worktrees/
