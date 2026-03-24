@@ -11,6 +11,7 @@ AGENTIC_RUNTIME_MODE = "agentic"
 DEEP_RESEARCH_RUNTIME_MODE = "deep_research"
 CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")
 DEFAULT_RECURSION_LIMIT = 12
+QUICK_RUNTIME_MAX_CRAWLS = 3
 RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
     QUICK_RUNTIME_MODE: AgentRuntimeProfile(
         name=QUICK_RUNTIME_MODE,

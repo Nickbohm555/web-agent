@@ -7,11 +7,10 @@ from uuid import uuid4
 
 from backend.agent.prompts import build_system_prompt
 from backend.agent.quick_search import (
-    DEFAULT_QUICK_SEARCH_MAX_RESULTS,
     QuickSearchRunner,
     run_quick_search,
-    synthesize_quick_answer,
 )
+from backend.agent.quick_runtime import QuickCrawlRunner, run_quick_runtime
 from backend.agent.runtime_constants import (
     AGENTIC_RUNTIME_MODE,
     CANONICAL_TOOL_NAMES,
@@ -20,11 +19,8 @@ from backend.agent.runtime_constants import (
     RUNTIME_PROFILES,
 )
 from backend.agent.runtime_errors import (
-    coerce_tool_error,
     elapsed_ms,
     failed_result,
-    map_quick_search_error_category,
-    map_quick_search_error_message,
     map_runtime_failure,
 )
 from backend.agent.runtime_policy import (
@@ -32,20 +28,14 @@ from backend.agent.runtime_policy import (
     build_runtime_config,
     resolve_effective_retrieval_policy,
 )
-from backend.agent.runtime_sources import (
-    count_tool_calls,
-    extract_final_answer,
-    extract_search_sources,
-    extract_sources,
-)
+from backend.agent.runtime_sources import count_tool_calls, extract_final_answer, extract_sources
 from backend.agent.schemas import (
     AgentRunMode,
     AgentRunResult,
     AgentRunRetrievalPolicy,
     AgentRuntimeProfile,
 )
-from backend.app.tools.schemas.web_search import WebSearchResponse
-from backend.app.tools.web_crawl import build_web_crawl_tool, web_crawl
+from backend.app.tools.web_crawl import build_web_crawl_tool, run_web_crawl, web_crawl
 from backend.app.tools.web_search import build_web_search_tool, web_search
 
 
@@ -95,6 +85,7 @@ class RuntimeDependencies:
     agent: AgentExecutor | None = None
     agent_factory: AgentFactory | None = None
     quick_search_runner: QuickSearchRunner | None = None
+    quick_crawl_runner: QuickCrawlRunner | None = None
     quick_runtime_runner: QuickRuntimeRunner | None = None
     deep_research_runner: DeepResearchRunner | None = None
 
@@ -156,6 +147,7 @@ def build_runtime_dependencies() -> RuntimeDependencies:
     return RuntimeDependencies(
         agent_factory=build_default_agent,
         quick_search_runner=run_quick_search,
+        quick_crawl_runner=run_web_crawl,
         quick_runtime_runner=run_quick_mode,
         deep_research_runner=run_deep_research_mode,
     )
@@ -236,42 +228,13 @@ def run_quick_mode(
     retrieval_policy: AgentRunRetrievalPolicy,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
-    payload = get_quick_search_runner(runtime_dependencies)(
-        query=prompt,
-        max_results=DEFAULT_QUICK_SEARCH_MAX_RESULTS,
-        freshness=retrieval_policy.search.freshness,
-        include_domains=retrieval_policy.search.include_domains,
-        exclude_domains=retrieval_policy.search.exclude_domains,
-    )
-
-    error = coerce_tool_error(payload)
-    if error is not None:
-        return failed_result(
-            run_id=run_id,
-            started_at=started_at,
-            category=map_quick_search_error_category(error.error.kind),
-            message=map_quick_search_error_message(error.error.kind),
-            retryable=error.error.retryable,
-        )
-
-    try:
-        response = WebSearchResponse.model_validate(payload)
-    except Exception:
-        return failed_result(
-            run_id=run_id,
-            started_at=started_at,
-            category="tool_failure",
-            message="quick search returned invalid payload",
-            retryable=False,
-        )
-
-    return AgentRunResult(
+    return run_quick_runtime(
+        prompt=prompt,
         run_id=run_id,
-        status="completed",
-        final_answer=synthesize_quick_answer(response),
-        sources=extract_search_sources(response).sources(),
-        tool_call_count=1,
-        elapsed_ms=elapsed_ms(started_at),
+        started_at=started_at,
+        retrieval_policy=retrieval_policy,
+        search_runner=get_quick_search_runner(runtime_dependencies),
+        crawl_runner=get_quick_crawl_runner(runtime_dependencies),
     )
 
 
@@ -397,6 +360,10 @@ def get_quick_search_runner(runtime_dependencies: RuntimeDependencies) -> QuickS
 
 def get_quick_runtime_runner(runtime_dependencies: RuntimeDependencies) -> QuickRuntimeRunner:
     return runtime_dependencies.quick_runtime_runner or run_quick_mode
+
+
+def get_quick_crawl_runner(runtime_dependencies: RuntimeDependencies) -> QuickCrawlRunner:
+    return runtime_dependencies.quick_crawl_runner or run_web_crawl
 
 
 def get_deep_research_runtime_runner(
