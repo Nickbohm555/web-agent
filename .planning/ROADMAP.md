@@ -73,11 +73,11 @@ Plans:
   2. User can have each Deep Agents subagent use the same `web_search` and `open_url` retrieval behavior already supported by the project.
   3. User can have each Deep Agents subagent return a subanswer for its assigned subquestion together with search-result sources from `web_search` items and citations from crawled or opened pages.
   4. User can observe parallel research progress in persisted logs or artifacts as Deep Agents subagents complete their work.
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Wire Deep Agents `task`-style delegation from the supervisor to parallel research subagents.
-- [ ] 04-02: Connect Deep Agents research subagents to the existing retrieval tooling and make each result carry a subanswer plus normalized search sources and crawl citations.
+- [ ] 04-01: Create the typed Deep Agents fan-out foundation: Wave 0 subagent tests, retrieval-tool injection, and a supervisor factory for parallel research delegation.
+- [ ] 04-02: Replace the placeholder deep-research wave executor with delegated subquestion execution, persisted progress, and normalized evidence aggregation.
 
 ### Phase 5: Evidence-Grounded Completion
 **Goal**: Users receive a final deep-research answer only after middleware has enforced evidence-bearing subagent outputs and the supervisor has extracted and normalized those results for synthesis, while the top-level API shape stays unchanged.
