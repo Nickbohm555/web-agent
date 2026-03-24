@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import backend.app.crawler.fetch_strategy as fetch_strategy_module
 from backend.app.crawler.fetch_strategy import (
     classify_http_result,
     decide_fetch_strategy,
@@ -36,6 +37,47 @@ def test_decide_fetch_strategy_starts_in_browser_for_browser_only_profile() -> N
 
     assert decision.strategy == "browser"
     assert decision.escalation_reason == "browser_required"
+
+
+def test_public_fetch_strategy_classifiers_are_sourced_from_fetch_classification() -> None:
+    assert (
+        fetch_strategy_module.classify_http_result.__module__
+        == "backend.app.crawler.fetch_classification"
+    )
+    assert (
+        fetch_strategy_module.should_escalate_http_result.__module__
+        == "backend.app.crawler.fetch_classification"
+    )
+
+
+def test_should_escalate_http_result_for_401_status() -> None:
+    failure = HttpFetchFailure(
+        url="https://example.com/protected",
+        final_url="https://example.com/login",
+        status_code=401,
+        content_type="text/html",
+        error=ToolError(
+            kind="http_error",
+            message="origin returned an authenticated HTTP status",
+            retryable=False,
+            status_code=401,
+            attempt_number=1,
+            operation="web_crawl",
+            timings=ToolTimings(total_ms=80),
+        ),
+        meta=ToolMeta(
+            operation="web_crawl",
+            attempts=1,
+            retries=0,
+            duration_ms=80,
+            timings=ToolTimings(total_ms=80),
+        ),
+    )
+
+    classification = classify_http_result(fetch_result=failure, extraction_result=None)
+
+    assert classification == "auth_required"
+    assert should_escalate_http_result(classification=classification) == "http_401"
 
 
 def test_should_escalate_http_result_for_terminal_auth_status() -> None:
