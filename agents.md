@@ -11,9 +11,7 @@
 5.2. Inside any `schemas/` folder, split models into multiple files by category when that makes sense. Do not pile unrelated Pydantic models into one large schema file. Prefer files like `tool_errors.py`, `web_search.py`, `web_crawl.py`, or `http_fetch.py`, and remove misplaced top-level schema folders like `backend/app/schemas` by moving each schema file into its correct feature-level `schemas/` folder.
 6. For backend functions in `backend/app/tools/**`, include a concise docstring with a short description of what the function does plus one example input and one example output whenever the function shape is stable enough to document.
 6.1. For any user-facing LangChain or framework tool entrypoint declared with `@tool(...)` or similar tool registration, make the docstring/tool description explicitly match the real runtime behavior, limits, policy filters, and output shape. These user-facing tool descriptions do not need the example input/output convention.
-7. When building documentation with flowcharts or diagrams, prefer a decision-tree style flow that starts from the shared entrypoint and then branches by mode, route, feature flag, provider, or runtime decision. For each branch, show the differing inputs, config, downstream calls, and final outputs so implementation differences are obvious.
-8. Use a diagram format that the target renderer actually supports. If the local markdown preview does not render Mermaid, do not ship Mermaid for that document. Switch to a plain text tree, ASCII flowchart, or markdown structure that renders reliably in the user’s environment.
-9. A documentation flowchart is failing if the viewer shows raw Mermaid source such as `flowchart TD` in a fenced code block instead of a rendered graph. When that happens, treat it as broken, replace it with a renderer-compatible format immediately, and move branch-specific inputs into normal markdown sections below the diagram.
+
 
 ## App Build + Debug Instructions (Operational)
 
