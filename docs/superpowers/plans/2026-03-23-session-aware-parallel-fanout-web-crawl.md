@@ -97,11 +97,25 @@ Expected: FAIL with missing batch models or validation behavior.
 - [ ] **Step 3: Implement the merged public crawl schemas**
 
 ```python
+class WebCrawlToolInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    url: HttpUrl | None = None
+    urls: list[HttpUrl] | None = Field(default=None, min_length=1, max_length=5)
+    objective: str | None = Field(default=None, min_length=1)
+
+
 class WebCrawlBatchInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     urls: list[HttpUrl] = Field(min_length=1, max_length=5)
     objective: str | None = Field(default=None, min_length=1)
+
+
+class WebCrawlBatchSummary(BaseModel):
+    attempted: int = Field(ge=0)
+    succeeded: int = Field(ge=0)
+    failed: int = Field(ge=0)
 
 
 class WebCrawlBatchItemResult(BaseModel):
@@ -117,6 +131,9 @@ class WebCrawlBatchSuccess(BaseModel):
     meta: ToolMeta
     summary: WebCrawlBatchSummary
 ```
+
+Run: make `WebCrawlToolInput` the single public args schema for the LangChain `web_crawl` entrypoint so the tool accepts either `url` or `urls` through one explicit contract.
+Expected: one public input model, one public tool name, and no ambiguity about how batch calls enter the tool.
 
 - [ ] **Step 4: Update the compatibility exports**
 
@@ -170,6 +187,21 @@ def test_orchestrator_escalates_to_browser_for_403() -> None:
     result = run_fetch_orchestrator(url="https://example.com/blocked", objective="Find pricing", ...)
     assert result.meta.strategy_used == "browser"
     assert result.meta.escalation_count == 1
+
+
+def test_browser_worker_applies_seeded_session_state() -> None:
+    result = browser_fetch(
+        url="https://example.com/dashboard",
+        seed=BrowserContextSeed(
+            cookies=[...],
+            headers={"x-test-header": "1"},
+            local_storage=[...],
+            session_storage=[...],
+        ),
+    )
+    assert result.seed_applied.cookies is True
+    assert result.seed_applied.local_storage is True
+    assert result.seed_applied.session_storage is True
 ```
 
 - [ ] **Step 2: Run the new crawler tests and confirm they fail**
@@ -234,6 +266,18 @@ def test_web_crawl_batch_preserves_fallback_success_for_pdf(monkeypatch) -> None
     payload = web_crawl.invoke({"urls": ["https://example.com/file.pdf"]})
     result = WebCrawlBatchSuccess.model_validate(payload)
     assert result.items[0].result.fallback_reason == "unsupported-content-type"
+
+
+def test_web_crawl_batch_returns_per_item_invalid_request_for_policy_blocked_url(monkeypatch) -> None:
+    tool = build_web_crawl_tool(
+        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
+            {"search": {"include_domains": ["example.com"]}}
+        )
+    )
+    payload = tool.invoke({"urls": ["https://example.com/a", "https://blocked.com/b"]})
+    result = WebCrawlBatchSuccess.model_validate(payload)
+    assert result.items[1].status == "failed"
+    assert result.items[1].error.kind == "invalid_request"
 ```
 
 - [ ] **Step 2: Run the batch execution tests and confirm they fail**
@@ -244,11 +288,34 @@ Expected: FAIL because the tool only handles single URLs.
 - [ ] **Step 3: Implement explicit batch orchestration with bounded concurrency**
 
 ```python
+def _await_batch_futures(
+    requested_urls: list[str],
+    futures: dict[Future[WebCrawlToolResult], str],
+) -> list[WebCrawlBatchItemResult]:
+    results_by_url: dict[str, WebCrawlBatchItemResult] = {}
+    for future, url in futures.items():
+        try:
+            payload = future.result(timeout=PER_URL_TIMEOUT_SECONDS)
+        except TimeoutError:
+            future.cancel()
+            results_by_url[url] = build_timeout_item(url)
+            continue
+        results_by_url[url] = build_batch_item(url=url, payload=payload)
+    return [results_by_url[url] for url in requested_urls]
+
+
 def run_web_crawl_batch(*, urls: list[str], objective: str | None, ...) -> WebCrawlBatchSuccess:
     with ThreadPoolExecutor(max_workers=min(len(urls), 5)) as pool:
-        ordered_results = list(pool.map(_crawl_one_url, urls))
+        futures = {
+            pool.submit(_crawl_one_url, url, objective=objective, ...): url
+            for url in urls
+        }
+        ordered_results = _await_batch_futures(urls, futures)
     return build_batch_success(urls=urls, items=ordered_results, ...)
 ```
+
+Run: implement explicit per-item timeout handling and cancellation instead of plain `executor.map(...)`.
+Expected: one slow or hung fetch does not stall the rest of the batch, and timed-out URLs become deterministic per-item failures.
 
 - [ ] **Step 4: Dispatch from the public tool boundary**
 
