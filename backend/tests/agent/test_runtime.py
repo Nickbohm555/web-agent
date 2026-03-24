@@ -1510,6 +1510,62 @@ def test_run_agent_once_parses_json_encoded_tool_payloads_into_source_registry()
     ]
 
 
+def test_run_agent_once_parses_repr_encoded_tool_payloads_into_source_registry() -> None:
+    agent = StubAgent(
+        raw_result={
+            "messages": [
+                {
+                    "role": "tool",
+                    "name": "web_search",
+                    "content": (
+                        "query='example topic' "
+                        "results=[WebSearchResult(title='Example source', "
+                        "url=HttpUrl('https://example.com/a'), "
+                        "snippet='Snippet A', "
+                        "rank=SearchRank(position=1, provider_position=1, rerank_score=10.0))] "
+                        "metadata=SearchMetadata(result_count=1, provider='serper') "
+                        "meta=ToolMeta(operation='web_search', attempts=1, retries=0, "
+                        "duration_ms=12, timings=ToolTimings(total_ms=12, provider_ms=10))"
+                    ),
+                },
+                {
+                    "role": "tool",
+                    "name": "web_crawl",
+                    "content": (
+                        "url=HttpUrl('https://example.com/a') "
+                        "final_url=HttpUrl('https://example.com/a') "
+                        "text='Expanded article body.' "
+                        "markdown='# Example source' "
+                        "objective='Find the latest update' "
+                        "excerpts=[WebCrawlExcerpt(text='Expanded article body.', markdown='# Example source')] "
+                        "status_code=200 content_type='text/html' fallback_reason=None "
+                        "meta=WebCrawlMeta(operation='web_crawl', attempts=1, retries=0, "
+                        "duration_ms=20, timings=ToolTimings(total_ms=20, provider_ms=None), "
+                        "strategy_used='http', escalation_count=0, session_profile_id=None, "
+                        "block_reason=None, rendered=False, challenge_detected=False)"
+                    ),
+                },
+                {"role": "assistant", "content": "Answer."},
+            ]
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "completed"
+    assert result.model_dump(mode="json")["sources"] == [
+        {
+            "source_id": "https-example-com-a",
+            "title": "Example source",
+            "url": "https://example.com/a",
+            "snippet": "Expanded article body.",
+        }
+    ]
+
+
 def test_run_agent_once_rejects_overlapping_citation_spans() -> None:
     agent = StubAgent(
         raw_result={

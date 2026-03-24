@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -18,6 +20,22 @@ from backend.app.tools.schemas.tool_errors import ToolErrorEnvelope
 from backend.app.tools.schemas.web_crawl import WebCrawlSuccess
 from backend.app.tools.schemas.web_crawl_batch import WebCrawlBatchSuccess
 from backend.app.tools.schemas.web_search import WebSearchResponse
+
+
+WEB_SEARCH_RESULT_REPR_PATTERN = re.compile(
+    r"WebSearchResult\("
+    r"title=(?P<title>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\"), "
+    r"url=HttpUrl\((?P<url>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")\), "
+    r"snippet=(?P<snippet>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")",
+    re.DOTALL,
+)
+WEB_CRAWL_FINAL_URL_REPR_PATTERN = re.compile(
+    r"final_url=HttpUrl\((?P<url>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")\)"
+)
+WEB_CRAWL_TEXT_REPR_PATTERN = re.compile(
+    r"text=(?P<text>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")",
+    re.DOTALL,
+)
 
 
 @dataclass
@@ -302,13 +320,24 @@ def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any)
         return
 
     payload = coerce_message_tool_payload(message)
+    content = coerce_message_content(message)
     if not isinstance(payload, dict):
+        merge_repr_encoded_tool_sources_into_registry(
+            registry,
+            tool_name=tool_name,
+            content=content,
+        )
         return
 
     if tool_name == "web_search":
         try:
             response = WebSearchResponse.model_validate(payload)
         except ValidationError:
+            merge_repr_encoded_tool_sources_into_registry(
+                registry,
+                tool_name=tool_name,
+                content=content,
+            )
             return
         merge_search_sources_into_registry(registry, response)
         return
@@ -334,6 +363,11 @@ def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any)
     try:
         crawl_result = WebCrawlSuccess.model_validate(payload)
     except ValidationError:
+        merge_repr_encoded_tool_sources_into_registry(
+            registry,
+            tool_name=tool_name,
+            content=content,
+        )
         return
 
     if not crawl_result.has_evidence():
@@ -346,6 +380,91 @@ def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any)
         snippet=source_record["snippet"],
         alias_urls=crawl_result.source_alias_urls(),
     )
+
+
+def merge_repr_encoded_tool_sources_into_registry(
+    registry: RuntimeSourceRegistry,
+    *,
+    tool_name: str,
+    content: str,
+) -> None:
+    if not content:
+        return
+
+    if tool_name == "web_search":
+        for source in extract_search_sources_from_repr(content):
+            registry.register(
+                url=source["url"],
+                title=source["title"],
+                snippet=source["snippet"],
+            )
+        return
+
+    if tool_name == "web_crawl":
+        source = extract_crawl_source_from_repr(content)
+        if source is None:
+            return
+        registry.register(
+            url=source["url"],
+            title=source["title"],
+            snippet=source["snippet"],
+        )
+
+
+def extract_search_sources_from_repr(content: str) -> list[dict[str, str]]:
+    sources: list[dict[str, str]] = []
+    for match in WEB_SEARCH_RESULT_REPR_PATTERN.finditer(content):
+        title = decode_repr_string(match.group("title"))
+        url = decode_repr_string(match.group("url"))
+        snippet = decode_repr_string(match.group("snippet"))
+        if title is None or url is None or snippet is None:
+            continue
+        sources.append(
+            {
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+            }
+        )
+    return sources
+
+
+def extract_crawl_source_from_repr(content: str) -> dict[str, str] | None:
+    url_match = WEB_CRAWL_FINAL_URL_REPR_PATTERN.search(content)
+    if url_match is None:
+        return None
+
+    url = decode_repr_string(url_match.group("url"))
+    if url is None:
+        return None
+
+    text_match = WEB_CRAWL_TEXT_REPR_PATTERN.search(content)
+    text = decode_repr_string(text_match.group("text")) if text_match is not None else ""
+    snippet = (text or "").strip()[:280]
+
+    return {
+        "title": derive_source_title_from_url(url),
+        "url": url,
+        "snippet": snippet,
+    }
+
+
+def decode_repr_string(value: str) -> str | None:
+    try:
+        parsed = ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        return None
+    return parsed if isinstance(parsed, str) else None
+
+
+def derive_source_title_from_url(url: str) -> str:
+    parsed = urlsplit(url)
+    hostname = parsed.hostname or url
+    path = parsed.path.rstrip("/")
+    if not path or path == "/":
+        return hostname
+    path_tail = path.split("/")[-1]
+    return f"{hostname}{('/' + path_tail) if path_tail else ''}"
 
 
 def coerce_message_final_answer(message: Any) -> dict[str, Any] | None:
