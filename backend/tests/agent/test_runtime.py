@@ -1190,6 +1190,76 @@ def test_run_agent_once_preserves_retryable_crawl_error_without_sources() -> Non
     assert result.error.retryable is True
 
 
+def test_run_agent_once_preserves_terminal_crawl_error_without_sources() -> None:
+    agent = StubAgent(
+        raw_result={
+            "messages": [
+                {
+                    "role": "tool",
+                    "name": "web_crawl",
+                    "content": {
+                        "error": {
+                            "kind": "provider_unavailable",
+                            "message": "temporary upstream issue",
+                            "retryable": True,
+                            "status_code": 503,
+                            "attempt_number": 1,
+                            "operation": "web_crawl",
+                            "timings": {"total_ms": 80, "provider_ms": 60},
+                        },
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 1,
+                            "retries": 0,
+                            "duration_ms": 80,
+                            "timings": {"total_ms": 80, "provider_ms": 60},
+                        },
+                    },
+                },
+                {
+                    "role": "tool",
+                    "name": "web_crawl",
+                    "content": {
+                        "error": {
+                            "kind": "invalid_request",
+                            "message": "url is outside the configured retrieval policy domain scope",
+                            "retryable": False,
+                            "status_code": 400,
+                            "attempt_number": 2,
+                            "operation": "web_crawl",
+                            "timings": {"total_ms": 10},
+                        },
+                        "meta": {
+                            "operation": "web_crawl",
+                            "attempts": 2,
+                            "retries": 1,
+                            "duration_ms": 10,
+                            "timings": {"total_ms": 10},
+                        },
+                    },
+                },
+                {
+                    "role": "assistant",
+                    "content": "Fallback answer.",
+                },
+            ]
+        }
+    )
+
+    result = run_agent_once(
+        "investigate citations",
+        runtime_dependencies=RuntimeDependencies(agent=agent),
+    )
+
+    assert result.status == "failed"
+    assert result.final_answer is None
+    assert result.sources == []
+    assert result.error is not None
+    assert result.error.category == "tool_failure"
+    assert result.error.message == "url is outside the configured retrieval policy domain scope"
+    assert result.error.retryable is False
+
+
 def test_run_agent_once_normalizes_safe_source_urls_before_emitting_citations() -> None:
     agent = StubAgent(
         raw_result={

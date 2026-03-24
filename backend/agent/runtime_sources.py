@@ -198,6 +198,7 @@ def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
     if not isinstance(messages, list):
         return None
 
+    crawl_error: ToolErrorEnvelope | None = None
     for message in messages:
         if coerce_message_tool_name(message) != "web_crawl":
             continue
@@ -207,11 +208,11 @@ def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
             continue
 
         try:
-            return ToolErrorEnvelope.model_validate(payload)
+            crawl_error = ToolErrorEnvelope.model_validate(payload)
         except ValidationError:
             continue
 
-    return None
+    return crawl_error
 
 
 def has_zero_evidence_crawl_success(raw_result: Any) -> bool:
