@@ -53,27 +53,27 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEEP-01 | Phase TBD | Pending |
-| DEEP-02 | Phase TBD | Pending |
-| DEEP-03 | Phase TBD | Pending |
-| DEEP-04 | Phase TBD | Pending |
-| PLAN-01 | Phase TBD | Pending |
-| PLAN-02 | Phase TBD | Pending |
-| PLAN-03 | Phase TBD | Pending |
-| PLAN-04 | Phase TBD | Pending |
-| RSCH-01 | Phase TBD | Pending |
-| RSCH-02 | Phase TBD | Pending |
-| RSCH-03 | Phase TBD | Pending |
-| RSCH-04 | Phase TBD | Pending |
-| TOOL-01 | Phase TBD | Pending |
-| TOOL-02 | Phase TBD | Pending |
-| TOOL-03 | Phase TBD | Pending |
+| DEEP-01 | Phase 2 | Pending |
+| DEEP-02 | Phase 2 | Pending |
+| DEEP-03 | Phase 2 | Pending |
+| DEEP-04 | Phase 5 | Pending |
+| PLAN-01 | Phase 3 | Pending |
+| PLAN-02 | Phase 3 | Pending |
+| PLAN-03 | Phase 3 | Pending |
+| PLAN-04 | Phase 3 | Pending |
+| RSCH-01 | Phase 4 | Pending |
+| RSCH-02 | Phase 4 | Pending |
+| RSCH-03 | Phase 5 | Pending |
+| RSCH-04 | Phase 5 | Pending |
+| TOOL-01 | Phase 1 | Pending |
+| TOOL-02 | Phase 1 | Pending |
+| TOOL-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-24*
-*Last updated: 2026-03-24 after initial definition*
+*Last updated: 2026-03-24 after roadmap creation*
