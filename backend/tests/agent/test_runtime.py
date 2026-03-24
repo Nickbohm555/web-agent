@@ -205,6 +205,44 @@ def test_run_agent_once_returns_normalized_result_without_provider_payload_leaka
     assert "provider_payload" not in result.model_dump()
 
 
+def test_run_agent_once_routes_quick_mode_into_quick_runtime() -> None:
+    quick_result = AgentRunResult(
+        run_id="run-quick",
+        status="completed",
+        final_answer={"text": "Quick answer"},
+        sources=[],
+        tool_call_count=4,
+        elapsed_ms=12,
+    )
+    deps = RuntimeDependencies(
+        quick_runtime_runner=lambda **_: quick_result,
+        agent=RaisingStubAgent(RuntimeError("agent path should not run")),
+    )
+
+    result = run_agent_once("Find pricing", "quick", runtime_dependencies=deps)
+
+    assert result.run_id == "run-quick"
+
+
+def test_run_agent_once_routes_background_deep_research_mode_into_background_runtime() -> None:
+    deep_result = AgentRunResult(
+        run_id="run-deep",
+        status="completed",
+        final_answer={"text": "Deep answer"},
+        sources=[],
+        tool_call_count=8,
+        elapsed_ms=120,
+    )
+    deps = RuntimeDependencies(
+        deep_research_runner=lambda **_: deep_result,
+        agent=RaisingStubAgent(RuntimeError("agent path should not run")),
+    )
+
+    result = run_agent_once("Investigate deeply", "deep_research", runtime_dependencies=deps)
+
+    assert result.run_id == "run-deep"
+
+
 def test_canonical_tool_binding_matches_phase_two_tool_names() -> None:
     assert (web_search.name, web_crawl.name) == CANONICAL_TOOL_NAMES
     _assert_canonical_tool_names((web_search, web_crawl))

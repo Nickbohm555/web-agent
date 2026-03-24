@@ -6,11 +6,14 @@ from backend.agent.quick_search import DEFAULT_QUICK_SEARCH_MAX_RESULTS
 from backend.agent.schemas import AgentRunMode, AgentRuntimeProfile
 
 
+QUICK_RUNTIME_MODE = "quick"
+AGENTIC_RUNTIME_MODE = "agentic"
+DEEP_RESEARCH_RUNTIME_MODE = "deep_research"
 CANONICAL_TOOL_NAMES = ("web_search", "web_crawl")
 DEFAULT_RECURSION_LIMIT = 12
 RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
-    "quick": AgentRuntimeProfile(
-        name="quick",
+    QUICK_RUNTIME_MODE: AgentRuntimeProfile(
+        name=QUICK_RUNTIME_MODE,
         model="gpt-4.1-mini",
         recursion_limit=4,
         timeout_seconds=20,
@@ -19,8 +22,8 @@ RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
         max_search_results=DEFAULT_QUICK_SEARCH_MAX_RESULTS,
         max_crawl_chars=0,
     ),
-    "agentic": AgentRuntimeProfile(
-        name="agentic",
+    AGENTIC_RUNTIME_MODE: AgentRuntimeProfile(
+        name=AGENTIC_RUNTIME_MODE,
         model="gpt-4.1-mini",
         recursion_limit=DEFAULT_RECURSION_LIMIT,
         timeout_seconds=45,
@@ -29,8 +32,8 @@ RUNTIME_PROFILES: dict[AgentRunMode, AgentRuntimeProfile] = {
         max_search_results=4,
         max_crawl_chars=4000,
     ),
-    "deep_research": AgentRuntimeProfile(
-        name="deep_research",
+    DEEP_RESEARCH_RUNTIME_MODE: AgentRuntimeProfile(
+        name=DEEP_RESEARCH_RUNTIME_MODE,
         model="gpt-4.1",
         recursion_limit=24,
         timeout_seconds=180,
