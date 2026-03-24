@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.responses import JSONResponse
 
+from backend.agent.deep_agents.resume import build_deep_research_thread_id
 from backend.agent.deep_research_runtime import start_deep_research
 from backend.agent.runtime import run_agent_once
 from backend.api.schemas import AgentRunRequest, AgentRunSuccessResponse
@@ -35,4 +36,5 @@ def start_deep_research_request(payload: AgentRunRequest):
     return start_deep_research(
         prompt=payload.prompt,
         retrieval_policy=payload.retrieval_policy,
+        thread_id_factory=build_deep_research_thread_id,
     )

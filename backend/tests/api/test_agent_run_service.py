@@ -41,13 +41,18 @@ def test_execute_agent_run_request_returns_sync_success_for_quick_mode(
 def test_execute_agent_run_request_returns_queued_response_for_deep_research(
     monkeypatch,
 ) -> None:
+    captured: dict[str, object] = {}
+
     monkeypatch.setattr(
         agent_run_service,
         "start_deep_research_request",
-        lambda payload: AgentRunQueuedResponse(
-            run_id="run-deep",
-            status="queued",
-            metadata=AgentRunQueuedMetadata(execution_surface="background"),
+        lambda payload: captured.setdefault(
+            "response",
+            AgentRunQueuedResponse(
+                run_id="run-deep",
+                status="queued",
+                metadata=AgentRunQueuedMetadata(execution_surface="background"),
+            ),
         ),
         raising=False,
     )
@@ -74,3 +79,4 @@ def test_execute_agent_run_request_returns_queued_response_for_deep_research(
         "status": "queued",
         "metadata": {"execution_surface": "background"},
     }
+    assert captured["response"].run_id == "run-deep"
