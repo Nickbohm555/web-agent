@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from backend.app.crawler.browser_worker import BrowserFetchWorker
-from backend.app.crawler.schemas.browser_fetch import BrowserFetchSuccess
+from backend.app.crawler.schemas.browser_fetch import BrowserFetchFailure, BrowserFetchSuccess
 from backend.app.crawler.schemas.session_profile import (
     DomainSessionMatch,
     SessionCookie,
@@ -50,9 +50,26 @@ def test_browser_worker_passes_seeded_session_state_to_navigation_runner() -> No
     result = worker.fetch(url="https://app.example.com/dashboard", session_match=match)
 
     assert result.status_code == 200
+    assert result.session_profile_id == "authenticated-profile"
     assert captured_seed["url"] == "https://app.example.com/dashboard"
     seed = captured_seed["seed"]
     assert seed.cookies[0].name == "sessionid"
     assert seed.extra_headers["x-test"] == "worker"
     assert seed.local_storage["featureFlag"] == "on"
     assert seed.session_storage["csrf"] == "token"
+
+
+def test_browser_worker_returns_typed_navigation_failure_when_runner_raises_timeout() -> None:
+    def navigation_runner(*, url: str, seed, timeout_ms: int):
+        raise TimeoutError(f"timed out while loading {url}")
+
+    worker = BrowserFetchWorker(navigation_runner=navigation_runner, timeout_ms=3210)
+
+    result = worker.fetch(url="https://app.example.com/dashboard", session_match=None)
+
+    assert isinstance(result, BrowserFetchFailure)
+    assert result.url == "https://app.example.com/dashboard"
+    assert result.navigation_error_kind == "timeout"
+    assert result.error.kind == "browser_navigation_failed"
+    assert result.error.message == "timed out while loading https://app.example.com/dashboard"
+    assert result.meta.operation == "web_crawl"

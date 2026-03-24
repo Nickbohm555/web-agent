@@ -28,15 +28,38 @@ class BrowserFetchWorker:
         url: str,
         session_match: DomainSessionMatch | None,
     ) -> BrowserFetchSuccess | BrowserFetchFailure:
+        started_at = perf_counter()
         seed = _build_browser_context_seed(session_match)
-        result = self._navigation_runner(
-            url=url,
-            seed=seed,
-            timeout_ms=self._timeout_ms,
-        )
-        if isinstance(result, BrowserFetchSuccess) and result.meta is None:
+        session_profile_id = session_match.profile.id if session_match is not None else None
+        try:
+            result = self._navigation_runner(
+                url=url,
+                seed=seed,
+                timeout_ms=self._timeout_ms,
+            )
+        except Exception as exc:
+            return _build_browser_failure(
+                url=url,
+                kind="browser_navigation_failed",
+                navigation_error_kind=_classify_navigation_error(exc),
+                total_ms=_elapsed_ms(started_at),
+                message=str(exc) or None,
+                session_profile_id=session_profile_id,
+            )
+
+        if isinstance(result, BrowserFetchSuccess):
+            updates: dict[str, object] = {}
+            if result.meta is None:
+                updates["meta"] = _browser_meta(total_ms=0, status_code=result.status_code)
+            if result.session_profile_id is None and session_profile_id is not None:
+                updates["session_profile_id"] = session_profile_id
+            if updates:
+                return result.model_copy(update=updates)
+            return result
+
+        if result.session_profile_id is None and session_profile_id is not None:
             result = result.model_copy(
-                update={"meta": _browser_meta(total_ms=0, status_code=result.status_code)}
+                update={"session_profile_id": session_profile_id}
             )
         return result
 
@@ -70,6 +93,7 @@ def _run_with_playwright(
         return _build_browser_failure(
             url=url,
             kind="browser_navigation_failed",
+            navigation_error_kind="browser_unavailable",
             total_ms=_elapsed_ms(started_at),
             message="playwright is unavailable for browser navigation",
         )
@@ -130,10 +154,19 @@ def _run_with_playwright(
                     status_code=status_code,
                 ),
             )
+    except PlaywrightTimeoutError as exc:
+        return _build_browser_failure(
+            url=url,
+            kind="browser_navigation_failed",
+            navigation_error_kind="timeout",
+            total_ms=_elapsed_ms(started_at),
+            message=str(exc) or None,
+        )
     except Exception:
         return _build_browser_failure(
             url=url,
             kind="browser_navigation_failed",
+            navigation_error_kind="navigation_error",
             total_ms=_elapsed_ms(started_at),
         )
 
@@ -158,8 +191,10 @@ def _build_browser_failure(
     *,
     url: str,
     kind: str,
+    navigation_error_kind: str,
     total_ms: int,
     message: str | None = None,
+    session_profile_id: str | None = None,
 ) -> BrowserFetchFailure:
     envelope = build_tool_error_payload(
         kind=kind,
@@ -170,8 +205,10 @@ def _build_browser_failure(
     )
     return BrowserFetchFailure(
         url=url,
+        navigation_error_kind=navigation_error_kind,
         error=envelope.error,
         meta=envelope.meta,
+        session_profile_id=session_profile_id,
     )
 
 
@@ -188,3 +225,9 @@ def _browser_meta(*, total_ms: int, status_code: int) -> object:
 
 def _elapsed_ms(started_at: float) -> int:
     return int((perf_counter() - started_at) * 1000)
+
+
+def _classify_navigation_error(exc: Exception) -> str:
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    return "navigation_error"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,6 +28,7 @@ class BrowserFetchSuccess(BaseModel):
     html: str
     text: str
     rendered: bool = True
+    session_profile_id: Optional[str] = None
     meta: Optional[ToolMeta] = None
 
 
@@ -38,6 +39,12 @@ class BrowserFetchFailure(BaseModel):
     final_url: Optional[str] = None
     status_code: Optional[int] = Field(default=None, ge=100, le=599)
     content_type: Optional[str] = None
+    navigation_error_kind: Literal[
+        "timeout",
+        "browser_unavailable",
+        "navigation_error",
+    ]
     error: ToolError
     meta: ToolMeta
     rendered: bool = True
+    session_profile_id: Optional[str] = None
