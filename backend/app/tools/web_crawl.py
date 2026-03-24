@@ -5,7 +5,6 @@ from typing import Any
 
 from langchain_core.tools import tool
 from pydantic import ValidationError
-from pydantic.networks import HttpUrl
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
 from backend.app.crawler.fetch_orchestrator import run_fetch_orchestrator
@@ -105,18 +104,22 @@ def run_web_crawl(
         validated_input = WebCrawlInput(url=url, urls=urls, objective=objective)
         if validated_input.urls is not None:
             worker = fetch_worker or create_http_fetch_worker()
-            return run_web_crawl_batch(
-                urls=[str(item) for item in validated_input.urls],
-                objective=validated_input.objective,
-                retrieval_policy=retrieval_policy,
-                crawl_one=lambda item_url, item_objective: run_web_crawl(
+
+            def crawl_batch_item(item_url: str, item_objective: str | None) -> WebCrawlToolResult:
+                return run_web_crawl(
                     url=item_url,
                     objective=item_objective,
                     fetch_worker=worker,
                     retrieval_policy=retrieval_policy,
                     session_profile_provider=session_profile_provider,
                     browser_fetcher=browser_fetcher,
-                ),
+                )
+
+            return run_web_crawl_batch(
+                urls=[str(item) for item in validated_input.urls],
+                objective=validated_input.objective,
+                retrieval_policy=retrieval_policy,
+                crawl_one=crawl_batch_item,
             )
 
         effective_policy = retrieval_policy or AgentRunRetrievalPolicy()
@@ -186,6 +189,7 @@ def _build_crawl_error_payload(
         operation=operation,
     )
     return WebCrawlError(error=envelope.error, meta=envelope.meta)
+
 
 def _truncate_crawl_payload(payload: WebCrawlToolResult, *, max_content_chars: int) -> WebCrawlToolResult:
     """Trim crawl text fields while preserving typed success/error output.

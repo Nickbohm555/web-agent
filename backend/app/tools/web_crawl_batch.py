@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from time import perf_counter
-from typing import Callable, Dict, List, Optional
+from typing import Callable
 
 from backend.agent.schemas import AgentRunRetrievalPolicy
-from backend.app.crawler.http_worker import HttpFetchWorker
-from backend.app.crawler.session_profiles import SessionProfileProvider
 from backend.app.tools._tool_utils import build_tool_error_payload, domain_scope_kwargs, is_url_allowed
 from backend.app.tools.schemas.tool_errors import ToolError, ToolTimings
 from backend.app.tools.schemas.web_crawl import WebCrawlError, WebCrawlMeta, WebCrawlSuccess, WebCrawlToolResult
@@ -22,10 +20,10 @@ MAX_BATCH_WORKERS = 5
 
 def run_web_crawl_batch(
     *,
-    urls: List[str],
-    objective: Optional[str],
-    crawl_one: Callable[[str, Optional[str]], WebCrawlToolResult],
-    retrieval_policy: Optional[AgentRunRetrievalPolicy] = None,
+    urls: list[str],
+    objective: str | None,
+    crawl_one: Callable[[str, str | None], WebCrawlToolResult],
+    retrieval_policy: AgentRunRetrievalPolicy | None = None,
 ) -> WebCrawlBatchSuccess:
     """Run deterministic parallel crawl fan-out and return ordered typed batch results.
 
@@ -37,8 +35,8 @@ def run_web_crawl_batch(
     policy = retrieval_policy or AgentRunRetrievalPolicy()
 
     with ThreadPoolExecutor(max_workers=min(len(requested_urls), MAX_BATCH_WORKERS)) as pool:
-        futures: Dict[Future[WebCrawlToolResult], str] = {}
-        results_by_url: Dict[str, WebCrawlBatchItemResult] = {}
+        futures: dict[Future[WebCrawlToolResult], str] = {}
+        results_by_url: dict[str, WebCrawlBatchItemResult] = {}
 
         for url in requested_urls:
             if not is_url_allowed(url, **domain_scope_kwargs(policy.search)):
@@ -75,9 +73,9 @@ def run_web_crawl_batch(
 
 
 def _await_batch_futures(
-    futures: Dict[Future[WebCrawlToolResult], str],
-) -> Dict[str, WebCrawlBatchItemResult]:
-    results_by_url: Dict[str, WebCrawlBatchItemResult] = {}
+    futures: dict[Future[WebCrawlToolResult], str],
+) -> dict[str, WebCrawlBatchItemResult]:
+    results_by_url: dict[str, WebCrawlBatchItemResult] = {}
     pending = set(futures)
 
     while pending:
@@ -170,7 +168,7 @@ def _build_exception_item(url: str, exc: Exception) -> WebCrawlBatchItemResult:
     )
 
 
-def _try_validate_success(payload: WebCrawlToolResult) -> Optional[WebCrawlSuccess]:
+def _try_validate_success(payload: WebCrawlToolResult) -> WebCrawlSuccess | None:
     try:
         return WebCrawlSuccess.model_validate(payload)
     except Exception:

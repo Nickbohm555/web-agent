@@ -1,10 +1,3 @@
-import {
-  type FetchOptions,
-} from "./contracts/fetch.js";
-import {
-  type SearchOptions,
-  type SearchResponse,
-} from "./contracts/search.js";
 import { fetch } from "./fetch.js";
 import { search } from "./search.js";
 
