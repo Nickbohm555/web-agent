@@ -27,6 +27,7 @@ from backend.agent.runtime_sources import (
     extract_final_answer,
     extract_sources,
     has_zero_evidence_crawl_success,
+    replace_placeholder_answer_with_source_summary,
 )
 from backend.agent.schemas import (
     AgentRunError,
@@ -358,10 +359,14 @@ def _run_profile_runtime(
                 retryable=False,
             ),
         )
+    final_answer = replace_placeholder_answer_with_source_summary(
+        extract_final_answer(raw_result, source_registry.source_lookup()),
+        sources=sources,
+    )
     return AgentRunResult(
         run_id=run_id,
         status="completed",
-        final_answer=extract_final_answer(raw_result, source_registry.source_lookup()),
+        final_answer=final_answer,
         sources=sources,
         tool_call_count=count_tool_calls(raw_result),
         elapsed_ms=elapsed_ms(started_at),

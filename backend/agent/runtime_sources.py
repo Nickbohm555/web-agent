@@ -36,6 +36,10 @@ WEB_CRAWL_TEXT_REPR_PATTERN = re.compile(
     r"text=(?P<text>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")",
     re.DOTALL,
 )
+PLACEHOLDER_ANSWER_PATTERN = re.compile(
+    r"\b(?:sorry[, ]+)?(?:i\s+)?need more steps to process this request\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -152,6 +156,35 @@ def extract_final_answer(
             return AgentStructuredAnswer(text=output.strip())
 
     raise ValueError("Agent runtime did not return a final answer")
+
+
+def replace_placeholder_answer_with_source_summary(
+    answer: AgentStructuredAnswer,
+    *,
+    sources: list[AgentSourceReference],
+) -> AgentStructuredAnswer:
+    if not is_placeholder_answer(answer.text) or not sources:
+        return answer
+
+    return AgentStructuredAnswer(text=summarize_sources_as_answer(sources))
+
+
+def is_placeholder_answer(text: str) -> bool:
+    return bool(PLACEHOLDER_ANSWER_PATTERN.search(text.strip()))
+
+
+def summarize_sources_as_answer(sources: list[AgentSourceReference]) -> str:
+    top_sources = sources[:3]
+    summaries: list[str] = []
+    for source in top_sources:
+        snippet = source.snippet.rstrip(".").strip()
+        if snippet:
+            summaries.append(f"{source.title}: {snippet}.")
+        else:
+            summaries.append(f"{source.title}: {source.url}.")
+
+    source_lines = "\n".join(f"- {source.title}: {source.url}" for source in top_sources)
+    return f"{' '.join(summaries)}\n\nSources:\n{source_lines}"
 
 
 def count_tool_calls(raw_result: Any) -> int:
