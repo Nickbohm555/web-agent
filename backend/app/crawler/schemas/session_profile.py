@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -53,9 +52,9 @@ class StorageSeedEntry(BaseModel):
 
 
 class SessionProfile(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True, populate_by_name=True)
 
-    id: str = Field(min_length=1)
+    profile_id: str = Field(alias="id", min_length=1)
     domains: list[str] = Field(min_length=1)
     cookies: list[SessionCookie] = Field(default_factory=list)
     headers: list[SessionHeader] = Field(default_factory=list)
@@ -63,9 +62,12 @@ class SessionProfile(BaseModel):
     session_storage: list[StorageSeedEntry] = Field(default_factory=list)
     browser_only: bool = False
     ttl_seconds: Optional[int] = Field(default=None, ge=1)
-    updated_at: Optional[datetime] = None
 
-    @field_validator("id")
+    @property
+    def id(self) -> str:
+        return self.profile_id
+
+    @field_validator("profile_id")
     @classmethod
     def normalize_id(cls, value: str) -> str:
         return _normalize_text(value)

@@ -46,6 +46,14 @@ def resolve_domain_session_profile(
     return max(candidates, key=lambda item: item[0])[1]
 
 
+def resolve_session_profile(
+    url: str,
+    *,
+    profiles: list[SessionProfile] | None = None,
+) -> DomainSessionMatch | None:
+    return resolve_domain_session_profile(url, profiles=profiles)
+
+
 def _resolve_profiles_path(path: str | Path | None) -> Path | None:
     if path is not None:
         return Path(path)

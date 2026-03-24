@@ -14,12 +14,12 @@ def test_load_session_profiles_and_resolve_best_domain_match(tmp_path) -> None:
         json.dumps(
             [
                 {
-                    "id": "broad-profile",
+                    "profile_id": "broad-profile",
                     "domains": ["example.com"],
                     "headers": [{"name": "x-test", "value": "broad"}],
                 },
                 {
-                    "id": "exact-profile",
+                    "profile_id": "exact-profile",
                     "domains": ["dashboard.example.com"],
                     "browser_only": True,
                     "cookies": [
@@ -41,7 +41,7 @@ def test_load_session_profiles_and_resolve_best_domain_match(tmp_path) -> None:
     )
 
     assert match is not None
-    assert match.profile.id == "exact-profile"
+    assert match.profile.profile_id == "exact-profile"
     assert match.matched_domain == "dashboard.example.com"
     assert match.profile.browser_only is True
 
