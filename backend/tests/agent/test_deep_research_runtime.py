@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from backend.agent.deep_agents.schemas.persisted_plan import PersistedPlanArtifact
 from backend.agent.deep_agents.schemas.persisted_status import PersistedStatusArtifact
+from backend.agent.deep_research_execution import execute_research_waves
 from backend.agent.deep_research_runtime import (
     run_deep_research_job,
     start_deep_research,
@@ -97,7 +98,7 @@ def test_start_deep_research_returns_queued_response_and_persists_job() -> None:
 def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
     store = InMemoryDeepResearchStore()
     artifact_repository = RecordingArtifactRepository()
-    wave_execution_inputs: list[list[str]] = []
+    delegated_subquestions: list[str] = []
 
     start_deep_research(
         prompt="Investigate deep research",
@@ -108,6 +109,21 @@ def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
         thread_id_factory=lambda run_id: f"thread-{run_id}",
     )
 
+    def delegate_subquestion(supervisor: object, subquestion: str) -> dict[str, object]:
+        delegated_subquestions.append(subquestion)
+        return {
+            "subquestion": subquestion,
+            "subanswer": f"Answer for {subquestion}",
+            "sources": [
+                {
+                    "title": "Primary source",
+                    "url": "https://example.com/source",
+                    "snippet": "Evidence snippet.",
+                }
+            ],
+            "citations": [],
+        }
+
     run_deep_research_job(
         "run-deep-complete",
         store=store,
@@ -115,22 +131,12 @@ def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
         plan_builder=lambda job: DeepResearchPlan(
             sub_questions=["What is deep research?", "How long can it run?"]
         ),
-        supervisor_builder=lambda: object(),
-        wave_executor=lambda job: job.model_copy(
-            update={
-                "stage": "searching",
-                "wave_count": 2,
-                "sources": [
-                    {
-                        "title": "Primary source",
-                        "url": "https://example.com/source",
-                        "snippet": "Evidence snippet.",
-                    }
-                ],
-            }
-        )
-        if not wave_execution_inputs.append(list(job.sub_questions))
-        else job,
+        supervisor_builder=lambda **_: object(),
+        wave_executor=lambda job: execute_research_waves(
+            job,
+            supervisor_builder=lambda **_: object(),
+            delegate_subquestion=delegate_subquestion,
+        ),
         verifier=lambda job: job.model_copy(update={"stage": "verifying"}),
         finalizer=lambda job: job.model_copy(
             update={
@@ -145,10 +151,26 @@ def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
     assert saved.thread_id == "thread-run-deep-complete"
     assert saved.sub_questions == ["What is deep research?", "How long can it run?"]
     assert saved.wave_count == 2
+    assert delegated_subquestions == ["What is deep research?", "How long can it run?"]
     assert saved.final_answer is not None
     assert saved.final_answer.text == "Deep research answer."
     assert [str(source.url) for source in saved.sources] == ["https://example.com/source"]
-    assert wave_execution_inputs == [["What is deep research?", "How long can it run?"]]
+    assert [artifact.artifact_path for artifact in saved.research_artifacts] == [
+        "/workspace/research/run-deep-complete/00-what-is-deep-research.md",
+        "/workspace/research/run-deep-complete/01-how-long-can-it-run.md",
+    ]
+    assert saved.progress_events == [
+        {
+            "subquestion": "What is deep research?",
+            "status": "completed",
+            "artifact_path": "/workspace/research/run-deep-complete/00-what-is-deep-research.md",
+        },
+        {
+            "subquestion": "How long can it run?",
+            "status": "completed",
+            "artifact_path": "/workspace/research/run-deep-complete/01-how-long-can-it-run.md",
+        },
+    ]
     assert artifact_repository.plan_artifacts[0].model_dump() == {
         "run_id": "run-deep-complete",
         "prompt": "Investigate deep research",
@@ -170,3 +192,101 @@ def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
         DeepResearchStage.SYNTHESIZING,
         DeepResearchStage.COMPLETED,
     ]
+
+
+def test_deep_research_runtime_progress_artifacts_use_workspace_paths() -> None:
+    store = InMemoryDeepResearchStore()
+    artifact_repository = RecordingArtifactRepository()
+
+    start_deep_research(
+        prompt="Investigate deep research progress",
+        retrieval_policy=AgentRunRetrievalPolicy(),
+        store=store,
+        schedule_job=lambda _job_id: None,
+        run_id_factory=lambda: "run-deep-progress",
+        thread_id_factory=lambda run_id: f"thread-{run_id}",
+    )
+
+    run_deep_research_job(
+        "run-deep-progress",
+        store=store,
+        artifact_repository=artifact_repository,
+        plan_builder=lambda job: DeepResearchPlan(
+            sub_questions=["What is deep research?", "How long can it run?"]
+        ),
+        supervisor_builder=lambda **_: object(),
+        wave_executor=lambda job: execute_research_waves(
+            job,
+            supervisor_builder=lambda **_: object(),
+            delegate_subquestion=lambda _supervisor, subquestion: {
+                "subquestion": subquestion,
+                "subanswer": f"Answer for {subquestion}",
+                "sources": [],
+                "citations": [],
+            },
+        ),
+        verifier=lambda job: job.model_copy(update={"stage": "verifying"}),
+        finalizer=lambda job: job.model_copy(
+            update={
+                "stage": "completed",
+                "final_answer": {"text": "Deep research answer."},
+            }
+        ),
+    )
+
+    saved = store.get_required("run-deep-progress")
+    assert saved.wave_count == 2
+    assert all(
+        artifact.artifact_path.startswith("/workspace/research/")
+        for artifact in saved.research_artifacts
+    )
+
+
+def test_deep_research_runtime_evidence_normalizes_sources_from_subagents() -> None:
+    store = InMemoryDeepResearchStore()
+    artifact_repository = RecordingArtifactRepository()
+
+    start_deep_research(
+        prompt="Investigate deep research evidence",
+        retrieval_policy=AgentRunRetrievalPolicy(),
+        store=store,
+        schedule_job=lambda _job_id: None,
+        run_id_factory=lambda: "run-deep-evidence",
+        thread_id_factory=lambda run_id: f"thread-{run_id}",
+    )
+
+    run_deep_research_job(
+        "run-deep-evidence",
+        store=store,
+        artifact_repository=artifact_repository,
+        plan_builder=lambda job: DeepResearchPlan(
+            sub_questions=["What is deep research?", "How long can it run?"]
+        ),
+        supervisor_builder=lambda **_: object(),
+        wave_executor=lambda job: execute_research_waves(
+            job,
+            supervisor_builder=lambda **_: object(),
+            delegate_subquestion=lambda _supervisor, subquestion: {
+                "subquestion": subquestion,
+                "subanswer": f"Answer for {subquestion}",
+                "sources": [
+                    {
+                        "title": "Primary source",
+                        "url": "https://example.com/source",
+                        "snippet": "Evidence snippet.",
+                    }
+                ],
+                "citations": [],
+            },
+        ),
+        verifier=lambda job: job.model_copy(update={"stage": "verifying"}),
+        finalizer=lambda job: job.model_copy(
+            update={
+                "stage": "completed",
+                "final_answer": {"text": "Deep research answer."},
+            }
+        ),
+    )
+
+    saved = store.get_required("run-deep-evidence")
+    assert [str(source.url) for source in saved.sources] == ["https://example.com/source"]
