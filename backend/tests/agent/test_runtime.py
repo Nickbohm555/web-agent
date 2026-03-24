@@ -259,6 +259,33 @@ def test_run_agent_once_routes_background_deep_research_mode_into_background_run
     assert result.run_id == "run-deep"
 
 
+def test_agentic_mode_still_uses_agent_factory_and_profile_tool_limits() -> None:
+    factory = CapturingAgentFactory(raw_result={"output": "Answer"})
+
+    result = run_agent_once(
+        "Compare two providers",
+        "agentic",
+        runtime_dependencies=RuntimeDependencies(agent_factory=factory),
+    )
+
+    assert result.status == "completed"
+    assert factory.captured_profile == get_runtime_profile("agentic")
+    assert factory.captured_tools is not None
+    assert tuple(tool.name for tool in factory.captured_tools) == CANONICAL_TOOL_NAMES
+    assert "bounded multi-step reasoning" in (factory.captured_system_prompt or "")
+
+
+def test_deep_research_no_longer_reuses_agentic_prompt_appendix_only() -> None:
+    prompt = build_system_prompt(
+        profile=get_runtime_profile("deep_research"),
+        retrieval_brief="...",
+    )
+
+    assert "Deep research guidance" in prompt
+    assert "Work methodically" in prompt
+    assert "bounded multi-step reasoning" not in prompt
+
+
 def test_canonical_tool_binding_matches_phase_two_tool_names() -> None:
     assert (web_search.name, web_crawl.name) == CANONICAL_TOOL_NAMES
     _assert_canonical_tool_names((web_search, web_crawl))

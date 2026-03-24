@@ -22,8 +22,17 @@ When you call web_crawl, always include an objective that states the exact fact,
 PROFILE_PROMPT_APPENDICES: dict[str, str] = {
     "quick": "Optimize for speed. Prefer a single decisive pass and avoid exploratory follow-up.",
     "agentic": "Use bounded multi-step reasoning when the prompt needs verification or synthesis across sources.",
-    "deep_research": "Work methodically, validate competing claims, and spend more budget on coverage before answering.",
 }
+
+DEEP_RESEARCH_PROMPT_GUIDANCE = (
+    "Deep research guidance: Work methodically, validate competing claims, and spend more budget on coverage before answering."
+)
+
+
+def get_mode_guidance(profile: AgentRuntimeProfile) -> str:
+    if profile.name == "deep_research":
+        return DEEP_RESEARCH_PROMPT_GUIDANCE
+    return PROFILE_PROMPT_APPENDICES[profile.name]
 
 
 def build_system_prompt(
@@ -31,7 +40,7 @@ def build_system_prompt(
     retrieval_policy: AgentRunRetrievalPolicy | None = None,
     retrieval_brief: str | None = None,
 ) -> str:
-    appendix = PROFILE_PROMPT_APPENDICES[profile.name]
+    appendix = get_mode_guidance(profile)
     bounded_guidance = (
         f"Tool budget: at most {profile.max_tool_steps} tool calls total. "
         f"Use web_search for no more than {profile.max_search_results} results per call. "

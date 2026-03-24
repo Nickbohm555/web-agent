@@ -131,7 +131,7 @@ def run_agent_once(
                 retrieval_policy=effective_policy,
                 runtime_dependencies=dependencies,
             )
-        return run_agentic_mode(
+        return run_agentic_runtime(
             prompt=prompt,
             run_id=run_id,
             started_at=started_at,
@@ -227,7 +227,7 @@ def run_quick_mode(
     started_at: float,
     retrieval_policy: AgentRunRetrievalPolicy,
     runtime_dependencies: RuntimeDependencies,
-) -> AgentRunResult:
+    ) -> AgentRunResult:
     return run_quick_runtime(
         prompt=prompt,
         run_id=run_id,
@@ -246,7 +246,24 @@ def run_agentic_mode(
     retrieval_policy: AgentRunRetrievalPolicy,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
-    return run_agent_profile_mode(
+    return run_agentic_runtime(
+        prompt=prompt,
+        run_id=run_id,
+        started_at=started_at,
+        retrieval_policy=retrieval_policy,
+        runtime_dependencies=runtime_dependencies,
+    )
+
+
+def run_agentic_runtime(
+    *,
+    prompt: str,
+    run_id: str,
+    started_at: float,
+    retrieval_policy: AgentRunRetrievalPolicy,
+    runtime_dependencies: RuntimeDependencies,
+) -> AgentRunResult:
+    return _run_profile_runtime(
         profile=get_runtime_profile(AGENTIC_RUNTIME_MODE),
         prompt=prompt,
         run_id=run_id,
@@ -264,7 +281,24 @@ def run_deep_research_mode(
     retrieval_policy: AgentRunRetrievalPolicy,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
-    return run_agent_profile_mode(
+    return run_deep_research_runtime(
+        prompt=prompt,
+        run_id=run_id,
+        started_at=started_at,
+        retrieval_policy=retrieval_policy,
+        runtime_dependencies=runtime_dependencies,
+    )
+
+
+def run_deep_research_runtime(
+    *,
+    prompt: str,
+    run_id: str,
+    started_at: float,
+    retrieval_policy: AgentRunRetrievalPolicy,
+    runtime_dependencies: RuntimeDependencies,
+) -> AgentRunResult:
+    return _run_profile_runtime(
         profile=get_runtime_profile(DEEP_RESEARCH_RUNTIME_MODE),
         prompt=prompt,
         run_id=run_id,
@@ -274,7 +308,7 @@ def run_deep_research_mode(
     )
 
 
-def run_agent_profile_mode(
+def _run_profile_runtime(
     *,
     profile: AgentRuntimeProfile,
     prompt: str,
