@@ -82,7 +82,7 @@ Existing behavior remains:
 When `urls` is provided:
 
 - validate the full batch
-- filter or reject URLs outside policy scope before fetch
+- validate each URL independently against policy before fetch
 - fetch and extract pages concurrently
 - preserve partial success
 - return one typed batch success envelope unless the request itself is invalid
@@ -101,8 +101,7 @@ Recommended additions:
 Recommended models:
 
 - `WebCrawlBatchInput`
-- `WebCrawlBatchItemSuccess`
-- `WebCrawlBatchItemError`
+- `WebCrawlBatchItemResult`
 - `WebCrawlBatchSuccess`
 
 Suggested shape:
@@ -113,21 +112,26 @@ Suggested shape:
     "https://example.com/a",
     "https://example.com/b"
   ],
-  "results": [
+  "items": [
     {
       "url": "https://example.com/a",
-      "final_url": "https://example.com/a",
-      "status_code": 200,
-      "content_type": "text/html",
-      "text": "...",
-      "markdown": "...",
-      "objective": null,
-      "excerpts": [...]
-    }
-  ],
-  "failures": [
+      "status": "succeeded",
+      "result": {
+        "url": "https://example.com/a",
+        "final_url": "https://example.com/a",
+        "status_code": 200,
+        "content_type": "text/html",
+        "text": "...",
+        "markdown": "...",
+        "objective": null,
+        "excerpts": [...]
+      },
+      "error": null
+    },
     {
       "url": "https://example.com/b",
+      "status": "failed",
+      "result": null,
       "error": {
         "kind": "provider_timeout",
         "message": "request timed out",
@@ -149,11 +153,16 @@ Suggested shape:
     "timings": {
       "total_ms": 2100
     }
+  },
+  "summary": {
+    "attempted": 2,
+    "succeeded": 1,
+    "failed": 1
   }
 }
 ```
 
-The batch response should also include aggregate counts such as attempted, succeeded, and failed if that proves useful for downstream reasoning or observability.
+The ordered `items` list preserves input order directly and avoids ambiguity for mixed-success batches. Aggregate counts should be included in a separate `summary` object for downstream reasoning and observability.
 
 ## Execution Design
 
@@ -185,6 +194,11 @@ Requirements:
 - partial-failure tolerance
 - straightforward mapping from per-URL execution to per-URL result
 
+Recommended hard limits:
+
+- max batch size: 5 URLs per tool call
+- default concurrency: 5 workers when 5 URLs are requested, otherwise one worker per URL
+
 The exact primitive can follow what best fits the existing fetch worker implementation, but the path should remain explicit and testable.
 
 ## Policy and Safety Rules
@@ -194,7 +208,8 @@ Every selected URL must still respect the retrieval policy.
 Batch behavior should:
 
 - validate each URL before fetch
-- either reject invalid requests up front or surface per-URL invalid-request failures consistently
+- reject the whole request only for request-shape errors such as missing `url`/`urls`, empty `urls`, malformed URLs, or batch size above the hard cap
+- surface policy-blocked URLs as per-item `invalid_request` failures so mixed batches can still return useful page reads
 - keep domain scoping behavior aligned with existing `web_crawl`
 - preserve existing content-size truncation behavior per successful page where needed
 
@@ -218,7 +233,7 @@ The runtime should preserve visibility into what happened during batch reads.
 Minimum needs:
 
 - which URLs were requested
-- which succeeded
+- per-URL status in input order
 - which failed and why
 - total batch timing
 
@@ -231,9 +246,10 @@ Add focused tests for:
 - batch input validation
 - backward compatibility for single-URL input
 - mixed success and failure in one batch
+- input-order preservation in mixed-success batches
 - domain-scope enforcement for every URL
 - bounded fan-out and concurrency behavior using stub fetch workers
-- response schema validation for batch success and batch item failures
+- response schema validation for ordered batch item success and failure records
 - updated prompt guidance encouraging batch page opens
 
 If feasible, include a test that demonstrates the batch path completes faster than serial execution under controlled stub latency, or at minimum validates overlapping execution behavior.
@@ -256,17 +272,13 @@ Phase 3:
 
 - inspect traces and adjust batch-size defaults or prompt wording if the model still underuses fan-out
 
-## Open Questions
+## Locked Decisions
 
-- Should invalid URLs inside a batch fail the whole request or become per-item failures?
-- Should batch results preserve input order, completion order, or a normalized stable order?
-- Should aggregate counts live inside `meta` or a separate summary object?
-
-Current recommendation:
-
-- invalid URL format should fail the request during validation
-- policy-blocked URLs should surface as per-item failures only if mixed batches are valuable; otherwise reject up front for simplicity
-- preserve input order in both requested URLs and result reporting
+- Invalid request-shape errors fail the whole request during validation.
+- Policy-blocked URLs become per-item `invalid_request` failures so the rest of the batch can still complete.
+- Batch results preserve input order through a single ordered `items` list.
+- Aggregate counts live in a separate `summary` object, not `meta`.
+- The initial hard cap is 5 URLs per batch call.
 
 ## Final Recommendation
 
