@@ -30,9 +30,10 @@ from backend.agent.runtime_policy import (
 )
 from backend.agent.runtime_sources import (
     count_tool_calls,
+    extract_crawl_error,
     extract_final_answer,
     extract_sources,
-    has_crawl_attempt,
+    has_zero_evidence_crawl_success,
 )
 from backend.agent.schemas import (
     AgentRunMode,
@@ -301,7 +302,22 @@ def run_agent_profile_mode(
     )
     source_registry = extract_sources(raw_result)
     sources = source_registry.sources()
-    if has_crawl_attempt(raw_result) and not sources:
+    crawl_error = extract_crawl_error(raw_result)
+    if crawl_error is not None and not sources:
+        return AgentRunResult(
+            run_id=run_id,
+            status="failed",
+            final_answer=None,
+            sources=[],
+            tool_call_count=count_tool_calls(raw_result),
+            elapsed_ms=elapsed_ms(started_at),
+            error=AgentRunError(
+                category="tool_failure",
+                message=crawl_error.error.message,
+                retryable=crawl_error.error.retryable,
+            ),
+        )
+    if has_zero_evidence_crawl_success(raw_result) and not sources:
         return AgentRunResult(
             run_id=run_id,
             status="failed",

@@ -14,6 +14,7 @@ from backend.agent.schemas import (
     AgentSourceReference,
     AgentStructuredAnswer,
 )
+from backend.app.tools.schemas.tool_errors import ToolErrorEnvelope
 from backend.app.tools.schemas.web_crawl import WebCrawlSuccess
 from backend.app.tools.schemas.web_search import WebSearchResponse
 
@@ -185,6 +186,57 @@ def has_crawl_attempt(raw_result: Any) -> bool:
 
             if tool_name == "web_crawl":
                 return True
+
+    return False
+
+
+def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
+    if not isinstance(raw_result, dict):
+        return None
+
+    messages = raw_result.get("messages")
+    if not isinstance(messages, list):
+        return None
+
+    for message in messages:
+        if coerce_message_tool_name(message) != "web_crawl":
+            continue
+
+        payload = coerce_message_tool_payload(message)
+        if not isinstance(payload, dict) or "error" not in payload:
+            continue
+
+        try:
+            return ToolErrorEnvelope.model_validate(payload)
+        except ValidationError:
+            continue
+
+    return None
+
+
+def has_zero_evidence_crawl_success(raw_result: Any) -> bool:
+    if not isinstance(raw_result, dict):
+        return False
+
+    messages = raw_result.get("messages")
+    if not isinstance(messages, list):
+        return False
+
+    for message in messages:
+        if coerce_message_tool_name(message) != "web_crawl":
+            continue
+
+        payload = coerce_message_tool_payload(message)
+        if not isinstance(payload, dict) or "error" in payload:
+            continue
+
+        try:
+            crawl_result = WebCrawlSuccess.model_validate(payload)
+        except ValidationError:
+            continue
+
+        if not crawl_result.has_evidence():
+            return True
 
     return False
 
