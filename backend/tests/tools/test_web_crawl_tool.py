@@ -192,6 +192,51 @@ def test_run_web_crawl_returns_success_fallback_for_low_content_quality() -> Non
     assert result.markdown == ""
 
 
+def test_web_crawl_batch_returns_ordered_mixed_results(monkeypatch) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_batch_mixed_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+
+    payload = web_crawl.invoke(
+        {"urls": ["https://example.com/a", "https://example.com/b"]}
+    )
+    result = WebCrawlBatchSuccess.model_validate(payload)
+
+    assert result.summary.attempted == 2
+    assert [item.status for item in result.items] == ["succeeded", "failed"]
+
+
+def test_web_crawl_batch_preserves_fallback_success_for_pdf(monkeypatch) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_pdf_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+
+    payload = web_crawl.invoke({"urls": ["https://example.com/file.pdf"]})
+    result = WebCrawlBatchSuccess.model_validate(payload)
+
+    assert result.items[0].result is not None
+    assert result.items[0].result.fallback_reason == "unsupported-content-type"
+
+
+def test_web_crawl_batch_returns_per_item_invalid_request_for_policy_blocked_url(
+    monkeypatch,
+) -> None:
+    worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
+    monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
+    tool_instance = build_web_crawl_tool(
+        retrieval_policy=AgentRunRetrievalPolicy.model_validate(
+            {"search": {"include_domains": ["example.com"]}}
+        )
+    )
+
+    payload = tool_instance.invoke(
+        {"urls": ["https://example.com/a", "https://blocked.com/b"]}
+    )
+    result = WebCrawlBatchSuccess.model_validate(payload)
+
+    assert result.items[1].status == "failed"
+    assert result.items[1].error is not None
+    assert result.items[1].error.kind == "invalid_request"
+
+
 def test_build_web_crawl_action_record_summarizes_success_payload() -> None:
     record = build_web_crawl_action_record(
         url="https://example.com/article",
@@ -409,6 +454,14 @@ def _boilerplate_handler(request: httpx.Request) -> httpx.Response:
         """,
         request=request,
     )
+
+
+def _batch_mixed_handler(request: httpx.Request) -> httpx.Response:
+    if str(request.url) == "https://example.com/a":
+        return _rich_article_handler(request)
+    if str(request.url) == "https://example.com/b":
+        return _retryable_failure_handler(request)
+    raise AssertionError(f"unexpected request url: {request.url}")
 
 
 def _retryable_failure_handler(request: httpx.Request) -> httpx.Response:
