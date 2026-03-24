@@ -21,6 +21,11 @@ from backend.agent.runtime_errors import (
     map_quick_search_error_message,
     map_runtime_failure,
 )
+from backend.agent.runtime_logging import (
+    log_agent_run_completed,
+    log_agent_run_failed,
+    log_agent_run_started,
+)
 from backend.agent.runtime_policy import (
     build_retrieval_brief,
     build_runtime_config,
@@ -74,14 +79,17 @@ def run_agent_once(
 ) -> AgentRunResult:
     run_id = str(uuid4())
     started_at = perf_counter()
+    log_agent_run_started(prompt=prompt, mode=mode)
     if not prompt.strip():
-        return failed_result(
+        result = failed_result(
             run_id=run_id,
             started_at=started_at,
             category="invalid_prompt",
             message="prompt must not be empty",
             retryable=False,
         )
+        log_agent_run_failed(result=result, mode=mode, prompt=prompt)
+        return result
 
     try:
         profile = get_runtime_profile(mode)
@@ -110,7 +118,7 @@ def run_agent_once(
         )
         source_registry = extract_sources(raw_result)
         sources = source_registry.sources()
-        return AgentRunResult(
+        result = AgentRunResult(
             run_id=run_id,
             status="completed",
             final_answer=extract_final_answer(raw_result, source_registry.source_lookup()),
@@ -118,8 +126,12 @@ def run_agent_once(
             tool_call_count=count_tool_calls(raw_result),
             elapsed_ms=elapsed_ms(started_at),
         )
+        log_agent_run_completed(result=result, mode=mode, prompt=prompt)
+        return result
     except Exception as exc:
-        return map_runtime_failure(exc=exc, run_id=run_id, started_at=started_at)
+        result = map_runtime_failure(exc=exc, run_id=run_id, started_at=started_at)
+        log_agent_run_failed(result=result, mode=mode, prompt=prompt)
+        return result
 
 
 def build_runtime_dependencies() -> RuntimeDependencies:
