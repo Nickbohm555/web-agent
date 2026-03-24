@@ -27,6 +27,7 @@ class DeepResearchJob(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     job_id: str = Field(min_length=1)
+    thread_id: str = Field(min_length=1)
     prompt: str = Field(min_length=1)
     retrieval_policy: AgentRunRetrievalPolicy = Field(default_factory=AgentRunRetrievalPolicy)
     stage: DeepResearchStage
