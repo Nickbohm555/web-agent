@@ -20,7 +20,7 @@ from backend.agent.runtime import (
 from backend.agent.runtime_sources import extract_sources
 from backend.agent.schemas import AgentRunMode, AgentRunResult, AgentRuntimeProfile
 from backend.agent.schemas import AgentRunRetrievalPolicy
-from backend.app.tools.web_crawl import web_crawl
+from backend.app.tools.web_crawl import open_url, web_crawl
 from backend.app.tools.web_search import web_search
 
 
@@ -288,8 +288,8 @@ def test_deep_research_no_longer_reuses_agentic_prompt_appendix_only() -> None:
 
 
 def test_canonical_tool_binding_matches_phase_two_tool_names() -> None:
-    assert (web_search.name, web_crawl.name) == CANONICAL_TOOL_NAMES
-    _assert_canonical_tool_names((web_search, web_crawl))
+    assert (web_search.name, open_url.name) == CANONICAL_TOOL_NAMES
+    _assert_canonical_tool_names((web_search, open_url))
 
 
 def test_canonical_tool_binding_rejects_name_drift() -> None:
@@ -365,7 +365,7 @@ def test_agentic_prompt_includes_bounded_search_and_crawl_guidance() -> None:
 def test_system_prompt_instructs_agent_to_batch_selected_url_opens() -> None:
     prompt = build_system_prompt(profile=RUNTIME_PROFILES["agentic"])
 
-    assert "call web_crawl with multiple selected URLs in one call" in prompt
+    assert "call open_url with multiple selected URLs in one call" in prompt
 
 
 def test_extract_sources_flattens_successful_batch_crawl_items() -> None:
@@ -468,13 +468,13 @@ def test_system_prompt_accepts_prompt_specific_retrieval_brief() -> None:
         retrieval_brief=(
             "Retrieval strategy:\n"
             "- Answer objective: Compare two API launches\n"
-            "- Crawl plan: every web_crawl call must include an objective"
+            "- Crawl plan: every open_url call must include an objective"
         ),
     )
 
     assert "Retrieval strategy:" in prompt
     assert "Compare two API launches" in prompt
-    assert "every web_crawl call must include an objective" in prompt
+    assert "every open_url call must include an objective" in prompt
 
 
 def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:

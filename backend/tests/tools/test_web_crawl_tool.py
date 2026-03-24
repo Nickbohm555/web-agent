@@ -12,6 +12,7 @@ from backend.app.crawler.http_worker import HttpFetchWorker
 from backend.app.tools.web_crawl import (
     build_web_crawl_action_record,
     build_web_crawl_tool,
+    open_url,
     run_web_crawl,
     web_crawl,
 )
@@ -109,10 +110,11 @@ def test_web_crawl_tool_invokes_successful_extraction(monkeypatch) -> None:
     worker = HttpFetchWorker(http_client=_mock_http_client(_rich_article_handler))
     monkeypatch.setattr(web_crawl_module, "create_http_fetch_worker", lambda: worker)
 
-    payload = web_crawl.invoke({"url": "https://example.com/article"})
+    payload = open_url.invoke({"url": "https://example.com/article"})
     result = WebCrawlSuccess.model_validate(payload)
 
-    assert web_crawl.name == "web_crawl"
+    assert open_url.name == "open_url"
+    assert web_crawl is open_url
     assert str(result.url) == "https://example.com/article"
     assert str(result.final_url) == "https://example.com/article"
     assert result.fallback_reason is None
@@ -416,7 +418,7 @@ def test_build_web_crawl_tool_truncates_extracted_content_for_agentic_budget() -
     )
     result = WebCrawlSuccess.model_validate(payload)
 
-    assert tool_instance.name == "web_crawl"
+    assert tool_instance.name == "open_url"
     assert 0 < len(result.text) <= 40
     assert 0 < len(result.markdown) <= 40
     assert result.objective == "Find the focused passage"

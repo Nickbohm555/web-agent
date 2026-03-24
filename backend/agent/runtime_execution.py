@@ -36,7 +36,7 @@ from backend.agent.schemas import (
     AgentRunRetrievalPolicy,
     AgentRuntimeProfile,
 )
-from backend.app.tools.web_crawl import build_web_crawl_tool, run_web_crawl, web_crawl
+from backend.app.tools.web_crawl import build_web_crawl_tool, open_url, run_web_crawl
 from backend.app.tools.web_search import build_web_search_tool, web_search
 
 
@@ -159,7 +159,7 @@ def get_runtime_profile(mode: AgentRunMode) -> AgentRuntimeProfile:
 
 
 def get_canonical_tools() -> tuple[Any, Any]:
-    return (web_search, web_crawl)
+    return (web_search, open_url)
 
 
 def get_tools_for_profile(

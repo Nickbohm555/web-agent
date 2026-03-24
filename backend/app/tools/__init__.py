@@ -1,13 +1,14 @@
 from .schemas.web_search import WebSearchInput
 
-__all__ = ["WebSearchInput", "run_web_crawl", "run_web_search", "web_crawl", "web_search"]
+__all__ = ["WebSearchInput", "open_url", "run_web_crawl", "run_web_search", "web_crawl", "web_search"]
 
 
 def __getattr__(name: str):
-    if name in {"run_web_crawl", "web_crawl"}:
-        from .web_crawl import run_web_crawl, web_crawl
+    if name in {"run_web_crawl", "web_crawl", "open_url"}:
+        from .web_crawl import open_url, run_web_crawl, web_crawl
 
         return {
+            "open_url": open_url,
             "run_web_crawl": run_web_crawl,
             "web_crawl": web_crawl,
         }[name]

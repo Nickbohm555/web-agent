@@ -224,7 +224,7 @@ def extract_crawl_error(raw_result: Any) -> ToolErrorEnvelope | None:
 
     crawl_error: ToolErrorEnvelope | None = None
     for message in messages:
-        if coerce_message_tool_name(message) != "web_crawl":
+        if not is_crawl_tool_name(coerce_message_tool_name(message)):
             continue
 
         payload = coerce_message_tool_payload(message)
@@ -257,7 +257,7 @@ def has_zero_evidence_crawl_success(raw_result: Any) -> bool:
         return False
 
     for message in messages:
-        if coerce_message_tool_name(message) != "web_crawl":
+        if not is_crawl_tool_name(coerce_message_tool_name(message)):
             continue
 
         payload = coerce_message_tool_payload(message)
@@ -349,7 +349,7 @@ def register_citation_sources(
 
 def register_message_tool_sources(registry: RuntimeSourceRegistry, message: Any) -> None:
     tool_name = coerce_message_tool_name(message)
-    if tool_name not in CANONICAL_TOOL_NAMES:
+    if tool_name != "web_search" and not is_crawl_tool_name(tool_name):
         return
 
     payload = coerce_message_tool_payload(message)
@@ -433,7 +433,7 @@ def merge_repr_encoded_tool_sources_into_registry(
             )
         return
 
-    if tool_name == "web_crawl":
+    if is_crawl_tool_name(tool_name):
         source = extract_crawl_source_from_repr(content)
         if source is None:
             return
@@ -442,6 +442,10 @@ def merge_repr_encoded_tool_sources_into_registry(
             title=source["title"],
             snippet=source["snippet"],
         )
+
+
+def is_crawl_tool_name(name: str | None) -> bool:
+    return name in ACCEPTED_CRAWL_TOOL_NAMES
 
 
 def extract_search_sources_from_repr(content: str) -> list[dict[str, str]]:
@@ -852,3 +856,9 @@ def normalize_content_value(content: Any) -> str:
         return "\n".join(parts).strip()
 
     return ""
+LEGACY_CRAWL_TOOL_NAME = "web_crawl"
+CrawlToolName = str
+ACCEPTED_CRAWL_TOOL_NAMES: tuple[CrawlToolName, ...] = (
+    CANONICAL_TOOL_NAMES[1],
+    LEGACY_CRAWL_TOOL_NAME,
+)

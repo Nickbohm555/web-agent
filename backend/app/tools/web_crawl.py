@@ -48,12 +48,12 @@ def build_web_crawl_tool(
     """Build the bounded LangChain crawl tool.
 
     Example input: `build_web_crawl_tool(max_content_chars=4000)`
-    Example output: `StructuredTool(name="web_crawl", ...)`
+    Example output: `StructuredTool(name="open_url", ...)`
     """
     bounded_limit = max(0, max_content_chars)
 
-    @tool("web_crawl", args_schema=WebCrawlInput)
-    def bounded_web_crawl(
+    @tool("open_url", args_schema=WebCrawlInput)
+    def open_url(
         url: str | None = None,
         urls: list[str] | None = None,
         objective: str | None = None,
@@ -82,7 +82,7 @@ def build_web_crawl_tool(
         )
         return _truncate_crawl_payload(payload, max_content_chars=bounded_limit)
 
-    return bounded_web_crawl
+    return open_url
 
 
 def run_web_crawl(
@@ -153,7 +153,8 @@ def run_web_crawl(
         )
 
 
-web_crawl = build_web_crawl_tool()
+open_url = build_web_crawl_tool()
+web_crawl = open_url
 
 
 def _elapsed_ms(start: float) -> int:
