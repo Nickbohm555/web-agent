@@ -1,63 +1,78 @@
-# Parallel-like Web Extraction Agent
+# Web Agent
 
 ## What This Is
 
-This project builds a web research agent that can fetch a page, extract its main content, and return evidence in a Parallel-like, tool-friendly format (full content or objective-driven excerpts).
-It’s for building reliable “web evidence” for downstream question answering/evaluation, using bounded network retrieval plus consistent output contracts.
+Web Agent is a dual-surface retrieval system with a TypeScript frontend/runtime layer and a Python backend agent runtime for search, crawl, and answer generation. The current product already supports quick, agentic, and deep-research execution modes, and this project focuses on turning deep research into a true orchestrated multi-agent workflow with persistent planning and resumable clarification.
 
 ## Core Value
 
-Return accurate, high-signal web evidence in a stable format even when pages are messy (bad HTML, low text, redirects, JS/PDF).
+Deep research must be able to break a complex question into the right research threads, gather enough evidence across those threads, and return a deeply supported answer only when the orchestrator has enough coverage to do so confidently.
 
 ## Requirements
 
 ### Validated
 
-- ✓ `POST /api/agent/run` endpoint exists and runs the agent runtime
-- ✓ Canonical backend tools are bound as `web_search` and `web_crawl`
-- ✓ `web_search` uses Serper (`SERPER_API_KEY`) and normalizes results
-- ✓ `web_crawl` is HTTP-first with retries and extracts readable content via `trafilatura`, returning structured fallback reasons on failure
+- ✓ Local frontend and backend services can run together for retrieval and agent execution — existing
+- ✓ Users can submit prompts through quick, agentic, and deep-research modes — existing
+- ✓ Backend web retrieval already supports typed search and crawl tool flows with policy enforcement — existing
+- ✓ Frontend run history and streaming infrastructure already capture backend run events — existing
 
 ### Active
 
-- [ ] Extend `web_crawl` (single URL) to support `objective?` and `search_queries?` for objective-driven excerpt selection
-- [ ] Implement `full_content` mode: return the extracted page content as full markdown (links preserved)
-- [ ] Implement excerpt mode: select a small set of high-signal excerpts under a “cheap” budget
-- [ ] Add real JS/PDF handling with structured fallbacks when extraction cannot be performed
-- [ ] Upgrade the extraction response contract to include: `url`, `title`, `publish_date`, `excerpts[]`, `full_content`, and `meta` (status + fetch/extraction details)
-- [ ] Add set output mode for deterministic arrays (no prose)
-- [ ] Add DeepSearchQA eval harness to run prompts end-to-end and compute Fully Correct accuracy
+- [ ] Deep-research mode uses an orchestrator-driven Deep Agents workflow instead of the current queued placeholder flow
+- [ ] Deep-research runs can pause to ask a single clarifying question and resume after the user answers
+- [ ] Deep-research planning artifacts and checkpoints persist through filesystem-backed planning plus LangGraph/Postgres state
+- [ ] Deep-research research subagents execute parallel subquestions using the existing web retrieval behavior
+- [ ] Research subagent responses are normalized through middleware so AI messages carry search-result sources and crawl-result citations
+- [ ] Tool naming is aligned across quick, agentic, and deep-research modes so the crawl/open-page tool is exposed as `open_url` and search remains `web_search`
 
 ### Out of Scope
 
-- [Exclusion] Multi-URL extract orchestrator / new “extract endpoint” (no separate fan-out orchestration in v1)
-- [Exclusion] Changing the existing canonical tool binding names (`web_search`, `web_crawl`) in the agent runtime
-- [Exclusion] Logging raw page bodies or provider internals by default (keep outputs and telemetry safe)
+- Changing the core execution behavior of quick mode — only tool naming alignment is included
+- Changing the core execution behavior of agentic mode — only tool naming alignment is included
+- Frontend feature work for deep-research orchestration beyond using existing logging or current views to inspect the plan — backend workflow is the priority
+- Redesigning the existing deep-research API response shape — the current shape stays in place
 
 ## Context
 
-- Repo is a FastAPI + LangChain backend with two canonical tools: `web_search` and `web_crawl`.
-- Current crawl/extraction is HTTP-first and uses `trafilatura`; it supports fallback states like `unsupported-content-type` and `low-content-quality`.
-- The agent runtime currently returns only a final answer string to the API, so tool outputs must be transformed into deterministic final-answer formats via prompting.
-- “Parallel-like” target behavior is captured in `features.md` (full content, objective-driven excerpts, response contract, set output mode, and DSQA evaluation).
+The repository is a brownfield system with two parallel surfaces: an Express frontend/server in `src/frontend/` and a FastAPI/LangChain backend in `backend/`. The current deep-research path exists, but the backend codebase map shows it is still largely an in-memory queued flow rather than a full orchestrated deep-agent system. Existing backend retrieval tools already provide the right substrate for research workers, so this project should reuse those retrieval behaviors instead of creating a new crawl/search stack.
+
+The current frontend already has run-history and event plumbing, which makes it possible to surface deep-research progress later without first redesigning the UI. The immediate need is a backend-first orchestration flow that can classify whether clarification is needed, persist a high-level plan, fan out research work in parallel, and decide when enough evidence has been gathered to answer the original question deeply.
 
 ## Constraints
 
-- **Cost/Budget**: excerpt selection in v1 must be “cheap” (small per-page excerpt budget).
-- **Bounded Network**: retrieval must keep timeouts and retry counts bounded to prevent runaway cost (current crawl uses bounded timeouts/retries).
-- **Safety/Privacy**: never log secrets and do not include raw provider internals in user-visible output.
-- **Compatibility**: keep `web_search`/`web_crawl` tool names stable; extend inputs/outputs in a backwards-compatible way where possible.
+- **Architecture**: Keep deep-research orchestration isolated to the deep-research backend path — quick and agentic should not be structurally rewritten as part of this work
+- **Persistence**: Use persistent artifacts and LangGraph/Postgres checkpointing for deep-research state — in-memory only state is insufficient
+- **Observability**: Planning and research progress must remain inspectable through logging or existing frontend views — internal state cannot become opaque
+- **Tool Contracts**: Retrieval tool naming must be explicit and user-facing — `web_search` and `open_url` should reflect real runtime behavior
+- **Code Organization**: Backend orchestration should stay split into focused modules rather than expanding monolithic runtime files — this repo already has explicit guidance to keep runtime code atomic
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Implement “Parallel-like” excerpt/objective behavior by extending `web_crawl` for a single URL (no multi-URL orchestrator in v1) | Keeps v1 small and aligns with existing runtime/tool plumbing | — Pending |
-| Use `search_queries[]` as ranking/select signal for excerpts only (do not alter crawl strategy) | Lower complexity and preserves HTTP-first policy | — Pending |
-| JS/PDF real-deal stack for v1: Playwright for JS rendering + PyMuPDF for PDF text | Matches “real deal” requirement for messy content | — Pending |
-| Excerpt budget for v1: small (<= 3 excerpts per URL, <= 300 chars each) | Satisfies “cheap, idk” constraint and keeps outputs deterministic | — Pending |
-| DSQA harness is part of v1 scope (end-to-end evaluation + Fully Correct accuracy) | Makes extraction quality measurable | — Pending |
+| Deep-research will use an orchestrator-first Deep Agents workflow | The current queued flow does not satisfy the need for planning, delegation, and stop-when-enough coverage | — Pending |
+| Clarification happens as a single question at a time | Keeps the user interaction loop simple and matches the desired resume flow | — Pending |
+| Planning artifacts persist internally with filesystem-backed storage plus checkpointing | Deep research needs resumability, inspectability, and durable run state | — Pending |
+| Final sources and citations stay inside AI message content via middleware rather than becoming new top-level response fields | Preserves the existing API shape while still making evidence available to the orchestrator and final answer | — Pending |
+| Tool naming is normalized across all three execution modes | Consistent tool names reduce prompt/tool drift and keep runtime behavior understandable | — Pending |
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition**:
+1. Requirements invalidated? -> Move to Out of Scope with reason
+2. Requirements validated? -> Move to Validated with phase reference
+3. New requirements emerged? -> Add to Active
+4. Decisions to log? -> Add to Key Decisions
+5. "What This Is" still accurate? -> Update if drifted
+
+**After each milestone**:
+1. Full review of all sections
+2. Core Value check -> still the right priority?
+3. Audit Out of Scope -> reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-03-20 after initial project setup*
-
+*Last updated: 2026-03-24 after initialization*
