@@ -90,9 +90,10 @@ def run_deep_research_job(
         job = deep_research_store.save(restored_job)
 
         if job.stage == DeepResearchStage.QUEUED:
-            job = deep_research_logging.log_deep_research_stage(
+            job = _log_stage_and_save(
                 job,
                 stage=DeepResearchStage.PLANNING,
+                store=deep_research_store,
                 artifact_repository=artifacts,
                 artifact_path=status_artifact_path(job.job_id),
             )
@@ -102,47 +103,43 @@ def run_deep_research_job(
                 plan_builder=plan_builder or build_deep_research_plan,
                 supervisor_builder=effective_supervisor_builder,
             )
-            job = deep_research_logging.log_deep_research_stage(
+            job = _log_stage_and_save(
                 job,
                 stage=DeepResearchStage.PLANNING,
-                artifact_repository=artifacts,
                 artifact_path=plan_artifact_path(job.job_id),
+                store=deep_research_store,
+                artifact_repository=artifacts,
             )
-            deep_research_store.save(job)
 
-        job = (
-            wave_executor
-            or (
-                lambda active_job: execute_research_waves(
-                    active_job,
-                    supervisor_builder=effective_supervisor_builder,
-                )
-            )
-        )(job)
-        job = deep_research_logging.log_deep_research_stage(
+        job = _execute_research_waves(
+            job,
+            wave_executor=wave_executor,
+            supervisor_builder=effective_supervisor_builder,
+        )
+        job = _log_stage_and_save(
             job,
             stage=DeepResearchStage.SEARCHING,
+            store=deep_research_store,
             artifact_repository=artifacts,
             artifact_path=status_artifact_path(job.job_id),
         )
-        deep_research_store.save(job)
 
         job = (verifier or verify_deep_research_job)(job)
-        job = deep_research_logging.log_deep_research_stage(
+        job = _log_stage_and_save(
             job,
             stage=DeepResearchStage.VERIFYING,
+            store=deep_research_store,
             artifact_repository=artifacts,
             artifact_path=status_artifact_path(job.job_id),
         )
-        deep_research_store.save(job)
 
-        job = deep_research_logging.log_deep_research_stage(
+        job = _log_stage_and_save(
             job,
             stage=DeepResearchStage.SYNTHESIZING,
+            store=deep_research_store,
             artifact_repository=artifacts,
             artifact_path=status_artifact_path(job.job_id),
         )
-        deep_research_store.save(job)
 
         job = (finalizer or finalize_deep_research_answer)(job)
         if job.final_answer is not None:
@@ -174,6 +171,37 @@ def run_deep_research_job(
 
 def _default_run_id_factory() -> str:
     return str(uuid4())
+
+
+def _log_stage_and_save(
+    job: DeepResearchJob,
+    *,
+    stage: DeepResearchStage,
+    store: InMemoryDeepResearchStore,
+    artifact_repository: PostgresArtifactRepository,
+    artifact_path: str,
+) -> DeepResearchJob:
+    updated_job = deep_research_logging.log_deep_research_stage(
+        job,
+        stage=stage,
+        artifact_repository=artifact_repository,
+        artifact_path=artifact_path,
+    )
+    return store.save(updated_job)
+
+
+def _execute_research_waves(
+    job: DeepResearchJob,
+    *,
+    wave_executor,
+    supervisor_builder,
+) -> DeepResearchJob:
+    if wave_executor is not None:
+        return wave_executor(job)
+    return execute_research_waves(
+        job,
+        supervisor_builder=supervisor_builder,
+    )
 
 
 def _final_answer_text(final_answer: object) -> str:

@@ -25,10 +25,7 @@ def persist_research_plan(
     plan_builder=None,
     supervisor_builder=None,
 ) -> DeepResearchJob:
-    if supervisor_builder is None:
-        build_deep_research_supervisor()
-    else:
-        supervisor_builder()
+    (supervisor_builder or build_deep_research_supervisor)()
 
     plan = (plan_builder or build_deep_research_plan)(job)
     sub_questions = plan.sub_questions if isinstance(plan, DeepResearchPlan) else list(plan)
