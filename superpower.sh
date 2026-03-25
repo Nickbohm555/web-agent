@@ -12,6 +12,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTING_SUFFIX="make sure this works, track the data flow, find the root cause if there are errors and solve them"
 COMMIT_PUSH_INSTRUCTION="If you make code changes, create an atomic git commit for your changes and push them before finishing. If you do not make code changes, do not create an empty commit."
 
+if [ "${SUPERPOWER_CAFFEINATED:-0}" != "1" ]; then
+  exec env SUPERPOWER_CAFFEINATED=1 caffeinate -dimu "$0" "$@"
+fi
+
 codex exec \
   --cd "$REPO_ROOT" \
   --dangerously-bypass-approvals-and-sandbox \
