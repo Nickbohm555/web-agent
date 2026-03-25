@@ -10,6 +10,7 @@ fi
 TEST_INSTRUCTIONS="$*"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTING_SUFFIX="make sure this works, track the data flow, find the root cause if there are errors and solve them"
+COMMIT_PUSH_INSTRUCTION="If you make code changes, create an atomic git commit for your changes and push them before finishing. If you do not make code changes, do not create an empty commit."
 
 codex exec \
   --cd "$REPO_ROOT" \
@@ -20,6 +21,7 @@ Do not ask clarifying questions.
 If there are design decisions to make, make them.
 There should be exactly one superpowers spec for this work in docs/superpowers/specs.
 Use that single spec instead of creating multiple superpowers specs.
+$COMMIT_PUSH_INSTRUCTION
 EOF
 
 codex exec \
@@ -29,6 +31,7 @@ codex exec \
 Start a fresh Codex session and do \$executing-plans.
 There should be exactly one superpowers plan for this work in docs/superpowers/plans.
 Use that single plan instead of creating or selecting multiple superpowers plans.
+$COMMIT_PUSH_INSTRUCTION
 EOF
 
 codex exec \
@@ -39,6 +42,7 @@ Start a fresh Codex session for the first testing pass.
 Focus on testing and fixing the requested work.
 User request: $TEST_INSTRUCTIONS
 $TESTING_SUFFIX
+$COMMIT_PUSH_INSTRUCTION
 EOF
 
 codex exec \
@@ -50,6 +54,7 @@ Re-test the full requested work end to end after the earlier sessions.
 Fix any remaining issues you find, then verify the final runtime behavior again.
 User request: $TEST_INSTRUCTIONS
 $TESTING_SUFFIX
+$COMMIT_PUSH_INSTRUCTION
 EOF
 
 codex exec \
@@ -61,4 +66,5 @@ Review the end-to-end flow for this requested work and identify code that is now
 Use \$code-simplifier to simplify or remove that obsolete code without changing behavior.
 Use git diff, git log, and the current runtime paths to verify what changed and what is still needed.
 Do not broaden scope beyond cleanup that is justified by the current request.
+$COMMIT_PUSH_INSTRUCTION
 EOF
