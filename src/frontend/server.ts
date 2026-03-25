@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { withRunContext } from "../core/telemetry/run-context.js";
 import { createFetchRouter } from "./routes/fetch.js";
+import { createChatRouter } from "./routes/chat.js";
 import { createRunHistoryRouter } from "./routes/run-history.js";
 import { createRunsRouter } from "./routes/runs.js";
 import { createHttpAgentRunExecutor } from "./routes/backend-agent.js";
@@ -29,6 +30,7 @@ function createApiRouter(): Router {
 
   router.use("/search", createSearchRouter());
   router.use("/fetch", createFetchRouter());
+  router.use("/chat", createChatRouter());
   router.use("/runs", createRunHistoryRouter());
   router.use("/runs", createRunsRouter());
 
@@ -41,6 +43,7 @@ export function createFrontendServerApp(): Application {
   const backendAgentOrigin = process.env.AGENT_BACKEND_ORIGIN?.trim();
 
   app.locals.runHistoryStore = createRunHistoryStore();
+  app.locals.chatThreadStore = new Map();
   if (backendAgentOrigin) {
     app.locals.runExecutor = createHttpAgentRunExecutor(backendAgentOrigin);
   }
@@ -85,6 +88,17 @@ export function createFrontendServerApp(): Application {
     res.status(200).json({ status: "ok" });
   });
   app.use(express.static(publicDir));
+
+  app.get(/^\/(?:agentic|deep-research)\/[^/]+$/, async (_req, res, next) => {
+    try {
+      const html = await readFile(publicIndexPath, "utf8");
+      res.type("html").send(
+        html.replace("/client/app.js", "/client/chat-app.js"),
+      );
+    } catch {
+      next();
+    }
+  });
 
   app.get(/^(?!\/api(?:\/|$)).*/, (_req, res, next) => {
     res.sendFile(publicIndexPath, (error) => {

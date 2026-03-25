@@ -3,16 +3,12 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
-from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from backend.agent.schemas import AgentRunError, AgentRunMode, AgentRunResult
 from backend.api.errors import map_runtime_failure
-from backend.api.routes import agent_run as agent_run_route
 from backend.api.schemas import (
-    AgentRunQueuedMetadata,
-    AgentRunQueuedResponse,
     AgentRunRequest,
     AgentRunSuccessResponse,
 )
@@ -311,12 +307,11 @@ def test_run_route_rejects_unknown_modes(client: TestClient) -> None:
     assert "Input should be 'quick', 'agentic' or 'deep_research'" in response.json()["detail"][0]["msg"]
 
 
-@pytest.mark.parametrize("mode", ["quick", "agentic"])
-def test_run_route_returns_stable_success_envelope_for_each_mode(
+def test_run_route_returns_stable_success_envelope_for_quick_mode(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
-    mode: AgentRunMode,
 ) -> None:
+    mode: AgentRunMode = "quick"
     runner = StubRuntimeRunner(
         AgentRunResult(
             run_id=f"run-{mode}-success",
@@ -366,7 +361,7 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
     assert runner.calls == [("find one source", mode, None)]
 
 
-def test_run_route_passes_thread_id_into_agentic_runtime(
+def test_run_route_rejects_agentic_requests_even_with_thread_id(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -391,59 +386,34 @@ def test_run_route_passes_thread_id_into_agentic_runtime(
         },
     )
 
-    assert response.status_code == 200
-    assert runner.calls == [("continue the previous conversation", "agentic", "thread-agentic-123")]
-
-
-def test_run_route_queues_deep_research_requests(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured_thread_ids: list[str | None] = []
-
-    monkeypatch.setattr(
-        agent_run_service,
-        "start_deep_research",
-        lambda **kwargs: captured_thread_ids.append(kwargs.get("thread_id"))
-        or AgentRunQueuedResponse(
-            run_id="run-deep-route",
-            status="queued",
-            metadata=AgentRunQueuedMetadata(execution_surface="background"),
-        ),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        agent_run_service,
-        "run_agent_once",
-        StubRuntimeRunner(
-            AgentRunResult(
-                run_id="run-should-not-complete",
-                status="completed",
-                final_answer="This should not run.",
-                tool_call_count=1,
-                elapsed_ms=20,
-            )
-        ),
-    )
-
-    response = client.post(
-        RUN_ROUTE_PATH,
-        json={
-            "prompt": "Investigate deeply",
-            "mode": "deep_research",
-            "thread_id": "thread-deep-123",
-        },
-    )
-
-    assert response.status_code == 202
+    assert response.status_code == 400
     assert response.json() == {
-        "run_id": "run-deep-route",
-        "status": "queued",
-        "metadata": {"execution_surface": "background"},
+        "error": {
+            "code": "UNSUPPORTED_MODE",
+            "message": "Use thread-based chat routes for agentic and deep research.",
+            "retryable": False,
+        }
+    }
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize("mode", ["agentic", "deep_research"])
+def test_agent_run_route_rejects_non_quick_modes(
+    client: TestClient,
+    mode: str,
+) -> None:
+    response = post_run(client, prompt="Find sources", mode=mode)
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "UNSUPPORTED_MODE",
+            "message": "Use thread-based chat routes for agentic and deep research.",
+            "retryable": False,
+        }
     }
     assert response.headers["x-run-route"] == "legacy-compat"
-    assert response.headers["x-run-execution-surface"] == "background"
-    assert captured_thread_ids == ["thread-deep-123"]
+    assert response.headers["x-run-execution-surface"] == "sync"
 
 
 @pytest.mark.parametrize(
@@ -458,19 +428,6 @@ def test_run_route_queues_deep_research_requests(
                 "error": {
                     "code": "loop_limit_exceeded",
                     "message": "agent exceeded bounded execution limit",
-                    "retryable": False,
-                }
-            },
-        ),
-        (
-            "agentic",
-            "tool_failure",
-            False,
-            502,
-            {
-                "error": {
-                    "code": "tool_execution_failed",
-                    "message": "agent tool invocation failed",
                     "retryable": False,
                 }
             },
@@ -510,47 +467,10 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     assert runner.calls == [("find one source", mode, None)]
 
 
-def test_agent_run_request_accepts_background_deep_research_response_shape() -> None:
-    payload = AgentRunQueuedResponse(
-        run_id="run-deep",
-        status="queued",
-        metadata=AgentRunQueuedMetadata(execution_surface="background"),
-    )
-
-    assert payload.status == "queued"
-
-
-def test_run_route_exposes_background_execution_surface_for_queued_runs(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        agent_run_route,
-        "execute_agent_run_request",
-        lambda payload: JSONResponse(
-            status_code=202,
-            content=AgentRunQueuedResponse(
-                run_id="run-deep",
-                status="queued",
-                metadata=AgentRunQueuedMetadata(execution_surface="background"),
-            ).model_dump(),
-        ),
-    )
-
-    response = post_run(client, prompt="investigate deeply", mode="deep_research")
-
-    assert response.status_code == 202
-    assert response.json() == {
-        "run_id": "run-deep",
-        "status": "queued",
-        "metadata": {"execution_surface": "background"},
-    }
-    assert response.headers["x-run-route"] == "legacy-compat"
-    assert response.headers["x-run-execution-surface"] == "background"
-
-
 def post_run(client: TestClient, *, prompt: str, mode: str):
     return client.post(RUN_ROUTE_PATH, json={"prompt": prompt, "mode": mode})
+
+
 def test_run_request_contract_accepts_optional_thread_id() -> None:
     payload = AgentRunRequest(
         prompt="continue the prior thread",

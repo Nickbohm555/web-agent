@@ -92,17 +92,17 @@ export function createRunsRouter(): Router {
 
     try {
       const request = parseRunStartRequest(req.body);
-      if (
-        request.mode === "deep_research" &&
-        countActiveBackgroundRuns(backgroundRuns) >= MAX_ACTIVE_BACKGROUND_RUNS
-      ) {
-        res.status(429).json(
-          createRunStartRateLimitEnvelope({
-            request,
-            startedAt,
-            message: "Too many deep research runs are already active.",
-          }),
-        );
+      if (request.mode !== "quick") {
+        res.status(400).json({
+          ok: false,
+          operation: "run_start",
+          durationMs: Date.now() - startedAt,
+          request,
+          error: {
+            code: "INVALID_REQUEST",
+            message: "Use thread-based chat routes for agentic and deep research.",
+          },
+        });
         return;
       }
       const runId = randomUUID();
@@ -137,29 +137,10 @@ export function createRunsRouter(): Router {
         ),
       );
 
-      startBackgroundRunIfNeeded({
-        request,
+      const startResponse = createRunStartResponse({
         runId,
-        runEventStreamLike: req.app.locals.runEventStream,
-        runExecutorLike: req.app.locals.runExecutor,
-        pendingRuns,
-        backgroundRuns,
-        historyStore: getRunHistoryStore(req.app.locals.runHistoryStore),
+        status: "queued",
       });
-
-      const startResponse =
-        request.mode === "deep_research"
-          ? createRunStartResponse({
-              runId,
-              status: "queued",
-              metadata: {
-                execution_surface: "background",
-              },
-            })
-          : createRunStartResponse({
-              runId,
-              status: "queued",
-            });
 
       res.status(201).json(startResponse);
     } catch (error: unknown) {
