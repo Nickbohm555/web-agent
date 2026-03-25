@@ -40,6 +40,21 @@ describe("run start API contracts", () => {
     });
   });
 
+  it("rejects non-quick run starts from the launcher route", async () => {
+    const { RunStartErrorEnvelope } = await import("../../frontend/contracts.js");
+
+    const response = await callRoute({
+      prompt: "Research the market",
+      mode: "deep_research",
+    });
+
+    expect(response.status).toBe(400);
+    const envelope = RunStartErrorEnvelope.parse(response.json);
+    expect(envelope.ok).toBe(false);
+    expect(envelope.error.code).toBe("INVALID_REQUEST");
+    expect(envelope.error.message).toContain("thread-based chat routes");
+  });
+
   it("returns a validation envelope for malformed payloads", async () => {
     const { RunStartErrorEnvelope } = await import("../../frontend/contracts.js");
 

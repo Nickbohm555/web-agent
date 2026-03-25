@@ -124,7 +124,7 @@ describe("run stream API contracts", () => {
         },
         body: JSON.stringify({
           prompt: "Find sources",
-          mode: "deep_research",
+          mode: "quick",
         }),
       });
 
@@ -143,7 +143,7 @@ describe("run stream API contracts", () => {
       expect(runExecutor).toHaveBeenCalledWith({
         runId: startPayload.runId,
         prompt: "Find sources",
-        mode: "deep_research",
+        mode: "quick",
         signal: expect.any(AbortSignal),
       });
     } finally {
@@ -160,20 +160,15 @@ describe("run stream API contracts", () => {
     }
   });
 
-  it("starts deep-research execution before any SSE client connects", async () => {
+  it("does not start quick execution until an SSE client connects", async () => {
     const { createFrontendServerApp } = await import("../../frontend/server.js");
     const app = createFrontendServerApp();
-    let resolveRun:
-      | ((value: {
-        status: "completed";
-        finalAnswer: string;
-        sources: [];
-        durationMs: number;
-        completedAt: number;
-      }) => void)
-      | undefined;
-    const runExecutor = vi.fn(() => new Promise((resolve) => {
-      resolveRun = resolve;
+    const runExecutor = vi.fn(async () => ({
+      status: "completed" as const,
+      finalAnswer: "Background run completed.",
+      sources: [],
+      durationMs: 120,
+      completedAt: 1_710_000_000_120,
     }));
     app.locals.runExecutor = runExecutor;
 
@@ -192,33 +187,26 @@ describe("run stream API contracts", () => {
         },
         body: JSON.stringify({
           prompt: "Investigate background runs",
-          mode: "deep_research",
+          mode: "quick",
         }),
       });
 
       expect(startResponse.status).toBe(201);
       const startPayload = await startResponse.json() as { runId: string };
-      expect(runExecutor).toHaveBeenCalledTimes(1);
-      expect(runExecutor).toHaveBeenCalledWith({
-        runId: startPayload.runId,
-        prompt: "Investigate background runs",
-        mode: "deep_research",
-        signal: expect.any(AbortSignal),
-      });
-
-      resolveRun?.({
-        status: "completed",
-        finalAnswer: "Background run completed.",
-        sources: [],
-        durationMs: 120,
-        completedAt: 1_710_000_000_120,
-      });
+      expect(runExecutor).toHaveBeenCalledTimes(0);
 
       const streamResponse = await fetch(
         `http://127.0.0.1:${address.port}/api/runs/${startPayload.runId}/events`,
       );
       const frames = parseSseFrames(await streamResponse.text());
 
+      expect(runExecutor).toHaveBeenCalledTimes(1);
+      expect(runExecutor).toHaveBeenCalledWith({
+        runId: startPayload.runId,
+        prompt: "Investigate background runs",
+        mode: "quick",
+        signal: expect.any(AbortSignal),
+      });
       expect(frames.map((frame) => frame.event)).toEqual([
         "run_state",
         "run_complete",

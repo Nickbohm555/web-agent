@@ -2,19 +2,25 @@ from __future__ import annotations
 
 from fastapi.responses import JSONResponse
 
-from backend.agent.deep_agents.resume import build_deep_research_thread_id
-from backend.agent.deep_research_runtime import start_deep_research
 from backend.agent.runtime import run_agent_once
+from backend.api.errors import AgentRunApiError, AgentRunErrorResponse, map_runtime_failure
 from backend.api.schemas import AgentRunRequest, AgentRunSuccessResponse
-from backend.api.errors import map_runtime_failure
 
 
 def execute_agent_run_request(
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
-    if payload.mode == "deep_research":
-        queued = start_deep_research_request(payload)
-        return JSONResponse(status_code=202, content=queued.model_dump())
+    if payload.mode != "quick":
+        return JSONResponse(
+            status_code=400,
+            content=AgentRunErrorResponse(
+                error=AgentRunApiError(
+                    code="UNSUPPORTED_MODE",
+                    message="Use thread-based chat routes for agentic and deep research.",
+                    retryable=False,
+                )
+            ).model_dump(),
+        )
 
     result = run_agent_once(payload.prompt, payload.mode)
 
@@ -26,10 +32,3 @@ def execute_agent_run_request(
         )
 
     return AgentRunSuccessResponse.from_run_result(result)
-
-
-def start_deep_research_request(payload: AgentRunRequest):
-    return start_deep_research(
-        prompt=payload.prompt,
-        thread_id_factory=build_deep_research_thread_id,
-    )

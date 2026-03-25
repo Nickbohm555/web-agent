@@ -467,6 +467,19 @@ describe("frontend API route contracts", () => {
       }),
     ).toThrowError();
   });
+
+  it("serves the quick launcher and chat pages from distinct routes", async () => {
+    const launcher = await callPage("/");
+    const agenticThread = await callPage("/agentic/thread-123");
+    const deepResearchThread = await callPage("/deep-research/thread-456");
+
+    expect(launcher.status).toBe(200);
+    expect(launcher.text).toContain('/client/app.js');
+    expect(agenticThread.status).toBe(200);
+    expect(agenticThread.text).toContain('/client/chat-app.js');
+    expect(deepResearchThread.status).toBe(200);
+    expect(deepResearchThread.text).toContain('/client/chat-app.js');
+  });
 });
 
 async function callRoute(
@@ -495,6 +508,39 @@ async function callRoute(
     return {
       status: response.status,
       json: await response.json(),
+    };
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+}
+
+async function callPage(
+  route: string,
+): Promise<{ status: number; text: string }> {
+  const { createFrontendServerApp } = await import("../../frontend/server.js");
+  const app = createFrontendServerApp();
+  const server = await new Promise<import("node:http").Server>((resolve) => {
+    const listeningServer = app.listen(0, "127.0.0.1", () => {
+      resolve(listeningServer);
+    });
+  });
+
+  const address = server.address() as AddressInfo;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${address.port}${route}`);
+    return {
+      status: response.status,
+      text: await response.text(),
     };
   } finally {
     await new Promise<void>((resolve, reject) => {

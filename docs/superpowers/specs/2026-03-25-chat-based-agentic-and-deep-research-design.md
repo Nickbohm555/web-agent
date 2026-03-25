@@ -14,6 +14,8 @@ The application should expose three clearly different product surfaces:
 
 `agentic` and `deep_research` should no longer be launched as variants of the same "start run" form. They should become dedicated chat pages backed by stable thread IDs, backend-owned transcripts, and Postgres-backed conversational continuity.
 
+The legacy `/api/agent/run` launcher path remains available only for `quick`. Any `agentic` or `deep_research` start attempt through that route should fail with an explicit typed error that points callers to the chat routes.
+
 This change removes the current deep-research job queue UX from the product path. Deep research becomes a normal back-and-forth chat where each user message triggers a coordinator invocation. The coordinator uses accumulated message history to decide whether enough context has been gathered and, once it has, decomposes the problem into parallel sub-research tasks for constrained subagents.
 
 ## Product Flow

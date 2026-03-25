@@ -207,7 +207,7 @@ describe("run history API", () => {
     try {
       const startResponse = await harness.postJson("/api/runs", {
         prompt: "Bounded run",
-        mode: "deep_research",
+        mode: "quick",
       });
       const runId = parseRunId(startResponse.json);
 
@@ -306,7 +306,7 @@ describe("run history API", () => {
     try {
       const startResponse = await harness.postJson("/api/runs", {
         prompt: "Store large structured answer",
-        mode: "deep_research",
+        mode: "quick",
       });
       expect(startResponse.status).toBe(201);
 
@@ -346,7 +346,7 @@ describe("run history API", () => {
     }
   });
 
-  it("persists deep-research progress before the run stream is consumed", async () => {
+  it("rejects non-quick launcher modes before any run stream is consumed", async () => {
     let allowCompletion = () => {};
     const completionGate = new Promise<void>((resolve) => {
       allowCompletion = resolve;
@@ -398,63 +398,21 @@ describe("run history API", () => {
         prompt: "Investigate deep research",
         mode: "deep_research",
       });
-      expect(startResponse.status).toBe(201);
-      expect(RunStartResponseSchema.parse(startResponse.json)).toMatchObject({
-        runId: expect.any(String),
-        status: "queued",
-        metadata: {
-          execution_surface: "background",
+      expect(startResponse.status).toBe(400);
+      expect(startResponse.json).toMatchObject({
+        ok: false,
+        operation: "run_start",
+        error: {
+          code: "INVALID_REQUEST",
+          message: "Use thread-based chat routes for agentic and deep research.",
         },
       });
-
-      const runId = parseRunId(startResponse.json);
-      await new Promise((resolve) => setTimeout(resolve, 8));
-
-      const detailBeforeStream = await harness.getJson(`/api/runs/${runId}/history`);
-      expect(detailBeforeStream.status).toBe(200);
-      const snapshotBeforeStream = parseRunHistoryRunSnapshot(detailBeforeStream.json);
-      expect(snapshotBeforeStream.events.map((event) => event.event_type)).toEqual([
-        "run_started",
-        "research_planning_started",
-        "research_search_started",
-        "tool_call_started",
-        "research_sources_expanded",
-        "tool_call_succeeded",
-      ]);
-
-      allowCompletion();
-      await new Promise((resolve) => setTimeout(resolve, 8));
-
-      const streamText = await harness.getText(`/api/runs/${runId}/events`);
-      expect(streamText.status).toBe(200);
-      expect(parseSseFrames(streamText.body).map((frame) => frame.event)).toEqual([
-        "run_state",
-        "tool_call",
-        "tool_call",
-        "run_complete",
-      ]);
-
-      const detailAfterStream = await harness.getJson(`/api/runs/${runId}/history`);
-      const snapshotAfterStream = parseRunHistoryRunSnapshot(detailAfterStream.json);
-      expect(snapshotAfterStream.events.map((event) => event.event_type)).toEqual([
-        "run_started",
-        "research_planning_started",
-        "research_search_started",
-        "tool_call_started",
-        "research_sources_expanded",
-        "tool_call_succeeded",
-        "research_verification_started",
-        "research_synthesis_started",
-        "final_answer_generated",
-        "run_completed",
-      ]);
-      expect(snapshotAfterStream.finalAnswer).toBe("Long-running answer.");
     } finally {
       await harness.close();
     }
   });
 
-  it("rejects deep-research starts once the active background-run cap is reached", async () => {
+  it("rejects deep-research starts on the launcher route", async () => {
     const harness = await createHarness({
       runEventStream: async function* () {
         await new Promise(() => {});
@@ -462,35 +420,18 @@ describe("run history API", () => {
     });
 
     try {
-      const acceptedResponses = await Promise.all(
-        Array.from({ length: 3 }, () =>
-          harness.postJson("/api/runs", {
-            prompt: "Concurrency check",
-            mode: "deep_research",
-          }),
-        ),
-      );
-
-      expect(acceptedResponses.map((response) => response.status)).toEqual([
-        201, 201, 201,
-      ]);
-
       const rejectedResponse = await harness.postJson("/api/runs", {
         prompt: "Concurrency check",
         mode: "deep_research",
       });
 
-      expect(rejectedResponse.status).toBe(429);
+      expect(rejectedResponse.status).toBe(400);
       expect(rejectedResponse.json).toMatchObject({
         ok: false,
         operation: "run_start",
         error: {
-          code: "RATE_LIMITED",
-          message: "Too many deep research runs are already active.",
-          details: {
-            kind: "rate_limited",
-            retryable: true,
-          },
+          code: "INVALID_REQUEST",
+          message: "Use thread-based chat routes for agentic and deep research.",
         },
       });
     } finally {
@@ -500,8 +441,6 @@ describe("run history API", () => {
 
   it.each([
     ["quick", false],
-    ["agentic", false],
-    ["deep_research", true],
   ] as const)(
     "preserves a coherent happy-path run lifecycle for %s mode",
     async (mode, startsInBackground) => {
@@ -570,8 +509,6 @@ describe("run history API", () => {
 
   it.each([
     ["quick", false],
-    ["agentic", false],
-    ["deep_research", true],
   ] as const)(
     "preserves a coherent failure-path run lifecycle for %s mode",
     async (mode, startsInBackground) => {
