@@ -20,8 +20,6 @@ Do not ask clarifying questions.
 If there are design decisions to make, make them.
 There should be exactly one superpowers spec for this work in docs/superpowers/specs.
 Use that single spec instead of creating multiple superpowers specs.
-
-User request: $TEST_INSTRUCTIONS
 EOF
 
 codex exec \
@@ -31,8 +29,6 @@ codex exec \
 Start a fresh Codex session and do \$executing-plans.
 There should be exactly one superpowers plan for this work in docs/superpowers/plans.
 Use that single plan instead of creating or selecting multiple superpowers plans.
-
-User request: $TEST_INSTRUCTIONS
 EOF
 
 codex exec \
@@ -65,6 +61,4 @@ Review the end-to-end flow for this requested work and identify code that is now
 Use \$code-simplifier to simplify or remove that obsolete code without changing behavior.
 Use git diff, git log, and the current runtime paths to verify what changed and what is still needed.
 Do not broaden scope beyond cleanup that is justified by the current request.
-
-User request: $TEST_INSTRUCTIONS
 EOF
