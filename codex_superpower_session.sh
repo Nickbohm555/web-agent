@@ -3,6 +3,7 @@ set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
   echo "Usage: $0 <writing-plans|executing-plans|testing> <request...>" >&2
+  echo "Example: $0 executing-plans fix the open_url runtime wiring" >&2
   exit 1
 fi
 
@@ -55,3 +56,16 @@ EOF
     exit 1
     ;;
 esac
+
+codex exec \
+  --cd "$REPO_ROOT" \
+  --dangerously-bypass-approvals-and-sandbox \
+  - <<EOF
+Start a fresh final Codex session for cleanup after the main $MODE session.
+Review the end-to-end flow for this requested work and identify code that is now obsolete, dead, or unused.
+Use \$code-simplifier to simplify or remove that obsolete code without changing behavior.
+Use git diff, git log, and the current runtime paths to verify what changed and what is still needed.
+Do not broaden scope beyond cleanup that is justified by the current request.
+
+User request: $REQUEST
+EOF
