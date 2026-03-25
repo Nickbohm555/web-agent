@@ -403,8 +403,8 @@ def test_run_route_queues_deep_research_requests(
 
     monkeypatch.setattr(
         agent_run_service,
-        "start_deep_research_request",
-        lambda payload: captured_thread_ids.append(payload.thread_id)
+        "start_deep_research",
+        lambda **kwargs: captured_thread_ids.append(kwargs.get("thread_id"))
         or AgentRunQueuedResponse(
             run_id="run-deep-route",
             status="queued",
@@ -563,4 +563,3 @@ def test_run_request_contract_accepts_optional_thread_id() -> None:
         "mode": "agentic",
         "thread_id": "thread-agentic-123",
     }
-

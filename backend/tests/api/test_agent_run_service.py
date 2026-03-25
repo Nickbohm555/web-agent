@@ -45,8 +45,8 @@ def test_execute_agent_run_request_returns_queued_response_for_deep_research(
 
     monkeypatch.setattr(
         agent_run_service,
-        "start_deep_research_request",
-        lambda payload: captured.setdefault(
+        "start_deep_research",
+        lambda **kwargs: captured.setdefault(
             "response",
             AgentRunQueuedResponse(
                 run_id="run-deep",

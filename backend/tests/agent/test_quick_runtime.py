@@ -34,15 +34,11 @@ class StubQuickSearchRunner:
 class StubQuickCrawlRunner:
     payloads_by_url: dict[str, Any]
     requested_urls: list[str] | None = None
-    requested_objectives: list[str | None] | None = None
 
-    def __call__(self, *, url: str, objective: str | None = None) -> Any:
+    def __call__(self, *, url: str) -> Any:
         if self.requested_urls is None:
             self.requested_urls = []
-        if self.requested_objectives is None:
-            self.requested_objectives = []
         self.requested_urls.append(url)
-        self.requested_objectives.append(objective)
         return self.payloads_by_url[url]
 
 

@@ -19,7 +19,12 @@ def execute_agent_run_request(
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
     if payload.mode == "deep_research":
-        queued = start_deep_research_request(payload)
+        queued = start_deep_research(
+            prompt=payload.prompt,
+            schedule_job=schedule_deep_research_job,
+            thread_id=payload.thread_id,
+            thread_id_factory=build_deep_research_thread_id,
+        )
         return JSONResponse(status_code=202, content=queued.model_dump())
 
     result = run_agent_once(payload.prompt, payload.mode, thread_id=payload.thread_id)
@@ -32,17 +37,6 @@ def execute_agent_run_request(
         )
 
     return AgentRunSuccessResponse.from_run_result(result)
-
-
-def start_deep_research_request(payload: AgentRunRequest):
-    return start_deep_research(
-        prompt=payload.prompt,
-        schedule_job=schedule_deep_research_job,
-        thread_id=payload.thread_id,
-        thread_id_factory=build_deep_research_thread_id,
-    )
-
-
 def get_deep_research_status(run_id: str) -> DeepResearchStatusResponse | JSONResponse:
     job = get_default_deep_research_store().get(run_id)
     if job is None:
