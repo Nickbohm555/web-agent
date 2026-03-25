@@ -3,7 +3,7 @@ set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
   echo "Usage: $0 <writing-plans|executing-plans|testing> <request...>" >&2
-  echo "Example: $0 executing-plans fix the open_url runtime wiring" >&2
+  echo "How to run: ./codex_superpower_session.sh executing-plans fix the open_url runtime wiring" >&2
   exit 1
 fi
 
