@@ -167,6 +167,7 @@ export const RunStartRequestSchema = z
   .object({
     prompt: z.string().trim().min(1),
     mode: RunModeSchema,
+    threadId: z.string().trim().min(1).optional(),
   })
   .strict();
 

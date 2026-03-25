@@ -29,6 +29,7 @@ export function createHttpAgentRunExecutor(
         body: JSON.stringify({
           prompt: context.prompt,
           mode: context.mode,
+          ...(context.threadId ? { thread_id: context.threadId } : {}),
         }),
         signal: context.signal,
       },

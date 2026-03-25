@@ -12,6 +12,7 @@ import {
 export interface RunStartRequest {
   prompt: string;
   mode: RunMode;
+  threadId?: string;
 }
 
 export interface RunStartResponse {

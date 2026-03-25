@@ -38,14 +38,15 @@ def start_deep_research(
     store: InMemoryDeepResearchStore | None = None,
     schedule_job=None,
     run_id_factory=None,
+    thread_id: str | None = None,
     thread_id_factory=None,
 ) -> AgentRunQueuedResponse:
     deep_research_store = store or get_default_deep_research_store()
     job_id = (run_id_factory or _default_run_id_factory)()
-    thread_id = (thread_id_factory or build_deep_research_thread_id)(job_id)
+    resolved_thread_id = thread_id or (thread_id_factory or build_deep_research_thread_id)(job_id)
     job = DeepResearchJob(
         job_id=job_id,
-        thread_id=thread_id,
+        thread_id=resolved_thread_id,
         prompt=prompt,
         stage=DeepResearchStage.QUEUED,
     )

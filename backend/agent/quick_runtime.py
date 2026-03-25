@@ -74,6 +74,7 @@ def run_quick_runtime(
 
     selected_urls = select_quick_urls(
         search_response,
+        prompt=prompt,
         max_urls=QUICK_RUNTIME_MAX_CRAWLS,
     )
 
@@ -122,7 +123,13 @@ def run_quick_runtime(
     return AgentRunResult(
         run_id=run_id,
         status="completed",
-        final_answer=AgentStructuredAnswer(text=synthesize_quick_answer(search_response)),
+        final_answer=AgentStructuredAnswer(
+            text=synthesize_quick_answer(
+                prompt=prompt,
+                sources=list(evidence.sources),
+                response=search_response,
+            )
+        ),
         sources=list(evidence.sources),
         tool_call_count=1 + len(crawl_payloads),
         elapsed_ms=elapsed_ms(started_at),

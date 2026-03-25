@@ -163,19 +163,97 @@ def test_run_quick_runtime_searches_once_crawls_top_three_and_returns_sources() 
     assert result.status == "completed"
     assert result.run_id == "run-quick"
     assert result.final_answer is not None
-    assert (
-        result.final_answer.text
-        == "One: Result one. Two: Result two. Two duplicate: Duplicate result.\n\n"
-        "Sources:\n"
-        "- One: https://example.com/1\n"
-        "- Two: https://example.com/2\n"
-        "- Two duplicate: https://example.com/2"
-    )
+    assert result.final_answer.text.startswith("Quick answer based on the top sources:\n")
+    assert "- One: Crawl one" in result.final_answer.text
+    assert "- Three: Crawl three" in result.final_answer.text
+    assert "Crawl two" in result.final_answer.text
     assert result.sources and [str(source.url) for source in result.sources] == [
         "https://example.com/1",
         "https://example.com/2",
         "https://example.com/3",
     ]
+
+
+def test_run_quick_runtime_formats_direct_capital_answers_cleanly() -> None:
+    search_runner = StubQuickSearchRunner(
+        payload={
+            "query": "What is the capital of France?",
+            "results": [
+                {
+                    "title": "Besides Paris, what is the capital of France? Riddle - Brainzilla",
+                    "url": "https://example.com/riddle",
+                    "snippet": "",
+                    "rank": {"position": 1, "provider_position": 1},
+                },
+                {
+                    "title": "Paris - Wikipedia",
+                    "url": "https://example.com/paris",
+                    "snippet": "Paris is the capital and most populous city of France.",
+                    "rank": {"position": 2, "provider_position": 2},
+                }
+            ],
+            "metadata": {"result_count": 2, "provider": "serper"},
+            "meta": {
+                "operation": "web_search",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12, "provider_ms": 8},
+            },
+        }
+    )
+    crawl_runner = StubQuickCrawlRunner(
+        payloads_by_url={
+            "https://example.com/riddle": {
+                "url": "https://example.com/riddle",
+                "final_url": "https://example.com/riddle",
+                "text": "",
+                "markdown": "",
+                "status_code": 200,
+                "content_type": "text/html",
+                "fallback_reason": None,
+                "meta": {
+                    "operation": "open_url",
+                    "attempts": 1,
+                    "retries": 0,
+                    "duration_ms": 10,
+                    "timings": {"total_ms": 10},
+                },
+            },
+            "https://example.com/paris": {
+                "url": "https://example.com/paris",
+                "final_url": "https://example.com/paris",
+                "text": "Paris is the capital and most populous city of France.",
+                "markdown": "Paris is the capital and most populous city of France.",
+                "status_code": 200,
+                "content_type": "text/html",
+                "fallback_reason": None,
+                "meta": {
+                    "operation": "open_url",
+                    "attempts": 1,
+                    "retries": 0,
+                    "duration_ms": 10,
+                    "timings": {"total_ms": 10},
+                },
+            }
+        }
+    )
+
+    result = run_quick_runtime(
+        prompt="What is the capital of France?",
+        run_id="run-quick-capital",
+        started_at=0.0,
+        search_runner=search_runner,
+        crawl_runner=crawl_runner,
+    )
+
+    assert result.final_answer is not None
+    assert result.final_answer.text == (
+        "Paris is the capital of France.\n\n"
+        "Sources:\n"
+        "- Paris - Wikipedia: https://example.com/paris\n"
+        "- Besides Paris, what is the capital of France? Riddle - Brainzilla: https://example.com/riddle"
+    )
 
 
 def test_run_quick_runtime_does_not_accept_answer_client_override() -> None:
@@ -277,6 +355,53 @@ def test_select_quick_urls_skips_duplicate_urls() -> None:
         "https://allowed.example.com/a",
         "https://blocked.example.com/x",
         "https://allowed.example.com/b",
+    ]
+
+
+def test_select_quick_urls_prefers_cleaner_official_matches() -> None:
+    search_response = WebSearchResponse.model_validate(
+        {
+            "query": "What is OpenAI's mission? Use official sources.",
+            "results": [
+                {
+                    "title": "What is OpenAI? - Moveworks",
+                    "url": "https://www.moveworks.com/openai",
+                    "snippet": "Third-party summary",
+                    "rank": {"position": 1, "provider_position": 1},
+                },
+                {
+                    "title": "OpenAI Charter",
+                    "url": "https://openai.com/charter",
+                    "snippet": "Official mission statement",
+                    "rank": {"position": 2, "provider_position": 2},
+                },
+                {
+                    "title": "What's OpenAI's mission? Quiz",
+                    "url": "https://example.com/quiz",
+                    "snippet": "",
+                    "rank": {"position": 3, "provider_position": 3},
+                },
+            ],
+            "metadata": {"result_count": 3, "provider": "serper"},
+            "meta": {
+                "operation": "web_search",
+                "attempts": 1,
+                "retries": 0,
+                "duration_ms": 12,
+                "timings": {"total_ms": 12, "provider_ms": 8},
+            },
+        }
+    )
+
+    selected = select_quick_urls(
+        search_response,
+        prompt="What is OpenAI's mission? Use official sources.",
+        max_urls=2,
+    )
+
+    assert selected == [
+        "https://openai.com/charter",
+        "https://www.moveworks.com/openai",
     ]
 
 

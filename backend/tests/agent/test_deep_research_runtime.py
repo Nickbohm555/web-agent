@@ -3,12 +3,14 @@ from __future__ import annotations
 from backend.agent.deep_agents.schemas.persisted_plan import PersistedPlanArtifact
 from backend.agent.deep_agents.schemas.persisted_status import PersistedStatusArtifact
 from backend.agent.deep_research_execution import execute_research_waves
+from backend.agent.deep_research_planning import build_deep_research_plan
 from backend.agent.deep_research_runtime import (
     run_deep_research_job,
     start_deep_research,
 )
 from backend.agent.deep_research_store import InMemoryDeepResearchStore
-from backend.agent.schemas.deep_research import DeepResearchPlan, DeepResearchStage
+from backend.agent.deep_research_verification import finalize_deep_research_answer
+from backend.agent.schemas.deep_research import DeepResearchJob, DeepResearchPlan, DeepResearchStage
 from backend.api.schemas import AgentRunQueuedResponse
 
 
@@ -91,6 +93,36 @@ def test_start_deep_research_returns_queued_response_and_persists_job() -> None:
     assert saved.wave_count == 0
     assert saved.sub_questions == []
     assert saved.sources == []
+
+
+def test_start_deep_research_uses_explicit_thread_id_when_supplied() -> None:
+    store = InMemoryDeepResearchStore()
+
+    response = start_deep_research(
+        prompt="Investigate market share",
+        store=store,
+        schedule_job=lambda _job_id: None,
+        run_id_factory=lambda: "run-deep-explicit-thread",
+        thread_id="thread-custom-123",
+    )
+
+    assert response.run_id == "run-deep-explicit-thread"
+    assert store.get_required("run-deep-explicit-thread").thread_id == "thread-custom-123"
+
+
+def test_build_deep_research_plan_decomposes_multi_part_prompts() -> None:
+    plan = build_deep_research_plan(
+        DeepResearchJob(
+            job_id="run-plan",
+            thread_id="thread-run-plan",
+            prompt="Compare OpenAI and Anthropic enterprise product strategies",
+            stage=DeepResearchStage.QUEUED,
+        )
+    )
+
+    assert len(plan.sub_questions) >= 2
+    assert any("OpenAI" in question for question in plan.sub_questions)
+    assert any("Anthropic" in question for question in plan.sub_questions)
 
 
 def test_deep_research_runtime_persists_plan_before_wave_execution() -> None:
@@ -282,6 +314,69 @@ def test_deep_research_runtime_evidence_normalizes_sources_from_subagents() -> N
             }
         ),
     )
-
     saved = store.get_required("run-deep-evidence")
     assert [str(source.url) for source in saved.sources] == ["https://example.com/source"]
+
+
+def test_finalize_deep_research_answer_synthesizes_artifacts_into_structured_answer() -> None:
+    finalized = finalize_deep_research_answer(
+        DeepResearchJob(
+            job_id="run-deep-finalize",
+            thread_id="thread-run-deep-finalize",
+            prompt="Compare two launch strategies",
+            stage=DeepResearchStage.SYNTHESIZING,
+            sources=[
+                {
+                    "title": "Primary source",
+                    "url": "https://example.com/source",
+                    "snippet": "Evidence snippet.",
+                }
+            ],
+            research_artifacts=[
+                {
+                    "subquestion": "What is strategy A?",
+                    "subanswer": "Strategy A prioritizes fast launch velocity.",
+                    "sources": [
+                        {
+                            "title": "Primary source",
+                            "url": "https://example.com/source",
+                            "snippet": "Evidence snippet.",
+                        }
+                    ],
+                    "citations": [],
+                    "artifact_path": "/workspace/research/run-deep-finalize/00-strategy-a.md",
+                },
+                {
+                    "subquestion": "What is strategy B?",
+                    "subanswer": "Strategy B prioritizes governance and review.",
+                    "sources": [
+                        {
+                            "title": "Primary source",
+                            "url": "https://example.com/source",
+                            "snippet": "Evidence snippet.",
+                        }
+                    ],
+                    "citations": [],
+                    "artifact_path": "/workspace/research/run-deep-finalize/01-strategy-b.md",
+                },
+            ],
+        )
+    )
+
+    assert finalized.stage == DeepResearchStage.COMPLETED
+    assert finalized.final_answer is not None
+    assert "Research summary:" in finalized.final_answer.text
+    assert "What is strategy A?" in finalized.final_answer.text
+    assert "What is strategy B?" in finalized.final_answer.text
+    assert finalized.final_answer.model_dump(mode="json")["basis"] == [
+        {
+            "kind": "list_item",
+            "text": "What is strategy A?: Strategy A prioritizes fast launch velocity.",
+            "citations": [],
+        },
+        {
+            "kind": "list_item",
+            "text": "What is strategy B?: Strategy B prioritizes governance and review.",
+            "citations": [],
+        },
+    ]

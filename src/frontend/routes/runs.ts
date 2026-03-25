@@ -28,11 +28,13 @@ export interface RunEventStreamContext {
 export interface RunExecutorContext extends RunEventStreamContext {
   prompt: string;
   mode: RunMode;
+  threadId?: string;
 }
 
 interface PendingRun {
   prompt: string;
   mode: RunMode;
+  threadId?: string;
 }
 
 interface BackgroundRunRecord {
@@ -1187,6 +1189,7 @@ function createRunExecutorContext(
     signal,
     prompt: run.prompt,
     mode: run.mode,
+    threadId: run.threadId,
   };
 }
 

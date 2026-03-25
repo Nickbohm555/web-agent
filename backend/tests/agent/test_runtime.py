@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -39,6 +40,15 @@ def expected_runtime_config(mode: AgentRunMode = "agentic") -> dict[str, Any]:
     }
 
 
+def expected_threaded_runtime_config(
+    mode: AgentRunMode,
+    thread_id: str,
+) -> dict[str, Any]:
+    config = expected_runtime_config(mode)
+    config["configurable"] = {"thread_id": thread_id}
+    return config
+
+
 @dataclass
 class StubAgent:
     raw_result: dict[str, Any]
@@ -69,6 +79,7 @@ class CapturingAgentFactory:
     captured_profile: AgentRuntimeProfile | None = None
     captured_tools: tuple[Any, ...] | None = None
     captured_system_prompt: str | None = None
+    captured_checkpointer: object | None = None
     agent: StubAgent | None = None
 
     def __call__(
@@ -76,12 +87,33 @@ class CapturingAgentFactory:
         profile: AgentRuntimeProfile,
         tools: tuple[Any, ...],
         system_prompt: str,
+        *,
+        checkpointer: object | None = None,
     ) -> StubAgent:
         self.captured_profile = profile
         self.captured_tools = tools
         self.captured_system_prompt = system_prompt
+        self.captured_checkpointer = checkpointer
         self.agent = StubAgent(raw_result=self.raw_result)
         return self.agent
+
+
+@dataclass
+class RecordingCheckpointerContextFactory:
+    checkpointer: object
+    enters: int = 0
+    exits: int = 0
+
+    def __call__(self):
+        @contextmanager
+        def manager():
+            self.enters += 1
+            try:
+                yield self.checkpointer
+            finally:
+                self.exits += 1
+
+        return manager()
 
 
 class GraphRecursionError(RuntimeError):
@@ -518,9 +550,9 @@ def test_run_agent_once_uses_single_search_path_for_quick_mode() -> None:
     assert result.status == "completed"
     assert result.tool_call_count == 3
     assert result.final_answer is not None
-    assert "Example One: First summary." in result.final_answer.text
-    assert "Sources:" in result.final_answer.text
-    assert "https://example.com/one" in result.final_answer.text
+    assert result.final_answer.text.startswith("Quick answer based on the top sources:\n")
+    assert "- Example One: Expanded summary one" in result.final_answer.text
+    assert "- Example Two: Expanded summary two" in result.final_answer.text
     assert result.model_dump(mode="json")["sources"] == [
         {
             "source_id": "https-example-com-one",
@@ -741,6 +773,31 @@ def test_run_agent_once_passes_runtime_config_into_agent_factory_and_config() ->
     )
     assert factory.agent is not None
     assert factory.agent.captured_config == expected_runtime_config("agentic")
+
+
+def test_run_agent_once_uses_checkpointer_backed_agentic_thread_config() -> None:
+    factory = CapturingAgentFactory(raw_result={"output": "Research answer."})
+    checkpointer_factory = RecordingCheckpointerContextFactory(checkpointer=object())
+
+    result = run_agent_once(
+        "Continue the existing thread",
+        "agentic",
+        thread_id="thread-agentic-123",
+        runtime_dependencies=RuntimeDependencies(
+            agent_factory=factory,
+            checkpointer_context_factory=checkpointer_factory,
+        ),
+    )
+
+    assert result.status == "completed"
+    assert factory.captured_checkpointer is checkpointer_factory.checkpointer
+    assert factory.agent is not None
+    assert factory.agent.captured_config == expected_threaded_runtime_config(
+        "agentic",
+        "thread-agentic-123",
+    )
+    assert checkpointer_factory.enters == 1
+    assert checkpointer_factory.exits == 1
 
 
 def test_run_agent_once_preserves_explicit_structured_final_answer_citations() -> None:

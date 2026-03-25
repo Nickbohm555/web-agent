@@ -10,6 +10,7 @@ import {
   type RunHistoryRunSummary,
 } from "./browser-contracts.js";
 import { resolveRunAnswer, segmentStructuredAnswer } from "./answer-rendering.js";
+import { buildDeepResearchClarificationMessage } from "./deep-research-brief.js";
 import {
   createRun,
   subscribeToRunEvents,
@@ -169,10 +170,25 @@ runForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (state.selectedMode === "deep_research") {
+    const clarificationMessage = buildDeepResearchClarificationMessage(prompt);
+    if (clarificationMessage) {
+      dispatch({
+        type: "run_failed",
+        message: clarificationMessage,
+      });
+      return;
+    }
+  }
+
   closeRunStream();
   dispatch({ type: "run_requested" });
 
-  const result = await createRun({ prompt, mode: state.selectedMode });
+  const result = await createRun({
+    prompt,
+    mode: state.selectedMode,
+    ...(pageContext.threadId ? { threadId: pageContext.threadId } : {}),
+  });
   if (result.ok) {
     dispatch({
       type: "run_started",

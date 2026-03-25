@@ -26,14 +26,15 @@ RUN_ROUTE_PATH = "/api/agent/run"
 class StubRuntimeRunner:
     def __init__(self, result: AgentRunResult) -> None:
         self.result = result
-        self.calls: list[tuple[str, AgentRunMode]] = []
+        self.calls: list[tuple[str, AgentRunMode, str | None]] = []
 
     def __call__(
         self,
         prompt: str,
         mode: AgentRunMode,
+        thread_id: str | None = None,
     ) -> AgentRunResult:
-        self.calls.append((prompt, mode))
+        self.calls.append((prompt, mode, thread_id))
         return self.result
 
 
@@ -362,17 +363,49 @@ def test_run_route_returns_stable_success_envelope_for_each_mode(
     }
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", mode)]
+    assert runner.calls == [("find one source", mode, None)]
+
+
+def test_run_route_passes_thread_id_into_agentic_runtime(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = StubRuntimeRunner(
+        AgentRunResult(
+            run_id="run-agentic-thread",
+            status="completed",
+            final_answer="Threaded answer.",
+            sources=[],
+            tool_call_count=1,
+            elapsed_ms=44,
+        )
+    )
+    monkeypatch.setattr(agent_run_service, "run_agent_once", runner)
+
+    response = client.post(
+        RUN_ROUTE_PATH,
+        json={
+            "prompt": "continue the previous conversation",
+            "mode": "agentic",
+            "thread_id": "thread-agentic-123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert runner.calls == [("continue the previous conversation", "agentic", "thread-agentic-123")]
 
 
 def test_run_route_queues_deep_research_requests(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    captured_thread_ids: list[str | None] = []
+
     monkeypatch.setattr(
         agent_run_service,
         "start_deep_research_request",
-        lambda payload: AgentRunQueuedResponse(
+        lambda payload: captured_thread_ids.append(payload.thread_id)
+        or AgentRunQueuedResponse(
             run_id="run-deep-route",
             status="queued",
             metadata=AgentRunQueuedMetadata(execution_surface="background"),
@@ -393,7 +426,14 @@ def test_run_route_queues_deep_research_requests(
         ),
     )
 
-    response = post_run(client, prompt="Investigate deeply", mode="deep_research")
+    response = client.post(
+        RUN_ROUTE_PATH,
+        json={
+            "prompt": "Investigate deeply",
+            "mode": "deep_research",
+            "thread_id": "thread-deep-123",
+        },
+    )
 
     assert response.status_code == 202
     assert response.json() == {
@@ -403,6 +443,7 @@ def test_run_route_queues_deep_research_requests(
     }
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "background"
+    assert captured_thread_ids == ["thread-deep-123"]
 
 
 @pytest.mark.parametrize(
@@ -466,7 +507,7 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     assert response.json() == expected_payload
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", mode)]
+    assert runner.calls == [("find one source", mode, None)]
 
 
 def test_agent_run_request_accepts_background_deep_research_response_shape() -> None:
@@ -510,3 +551,16 @@ def test_run_route_exposes_background_execution_surface_for_queued_runs(
 
 def post_run(client: TestClient, *, prompt: str, mode: str):
     return client.post(RUN_ROUTE_PATH, json={"prompt": prompt, "mode": mode})
+def test_run_request_contract_accepts_optional_thread_id() -> None:
+    payload = AgentRunRequest(
+        prompt="continue the prior thread",
+        mode="agentic",
+        thread_id="thread-agentic-123",
+    )
+
+    assert payload.model_dump() == {
+        "prompt": "continue the prior thread",
+        "mode": "agentic",
+        "thread_id": "thread-agentic-123",
+    }
+
