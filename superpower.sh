@@ -3,7 +3,7 @@ set -euo pipefail
 
 if [ "$#" -lt 1 ]; then
   echo "Usage: $0 \"<test instructions>\"" >&2
-  echo "How to run: ./codex_superpower_session.sh \"test the open_url runtime wiring end to end and fix failures\"" >&2
+  echo "How to run: ./superpower.sh \"test the open_url runtime wiring end to end and fix failures\"" >&2
   exit 1
 fi
 
