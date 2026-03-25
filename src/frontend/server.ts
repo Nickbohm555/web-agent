@@ -10,10 +10,8 @@ import ts from "typescript";
 import { withRunContext } from "../core/telemetry/run-context.js";
 import { createFetchRouter } from "./routes/fetch.js";
 import { createRunHistoryRouter } from "./routes/run-history.js";
-import {
-  createHttpAgentRunExecutor,
-  createRunsRouter,
-} from "./routes/runs.js";
+import { createRunsRouter } from "./routes/runs.js";
+import { createHttpAgentRunExecutor } from "./routes/backend-agent.js";
 import { createSearchRouter } from "./routes/search.js";
 import { createRunHistoryStore } from "./run-history/store.js";
 

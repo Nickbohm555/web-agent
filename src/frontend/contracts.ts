@@ -254,6 +254,53 @@ export const BackendAgentRunSuccessResponseSchema = z
   })
   .strict();
 
+export const BackendDeepResearchQueuedResponseSchema = z
+  .object({
+    run_id: z.string().trim().min(1),
+    status: z.enum(["queued", "running"]),
+    metadata: z.object({
+      execution_surface: z.literal("background"),
+    }).strict(),
+  })
+  .strict();
+
+export const BackendDeepResearchStatusResponseSchema = z
+  .object({
+    run_id: z.string().trim().min(1),
+    thread_id: z.string().trim().min(1),
+    status: z.enum([
+      "queued",
+      "planning",
+      "searching",
+      "verifying",
+      "synthesizing",
+      "completed",
+      "failed",
+    ]),
+    final_answer: StructuredAnswerSchema.nullable(),
+    sources: z.array(RunSourceSchema),
+    error: z.object({
+      category: z.string().trim().min(1),
+      message: z.string().trim().min(1),
+      retryable: z.boolean(),
+    }).nullable(),
+    sub_questions: z.array(z.string()),
+    metadata: z.object({
+      execution_surface: z.literal("background"),
+      stage: z.enum([
+        "queued",
+        "planning",
+        "searching",
+        "verifying",
+        "synthesizing",
+        "completed",
+        "failed",
+      ]),
+      wave_count: z.number().int().nonnegative(),
+    }).strict(),
+  })
+  .strict();
+
 const RunHistoryTimestampSchema = z.string().datetime({ offset: true });
 const RunHistoryRunIdSchema = z.string().trim().min(1);
 const RunHistoryPayloadFieldSchema = z.enum([
@@ -480,6 +527,12 @@ export type StructuredAnswerCitation = z.output<typeof StructuredAnswerCitationS
 export type StructuredAnswerBasis = z.output<typeof StructuredAnswerBasisSchema>;
 export type StructuredAnswer = z.output<typeof StructuredAnswerSchema>;
 export type BackendAgentRunSuccessResponse = z.output<typeof BackendAgentRunSuccessResponseSchema>;
+export type BackendDeepResearchQueuedResponse = z.output<
+  typeof BackendDeepResearchQueuedResponseSchema
+>;
+export type BackendDeepResearchStatusResponse = z.output<
+  typeof BackendDeepResearchStatusResponseSchema
+>;
 export type CanonicalRunEvent = RunEvent;
 export type CanonicalRunEventType = RunEventType;
 export type CanonicalRunEventToolName = CanonicalRunEventToolNameType;
@@ -545,6 +598,18 @@ export function parseRunHistoryNotFoundError(input: unknown): RunHistoryNotFound
 
 export function parseBackendAgentRunSuccessResponse(input: unknown): BackendAgentRunSuccessResponse {
   return BackendAgentRunSuccessResponseSchema.parse(input);
+}
+
+export function parseBackendDeepResearchQueuedResponse(
+  input: unknown,
+): BackendDeepResearchQueuedResponse {
+  return BackendDeepResearchQueuedResponseSchema.parse(input);
+}
+
+export function parseBackendDeepResearchStatusResponse(
+  input: unknown,
+): BackendDeepResearchStatusResponse {
+  return BackendDeepResearchStatusResponseSchema.parse(input);
 }
 
 export function parseSearchSdkOptions(input: unknown): SearchOptions | undefined {

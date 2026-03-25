@@ -43,6 +43,7 @@ def test_fanout_supervisor_builds_deep_agent_for_plan_subquestions() -> None:
 
     assert supervisor["kind"] == "deep-agent"
     assert len(recorded_calls) == 1
-    assert recorded_calls[0]["metadata"]["delegated_subagent_count"] == len(subquestions)
+    assert "metadata" not in recorded_calls[0]
+    assert recorded_calls[0]["name"] == "deep_research_supervisor"
     assert len(recorded_calls[0]["subagents"]) == 1
     assert recorded_calls[0]["subagents"][0]["name"] == "research_subagent"

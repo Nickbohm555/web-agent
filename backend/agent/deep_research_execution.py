@@ -9,7 +9,11 @@ from backend.agent.deep_research_artifacts import (
 )
 from backend.agent.deep_research_progress import append_progress_event
 from backend.agent.deep_research_supervisor import build_deep_research_supervisor
-from backend.agent.runtime_sources import RuntimeSourceRegistry, extract_final_answer
+from backend.agent.runtime_sources import (
+    RuntimeSourceRegistry,
+    extract_final_answer,
+    extract_sources,
+)
 from backend.agent.schemas.deep_research import DeepResearchJob, DeepResearchStage
 from backend.agent.schemas.deep_research_subagent import DeepResearchSubagentResult
 
@@ -94,6 +98,27 @@ def _delegate_subquestion(
     subquestion: str,
     delegate_subquestion: Callable[[Any, str], Any] | None,
 ) -> Any:
-    if delegate_subquestion is None:
+    if delegate_subquestion is not None:
+        return delegate_subquestion(supervisor, subquestion)
+
+    if not hasattr(supervisor, "invoke"):
         raise RuntimeError("delegate_subquestion is required for Phase 4 fan-out execution")
-    return delegate_subquestion(supervisor, subquestion)
+
+    raw_result = supervisor.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": subquestion,
+                }
+            ]
+        }
+    )
+    source_registry = extract_sources(raw_result)
+    final_answer = extract_final_answer(raw_result, source_registry.source_lookup())
+    return {
+        "subquestion": subquestion,
+        "subanswer": final_answer.text,
+        "sources": [source.model_dump(mode="json") for source in source_registry.sources()],
+        "citations": [citation.model_dump(mode="json") for citation in final_answer.citations],
+    }

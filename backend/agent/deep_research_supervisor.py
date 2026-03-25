@@ -22,13 +22,13 @@ def build_deep_research_supervisor(
 ) -> Any:
     deep_agent_factory = create_agent or _load_create_deep_agent()
     subagent = build_research_subagent()
-    delegated_subagent_count = len(plan_subquestions or ())
+    _ = len(plan_subquestions or ())
 
     return deep_agent_factory(
         model=RUNTIME_PROFILES[DEEP_RESEARCH_RUNTIME_MODE].model,
         system_prompt=SUPERVISOR_PROMPT,
         subagents=[subagent],
-        metadata={"delegated_subagent_count": delegated_subagent_count},
+        name="deep_research_supervisor",
     )
 
 

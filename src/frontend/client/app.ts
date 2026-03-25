@@ -18,6 +18,7 @@ import {
 import { initialRunState, reduceRunState, type RunState } from "./state.js";
 import type { RunMode } from "./browser-contracts.js";
 import { toRunEventTimelineRows } from "./timeline.js";
+import { resolvePageContext } from "./page-context.js";
 
 interface SelectedRunView {
   kind: "empty" | "history" | "preview" | "live";
@@ -50,7 +51,13 @@ const RUN_MODE_DETAILS: Record<
   },
 };
 
+const pageContext = resolvePageContext(window.location.pathname);
+
 const promptInput = requireElement<HTMLTextAreaElement>("prompt-input");
+const phaseLabel = requireElement<HTMLElement>("phase-label");
+const pageTitle = requireElement<HTMLElement>("page-title");
+const pageLead = requireElement<HTMLElement>("page-lead");
+const promptLabel = requireElement<HTMLElement>("prompt-label");
 const modeInputs = document.querySelectorAll<HTMLInputElement>('input[name="run-mode"]');
 const promptError = requireElement<HTMLElement>("prompt-error");
 const modeHint = requireElement<HTMLElement>("mode-hint");
@@ -77,7 +84,10 @@ const inspectorOutput = requireElement<HTMLElement>("payload-output");
 const inspectorError = requireElement<HTMLElement>("payload-error");
 const inspectorFinalAnswer = requireElement<HTMLElement>("payload-final-answer");
 
-let state = initialRunState;
+let state = reduceRunState(initialRunState, {
+  type: "mode_updated",
+  mode: pageContext.mode,
+});
 let streamSubscription: RunStreamSubscription | null = null;
 let durationTimer: number | null = null;
 let historyRuns: RunHistoryRunSummary[] = [];
@@ -196,6 +206,10 @@ function dispatch(action: Parameters<typeof reduceRunState>[1]) {
 }
 
 function render() {
+  phaseLabel.textContent = pageContext.phaseLabel;
+  pageTitle.textContent = pageContext.pageTitle;
+  pageLead.textContent = pageContext.lead;
+  promptLabel.textContent = pageContext.promptLabel;
   promptInput.value = state.prompt;
   const runInFlight = state.phase === "starting" || state.phase === "running";
   for (const input of modeInputs) {

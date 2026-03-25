@@ -6,7 +6,6 @@ import {
   createErrorEnvelope,
   createRequestTimer,
   createRunStartResponse,
-  parseBackendAgentRunSuccessResponse,
   parseRunStartRequest,
   parseRunStreamEvent,
   type CanonicalRunEvent,
@@ -19,6 +18,7 @@ import {
   type ToolCallEvent,
 } from "../contracts.js";
 import { withRunContext } from "../../core/telemetry/run-context.js";
+import { createHttpAgentRunExecutor } from "./backend-agent.js";
 
 export interface RunEventStreamContext {
   runId: string;
@@ -534,58 +534,6 @@ function countActiveBackgroundRuns(
 
 function isTerminalRunStreamEvent(event: RunStreamEvent): boolean {
   return event.event === "run_complete" || event.event === "run_error";
-}
-
-export function createHttpAgentRunExecutor(
-  backendOrigin: string,
-  fetchImplementation: typeof fetch = fetch,
-): RunExecutor {
-  return async function httpAgentRunExecutor(
-    context: RunExecutorContext,
-  ): Promise<RunExecutorResult> {
-    const response = await fetchImplementation(
-      new URL("/api/agent/run", backendOrigin),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: context.prompt,
-          mode: context.mode,
-        }),
-        signal: context.signal,
-      },
-    );
-
-    const payload = await safelyReadJson(response);
-    if (response.ok) {
-      const responseRecord = parseBackendAgentRunSuccessResponse(payload);
-
-      return {
-        status: "completed",
-        finalAnswer: responseRecord.final_answer.text,
-        structuredAnswer: responseRecord.final_answer,
-        sources: responseRecord.sources,
-        durationMs: responseRecord.elapsed_ms,
-        completedAt: Date.now(),
-      };
-    }
-
-    const errorPayload = asRecord(asRecord(payload).error);
-    return {
-      status: "failed",
-      message:
-        typeof errorPayload.message === "string"
-          ? errorPayload.message
-          : `Backend agent route failed with status ${response.status}.`,
-      code:
-        typeof errorPayload.code === "string"
-          ? errorPayload.code
-          : "RUN_FAILED",
-      failedAt: Date.now(),
-    };
-  };
 }
 
 function getRunHistoryStore(input: unknown): RunHistoryStoreLike | null {
