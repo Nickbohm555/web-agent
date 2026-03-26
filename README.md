@@ -10,6 +10,8 @@ Python SDK support now lives under `sdk/python` with two explicit entrypoints:
 
 - `quick_search(...)` for frontend-backed quick retrieval via `/api/search`
 - `agentic_search(...)` for backend-backed one-shot agent execution via `/api/agent/run`
+- PyPI package: `https://pypi.org/project/web-agent-sdk/`
+- GitHub repo: `https://github.com/Nickbohm555/web-agent`
 
 ## Included
 

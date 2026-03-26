@@ -5,6 +5,11 @@ Small Python SDK for this repo's two stable search entrypoints:
 - `quick_search(...)` posts to the frontend `/api/search` route
 - `agentic_search(...)` posts to the backend `/api/agent/run` route with `mode="agentic"`
 
+Project links:
+
+- PyPI: `https://pypi.org/project/web-agent-sdk/`
+- GitHub: `https://github.com/Nickbohm555/web-agent`
+
 ## Install
 
 ```bash
