@@ -31,6 +31,16 @@ def test_pages_workflow_publishes_the_current_svg_asset() -> None:
     assert "_site/docs/assets/readme-backend-sdk-workflow.svg" in workflow
 
 
+def test_pages_workflow_enables_pages_for_first_deploy() -> None:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "pages.yml"
+
+    assert workflow_path.exists()
+    workflow = workflow_path.read_text()
+
+    assert "uses: actions/configure-pages@v5" in workflow
+    assert "enablement: true" in workflow
+
+
 def test_release_workflow_invokes_script_via_bash() -> None:
     workflow_path = REPO_ROOT / ".github" / "workflows" / "release-sdk.yml"
 
