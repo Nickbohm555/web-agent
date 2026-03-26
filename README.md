@@ -1,6 +1,8 @@
 # web-agent
 
-Python-only backend library and SDK wrapper for stateless OpenAI web-search runs.
+Python-only backend library and SDK wrapper for stateless OpenAI web-search runs with parallel page retrieval.
+
+GitHub Pages overview: `https://nickbohm555.github.io/web-agent/`
 
 The repository now centers on two Python surfaces:
 
@@ -16,10 +18,10 @@ I built this to prove that web search is not magic.
 Under the hood, a useful web-search agent can stay very small:
 
 1. `web_search` gets candidate URLs
-2. `open_url` fetches the pages behind those URLs
+2. `open_url` fetches the pages behind those URLs in parallel
 3. the LLM reads the evidence and decides what matters
 
-That is the whole idea. The search system does not need a giant proprietary stack to be useful. It needs a clean tool contract, a crawler that can reliably fetch pages, and an LLM that can reason over the returned evidence.
+That is the whole idea. The search system does not need a giant proprietary stack to be useful. It needs a clean tool contract, a crawler that can reliably fetch pages in parallel, and an LLM that can reason over the returned evidence.
 
 I also wanted an implementation that is materially cheaper than the common all-in-one search APIs people reach for first.
 
@@ -52,6 +54,7 @@ agentic = client.agentic_search("Investigate this company")
 - You create a `ChatOpenAI` model with your OpenAI credentials.
 - The SDK extracts the OpenAI model name and API key from that chat model.
 - The internal backend library runs stateless OpenAI Responses API calls with the built-in `web_search` tool and `store=False`.
+- When the model selects multiple pages, `open_url` retrieves them in parallel so evidence gathering does not bottleneck on one page at a time.
 - `quick_search(...)` favors speed and concise answers.
 - `agentic_search(...)` uses a more thorough stateless search instruction set.
 
@@ -73,6 +76,7 @@ In other words: `web_search` only answers, "what URLs should the model look at n
 `open_url` is the evidence retrieval step.
 
 - It accepts one URL or a small batch of URLs.
+- It retrieves batched URLs in parallel, which is a major speed and throughput advantage for multi-source research.
 - It fetches the page, normalizes the content, and extracts readable text and markdown.
 - It returns structured success or error payloads.
 - It trims output so the model sees useful evidence rather than the entire raw page.
@@ -81,7 +85,7 @@ In other words: `open_url` answers, "what does this page actually say?"
 
 ## How The Crawler Works
 
-The crawler is intentionally simple.
+The crawler is intentionally simple at the per-URL level, while `open_url` can run many of those retrievals in parallel at the request level.
 
 1. Validate the requested URL.
 2. Choose a fetch strategy for that domain.
@@ -122,9 +126,9 @@ The key point is not that crawling is free. It is that the vendor markup on the 
 
 ## Inspiration
 
-This project was strongly influenced by Onyx's article, [Lessons from building the best Deep Research (and how you can build better agents)](https://onyx.app/blog/building-the-best-deep-research).
+This project was strongly influenced by Onyx's article, [Building Internet Search](https://onyx.app/blog/building-internet-search).
 
-The part that resonated most with me is the idea that agents get over-glorified. Good web research often comes down to a small toolset, clear prompts, and letting the LLM operate on real source material instead of hiding the evidence behind too much middleware.
+The part that resonated most with me is the idea that agents get over-glorified. Good web research often comes down to a small toolset, clear prompts, parallel evidence retrieval, and letting the LLM operate on real source material instead of hiding the evidence behind too much middleware.
 
 ## Repository Shape
 
