@@ -22,15 +22,14 @@ RUN_ROUTE_PATH = "/api/agent/run"
 class StubRuntimeRunner:
     def __init__(self, result: AgentRunResult) -> None:
         self.result = result
-        self.calls: list[tuple[str, AgentRunMode, str | None]] = []
+        self.calls: list[tuple[str, AgentRunMode]] = []
 
     def __call__(
         self,
         prompt: str,
         mode: AgentRunMode,
-        thread_id: str | None = None,
     ) -> AgentRunResult:
-        self.calls.append((prompt, mode, thread_id))
+        self.calls.append((prompt, mode))
         return self.result
 
 
@@ -358,10 +357,10 @@ def test_run_route_returns_stable_success_envelope_for_quick_mode(
     }
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", mode, None)]
+    assert runner.calls == [("find one source", mode)]
 
 
-def test_run_route_rejects_agentic_mode_with_thread_id(
+def test_run_route_rejects_thread_id_field_as_unknown_input(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -386,17 +385,35 @@ def test_run_route_rejects_agentic_mode_with_thread_id(
         },
     )
 
-    assert response.status_code == 400
-    assert response.json() == {
-        "error": {
-            "code": "UNSUPPORTED_MODE",
-            "message": "Use the agentic chat route for conversational workflows.",
-            "retryable": False,
-        }
-    }
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["msg"] == "Extra inputs are not permitted"
     assert runner.calls == []
+
+
+def test_run_route_returns_stable_success_envelope_for_agentic_mode(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mode: AgentRunMode = "agentic"
+    runner = StubRuntimeRunner(
+        AgentRunResult(
+            run_id="run-agentic-success",
+            status="completed",
+            final_answer="Agentic source summary.",
+            sources=[],
+            tool_call_count=3,
+            elapsed_ms=91,
+        )
+    )
+    monkeypatch.setattr(agent_run_service, "run_agent_once", runner)
+
+    response = post_run(client, prompt="Investigate this company", mode=mode)
+
+    assert response.status_code == 200
+    assert response.json()["run_id"] == "run-agentic-success"
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
+    assert runner.calls == [("Investigate this company", mode)]
 
 
 def test_agent_run_route_rejects_deep_research_mode(
@@ -456,22 +473,17 @@ def test_run_route_maps_runtime_failures_to_explicit_api_errors(
     assert response.json() == expected_payload
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
-    assert runner.calls == [("find one source", mode, None)]
+    assert runner.calls == [("find one source", mode)]
 
 
 def post_run(client: TestClient, *, prompt: str, mode: str):
     return client.post(RUN_ROUTE_PATH, json={"prompt": prompt, "mode": mode})
 
 
-def test_run_request_contract_accepts_optional_thread_id() -> None:
-    payload = AgentRunRequest(
-        prompt="continue the prior thread",
-        mode="agentic",
-        thread_id="thread-agentic-123",
-    )
-
-    assert payload.model_dump() == {
-        "prompt": "continue the prior thread",
-        "mode": "agentic",
-        "thread_id": "thread-agentic-123",
-    }
+def test_run_request_contract_rejects_thread_id() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        AgentRunRequest(
+            prompt="continue the prior thread",
+            mode="agentic",
+            thread_id="thread-agentic-123",
+        )

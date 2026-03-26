@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, Callable, ContextManager, Protocol
+from typing import Any, Callable, Protocol
 from uuid import uuid4
 
-from backend.agent.persistence.checkpointer import create_agent_checkpointer
 from backend.agent.prompts import build_system_prompt
 from backend.agent.quick_search import QuickSearchRunner, run_quick_search
 from backend.agent.quick_runtime import QuickCrawlRunner, run_quick_runtime
@@ -50,8 +48,6 @@ class AgentFactory(Protocol):
         profile: AgentRuntimeProfile,
         tools: tuple[Any, ...],
         system_prompt: str,
-        *,
-        checkpointer: object | None = None,
     ) -> AgentExecutor:
         ...
 
@@ -68,11 +64,6 @@ class QuickRuntimeRunner(Protocol):
         ...
 
 
-class CheckpointerContextFactory(Protocol):
-    def __call__(self) -> ContextManager[object]:
-        ...
-
-
 @dataclass(frozen=True)
 class RuntimeDependencies:
     agent: AgentExecutor | None = None
@@ -80,14 +71,11 @@ class RuntimeDependencies:
     quick_search_runner: QuickSearchRunner | None = None
     quick_crawl_runner: QuickCrawlRunner | None = None
     quick_runtime_runner: QuickRuntimeRunner | None = None
-    checkpointer_context_factory: CheckpointerContextFactory | None = None
 
 
 def run_agent_once(
     prompt: str,
     mode: AgentRunMode = "agentic",
-    *,
-    thread_id: str | None = None,
     runtime_dependencies: RuntimeDependencies | None = None,
 ) -> AgentRunResult:
     run_id = str(uuid4())
@@ -115,7 +103,6 @@ def run_agent_once(
             prompt=prompt,
             run_id=run_id,
             started_at=started_at,
-            thread_id=thread_id,
             runtime_dependencies=dependencies,
         )
     except Exception as exc:
@@ -169,8 +156,6 @@ def resolve_agent(
     runtime_dependencies: RuntimeDependencies,
     profile: AgentRuntimeProfile,
     prompt: str,
-    *,
-    checkpointer: object | None = None,
 ) -> AgentExecutor:
     if runtime_dependencies.agent is not None:
         return runtime_dependencies.agent
@@ -191,7 +176,6 @@ def resolve_agent(
         profile,
         tools,
         system_prompt,
-        checkpointer=checkpointer,
     )
 
 
@@ -216,14 +200,12 @@ def run_agentic_mode(
     prompt: str,
     run_id: str,
     started_at: float,
-    thread_id: str | None,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
     return run_agentic_runtime(
         prompt=prompt,
         run_id=run_id,
         started_at=started_at,
-        thread_id=thread_id,
         runtime_dependencies=runtime_dependencies,
     )
 
@@ -233,7 +215,6 @@ def run_agentic_runtime(
     prompt: str,
     run_id: str,
     started_at: float,
-    thread_id: str | None,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
     return _run_profile_runtime(
@@ -241,7 +222,6 @@ def run_agentic_runtime(
         prompt=prompt,
         run_id=run_id,
         started_at=started_at,
-        thread_id=thread_id,
         runtime_dependencies=runtime_dependencies,
     )
 
@@ -252,24 +232,17 @@ def _run_profile_runtime(
     prompt: str,
     run_id: str,
     started_at: float,
-    thread_id: str | None,
     runtime_dependencies: RuntimeDependencies,
 ) -> AgentRunResult:
-    with get_checkpointer_context(
-        profile=profile,
-        thread_id=thread_id,
-        runtime_dependencies=runtime_dependencies,
-    ) as checkpointer:
-        agent = resolve_agent(
-            runtime_dependencies,
-            profile,
-            prompt,
-            checkpointer=checkpointer,
-        )
-        raw_result = agent.invoke(
-            build_inputs(prompt),
-            build_runtime_config(profile, thread_id=thread_id),
-        )
+    agent = resolve_agent(
+        runtime_dependencies,
+        profile,
+        prompt,
+    )
+    raw_result = agent.invoke(
+        build_inputs(prompt),
+        build_runtime_config(profile),
+    )
     source_registry = extract_sources(raw_result)
     sources = source_registry.sources()
     crawl_error = extract_crawl_error(raw_result)
@@ -319,8 +292,6 @@ def build_default_agent(
     profile: AgentRuntimeProfile,
     tools: tuple[Any, ...],
     system_prompt: str,
-    *,
-    checkpointer: object | None = None,
 ) -> AgentExecutor:
     try:
         from langchain_openai import ChatOpenAI
@@ -340,7 +311,6 @@ def build_default_agent(
         model=model,
         tools=tools,
         prompt=system_prompt,
-        checkpointer=checkpointer,
     )
 
 
@@ -350,18 +320,16 @@ def load_agent_factory() -> Callable[..., AgentExecutor]:
     except ImportError:
         from langgraph.prebuilt import create_react_agent
 
-        return lambda *, model, tools, prompt, checkpointer=None: create_react_agent(
+        return lambda *, model, tools, prompt: create_react_agent(
             model=model,
             tools=list(tools),
             prompt=prompt,
-            checkpointer=checkpointer,
         )
 
-    return lambda *, model, tools, prompt, checkpointer=None: create_agent(
+    return lambda *, model, tools, prompt: create_agent(
         model=model,
         tools=list(tools),
         system_prompt=prompt,
-        checkpointer=checkpointer,
     )
 
 
@@ -380,15 +348,3 @@ def get_quick_runtime_runner(runtime_dependencies: RuntimeDependencies) -> Quick
 def get_quick_crawl_runner(runtime_dependencies: RuntimeDependencies) -> QuickCrawlRunner:
     return runtime_dependencies.quick_crawl_runner or run_open_url
 
-
-def get_checkpointer_context(
-    *,
-    profile: AgentRuntimeProfile,
-    thread_id: str | None,
-    runtime_dependencies: RuntimeDependencies,
-) -> ContextManager[object | None]:
-    if profile.name != AGENTIC_RUNTIME_MODE or thread_id is None:
-        return nullcontext(None)
-    if runtime_dependencies.checkpointer_context_factory is not None:
-        return runtime_dependencies.checkpointer_context_factory()
-    return create_agent_checkpointer()

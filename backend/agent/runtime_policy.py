@@ -7,10 +7,8 @@ from backend.agent.schemas import AgentRuntimeProfile
 
 def build_runtime_config(
     profile: AgentRuntimeProfile,
-    *,
-    thread_id: str | None = None,
 ) -> dict[str, Any]:
-    config = {
+    return {
         "recursion_limit": profile.recursion_limit,
         "run_mode": profile.name,
         "execution_mode": profile.execution_mode,
@@ -22,9 +20,6 @@ def build_runtime_config(
             "max_crawl_chars": profile.max_crawl_chars,
         },
     }
-    if thread_id is not None:
-        config["configurable"] = {"thread_id": thread_id}
-    return config
 
 
 def build_retrieval_brief(

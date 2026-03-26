@@ -32,7 +32,7 @@ def test_execute_agent_run_request_returns_sync_success_for_quick_mode(
     assert response.status == "completed"
 
 
-def test_execute_agent_run_request_rejects_agentic_mode(
+def test_execute_agent_run_request_returns_sync_success_for_agentic_mode(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -51,11 +51,9 @@ def test_execute_agent_run_request_rejects_agentic_mode(
         AgentRunRequest(prompt="Investigate this source", mode="agentic")
     )
 
-    assert response.status_code == 400
-    assert response.body == (
-        b'{"error":{"code":"UNSUPPORTED_MODE","message":"Use the agentic chat route for '
-        b'conversational workflows.","retryable":false}}'
-    )
+    assert isinstance(response, AgentRunSuccessResponse)
+    assert response.run_id == "run-agentic"
+    assert response.status == "completed"
 
 
 def test_execute_agent_run_request_request_contract_rejects_deep_research_mode() -> None:

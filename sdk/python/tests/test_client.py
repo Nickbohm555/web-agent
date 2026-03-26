@@ -1,168 +1,134 @@
 from __future__ import annotations
 
-import json
-
-import httpx
+from dataclasses import dataclass
+from types import SimpleNamespace
 
 from web_agent_sdk import WebAgentClient
+from web_agent_sdk.errors import WebAgentSdkError
 
 
-def test_quick_search_posts_to_frontend_search_route() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert str(request.url) == "http://frontend.local/api/search"
-        assert json.loads(request.content.decode("utf-8")) == {
-            "query": "Find pricing",
-            "options": {
-                "maxResults": 3,
-            },
-        }
-        return httpx.Response(
-            200,
-            json={
-                "ok": True,
-                "operation": "search",
-                "durationMs": 17,
-                "request": {
-                    "query": "Find pricing",
-                    "options": {
-                        "maxResults": 3,
-                        "timeoutMs": 10000,
-                        "country": "us",
-                        "language": "en",
-                        "freshness": "any",
-                        "domainScope": {
-                            "includeDomains": [],
-                            "excludeDomains": [],
-                        },
-                    },
-                },
-                "data": {
-                    "query": "Find pricing",
-                    "results": [
-                        {
-                            "title": "Pricing",
-                            "url": "https://example.com/pricing",
-                            "snippet": "Current pricing details.",
-                            "rank": {
-                                "position": 1,
-                                "providerPosition": 1,
-                            },
-                        }
-                    ],
-                    "meta": {
-                        "operation": "search",
-                        "startedAt": "2026-03-25T00:00:00.000Z",
-                        "completedAt": "2026-03-25T00:00:00.017Z",
-                        "durationMs": 17,
-                        "attempts": 1,
-                        "retries": 0,
-                        "cacheHit": False,
-                        "timings": {
-                            "providerMs": 12,
-                            "mappingMs": 5,
-                        },
-                        "usage": {
-                            "provider": {
-                                "organicResults": 1,
-                            }
-                        },
-                    },
-                    "metadata": {
-                        "resultCount": 1,
-                    },
-                },
-            },
-        )
+@dataclass
+class RecordedCall:
+    kwargs: dict
 
-    client = WebAgentClient(
-        base_url="http://frontend.local",
-        backend_base_url="http://backend.local",
-        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+
+class FakeResponsesClient:
+    def __init__(self, response: object) -> None:
+        self.response = response
+        self.calls: list[RecordedCall] = []
+
+    def create(self, **kwargs):
+        self.calls.append(RecordedCall(kwargs=kwargs))
+        return self.response
+
+
+class FakeOpenAIClient:
+    def __init__(self, response: object) -> None:
+        self.responses = FakeResponsesClient(response)
+
+
+def make_response(*, text: str, annotations: list[dict] | None = None) -> object:
+    return SimpleNamespace(
+        output_text=text,
+        output=[
+            SimpleNamespace(
+                content=[
+                    SimpleNamespace(
+                        annotations=annotations or [],
+                    )
+                ]
+            )
+        ],
     )
 
-    response = client.quick_search("Find pricing", max_results=3)
+
+def test_quick_search_uses_openai_responses_api_with_model_and_query() -> None:
+    openai_client = FakeOpenAIClient(
+        make_response(
+            text="Pricing starts at $20.",
+            annotations=[
+                {
+                    "title": "Pricing",
+                    "url": "https://example.com/pricing",
+                }
+            ],
+        )
+    )
+    client = WebAgentClient(
+        api_key="openai-key",
+        model="gpt-5.4-mini",
+        openai_client=openai_client,
+    )
+
+    response = client.quick_search("Find pricing")
 
     assert response.query == "Find pricing"
-    assert response.metadata.result_count == 1
-    assert response.results[0].title == "Pricing"
-    assert str(response.results[0].url) == "https://example.com/pricing"
+    assert response.answer == "Pricing starts at $20."
+    assert response.model == "gpt-5.4-mini"
+    assert response.sources[0].title == "Pricing"
+    assert str(response.sources[0].url) == "https://example.com/pricing"
+    assert openai_client.responses.calls[0].kwargs == {
+        "model": "gpt-5.4-mini",
+        "input": "Find pricing",
+        "instructions": "Answer the query quickly using web search. Keep the response concise and factual.",
+        "tools": [{"type": "web_search"}],
+        "store": False,
+    }
 
 
-def test_agentic_search_posts_to_backend_agent_run_route() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert str(request.url) == "http://backend.local/api/agent/run"
-        assert json.loads(request.content.decode("utf-8")) == {
-            "prompt": "Investigate this company",
-            "mode": "agentic",
-        }
-        return httpx.Response(
-            200,
-            json={
-                "run_id": "run-agentic-123",
-                "status": "completed",
-                "final_answer": {
-                    "text": "Company overview.",
-                    "citations": [],
-                    "basis": [],
-                },
-                "sources": [
-                    {
-                        "source_id": "company-homepage",
-                        "title": "Company homepage",
-                        "url": "https://example.com",
-                        "snippet": "Primary source.",
-                    }
-                ],
-                "tool_call_count": 2,
-                "elapsed_ms": 81,
-                "metadata": {
-                    "tool_call_count": 2,
-                    "elapsed_ms": 81,
-                },
-            },
+def test_agentic_search_uses_openai_responses_api_without_memory() -> None:
+    openai_client = FakeOpenAIClient(
+        make_response(
+            text="Company overview with supporting evidence.",
+            annotations=[
+                {
+                    "title": "Company homepage",
+                    "url": "https://example.com",
+                }
+            ],
         )
-
+    )
     client = WebAgentClient(
-        base_url="http://frontend.local",
-        backend_base_url="http://backend.local",
-        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        api_key="openai-key",
+        model="gpt-5.4",
+        openai_client=openai_client,
     )
 
     response = client.agentic_search("Investigate this company")
 
-    assert response.run_id == "run-agentic-123"
-    assert response.status == "completed"
-    assert response.final_answer.text == "Company overview."
-    assert response.sources[0].source_id == "company-homepage"
+    assert response.query == "Investigate this company"
+    assert response.answer == "Company overview with supporting evidence."
+    assert response.model == "gpt-5.4"
+    assert response.sources[0].title == "Company homepage"
+    assert openai_client.responses.calls[0].kwargs == {
+        "model": "gpt-5.4",
+        "input": "Investigate this company",
+        "instructions": (
+            "Investigate the query thoroughly using web search in a single stateless run. "
+            "Synthesize a complete answer and cite the strongest sources."
+        ),
+        "tools": [{"type": "web_search"}],
+        "store": False,
+    }
 
 
-def test_agentic_search_raises_sdk_error_for_api_failure() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            400,
-            json={
-                "error": {
-                    "code": "UNSUPPORTED_MODE",
-                    "message": "Use the deep research status workflow for deep_research mode.",
-                    "retryable": False,
-                }
-            },
-        )
+def test_agentic_search_wraps_openai_errors() -> None:
+    class FailingResponsesClient:
+        def create(self, **kwargs):
+            raise RuntimeError("upstream failed")
 
+    openai_client = SimpleNamespace(responses=FailingResponsesClient())
     client = WebAgentClient(
-        base_url="http://frontend.local",
-        backend_base_url="http://backend.local",
-        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        api_key="openai-key",
+        model="gpt-5.4",
+        openai_client=openai_client,
     )
 
     try:
-        client.agentic_search("Investigate deeply")
-    except Exception as error:
-        assert type(error).__name__ == "WebAgentSdkError"
-        assert str(error) == "Use the deep research status workflow for deep_research mode."
-        assert getattr(error, "status_code") == 400
-        assert getattr(error, "code") == "UNSUPPORTED_MODE"
+        client.agentic_search("Investigate this company")
+    except WebAgentSdkError as error:
+        assert str(error) == "upstream failed"
+        assert error.code == "OPENAI_REQUEST_FAILED"
+        assert error.retryable is False
     else:
         raise AssertionError("Expected WebAgentSdkError")

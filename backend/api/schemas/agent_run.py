@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -17,7 +17,6 @@ class AgentRunRequest(BaseModel):
 
     prompt: str = Field(min_length=1)
     mode: AgentRunMode
-    thread_id: Optional[str] = None
 
     @field_validator("prompt")
     @classmethod
@@ -26,17 +25,6 @@ class AgentRunRequest(BaseModel):
         if not normalized:
             raise ValueError("prompt must not be empty")
         return normalized
-
-    @field_validator("thread_id")
-    @classmethod
-    def validate_thread_id(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("thread_id must not be empty")
-        return normalized
-
 
 class AgentRunMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")

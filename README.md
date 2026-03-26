@@ -7,10 +7,11 @@ The app currently exposes two main user-facing search experiences:
 - `/` for the quick-search launcher
 - `/agentic/:threadId` for persistent agentic chats
 
-The Python SDK is published on PyPI as [`web-agent-sdk`](https://pypi.org/project/web-agent-sdk/) and documents two stable entrypoints:
+The Python SDK is published on PyPI as [`web-agent-sdk`](https://pypi.org/project/web-agent-sdk/0.2.0/) and documents two stable stateless entrypoints:
 
-- `quick_search(...)` for frontend-backed search retrieval via `/api/search`
-- `agentic_search(...)` for backend-backed agent execution via `/api/agent/run` with `mode="agentic"`
+- `quick_search(query)` for a fast OpenAI-backed web answer
+- `agentic_search(query)` for a deeper single-run investigation
+- configure the client with only `api_key` and `model`
 
 ![web-agent quick search and agentic search workflow](docs/assets/readme-search-workflows.svg)
 
@@ -18,29 +19,27 @@ The Python SDK is published on PyPI as [`web-agent-sdk`](https://pypi.org/projec
 
 ### Quick search
 
-Use quick search when you want fast ranked search results, not a synthesized research answer.
+Use quick search when you want a fast stateless answer grounded by OpenAI web search.
 
 - SDK entrypoint: `WebAgentClient.quick_search(...)`
-- HTTP surface: frontend `POST /api/search`
-- Runtime path: the Express route validates the request, calls `search(...)`, fetches results from Serper, maps the provider payload into the repo's search schema, applies domain filtering, and returns a `QuickSearchResponse`
-- Best fit: source discovery, result lists, lightweight retrieval, and low-latency UI flows
+- Runtime path: the Python SDK calls the OpenAI Responses API with the user-supplied `model`, the built-in web search tool, and `store=False`
+- Best fit: quick fact-finding, lightweight retrieval, and low-latency answers without server-side memory
 
 ### Agentic search
 
-Use agentic search when you want the backend agent to inspect sources and return a structured answer with citations and source metadata.
+Use agentic search when you want a deeper single-run investigation without any attached memory or server-side database state.
 
 - SDK entrypoint: `WebAgentClient.agentic_search(...)`
-- HTTP surface: backend `POST /api/agent/run` with `mode="agentic"`
-- Runtime path: FastAPI validates `AgentRunRequest`, calls `run_agent_once(...)`, selects the agentic runtime profile, and runs a LangChain agent that uses `web_search` and `open_url` to gather evidence before producing an `AgenticSearchResponse`
-- Best fit: investigations, synthesis, multi-step evidence gathering, and sourced answers
+- Runtime path: the Python SDK calls the OpenAI Responses API with the user-supplied `model`, the built-in web search tool, and `store=False`
+- Best fit: investigations, synthesis, and single-shot answers where the user controls the model and API key
 
 ## How The Workflow Fits Together
 
-The diagram above follows the same split used in the published PyPI docs for `web-agent-sdk` `0.1.1`.
+The diagram above now describes the product split conceptually, but the published Python SDK itself is stateless and OpenAI-native as of `web-agent-sdk` `0.2.0`.
 
-- The quick path is a direct retrieval path. It goes through the frontend search route and returns ranked search results plus metadata.
-- The agentic path is a backend execution path. It runs the agent runtime, lets the agent call retrieval tools, and returns a final answer with sources, tool counts, and elapsed time.
-- In practice: choose `quick_search(...)` when the caller wants search results to inspect, and choose `agentic_search(...)` when the caller wants the system to do the inspection and synthesis.
+- The quick path asks OpenAI to answer quickly with web search.
+- The agentic path asks OpenAI to perform a more thorough single-pass investigation with web search.
+- In practice: choose `quick_search(...)` for speed, and choose `agentic_search(...)` for deeper synthesis.
 
 ## Python SDK
 
@@ -55,12 +54,9 @@ Published usage example:
 ```python
 from web_agent_sdk import WebAgentClient
 
-client = WebAgentClient(
-    base_url="http://localhost:3000",
-    backend_base_url="http://localhost:8000",
-)
+client = WebAgentClient(api_key="your-openai-key", model="gpt-5.4")
 
-quick = client.quick_search("Find pricing", max_results=3)
+quick = client.quick_search("Find pricing")
 agentic = client.agentic_search("Investigate this company")
 ```
 
