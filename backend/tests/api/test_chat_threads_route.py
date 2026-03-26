@@ -26,12 +26,18 @@ def test_create_thread_returns_typed_thread_metadata(client: TestClient) -> None
 
 
 def test_get_thread_returns_ordered_transcript(client: TestClient) -> None:
-    thread = client.post("/api/chat/threads", json={"mode": "deep_research"}).json()["thread"]
+    thread = client.post("/api/chat/threads", json={"mode": "agentic"}).json()["thread"]
 
     response = client.get(f"/api/chat/threads/{thread['thread_id']}")
 
     assert response.status_code == 200
     assert response.json()["messages"] == []
+
+
+def test_create_thread_rejects_deep_research_mode(client: TestClient) -> None:
+    response = client.post("/api/chat/threads", json={"mode": "deep_research"})
+
+    assert response.status_code == 422
 
 
 def test_post_message_returns_typed_not_found_error_for_unknown_thread(client: TestClient) -> None:

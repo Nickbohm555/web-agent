@@ -1,4 +1,4 @@
-export type RunMode = "quick" | "agentic" | "deep_research";
+export type RunMode = "quick" | "agentic";
 
 export interface RunRetrievalPolicy {
   search: {

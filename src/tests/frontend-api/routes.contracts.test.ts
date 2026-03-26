@@ -471,14 +471,14 @@ describe("frontend API route contracts", () => {
   it("serves the quick launcher and chat pages from distinct routes", async () => {
     const launcher = await callPage("/");
     const agenticThread = await callPage("/agentic/thread-123");
-    const deepResearchThread = await callPage("/deep-research/thread-456");
+    const removedDeepResearchRoute = await callPage("/deep-research/thread-456");
 
     expect(launcher.status).toBe(200);
     expect(launcher.text).toContain('/client/app.js');
     expect(agenticThread.status).toBe(200);
     expect(agenticThread.text).toContain('/client/chat-app.js');
-    expect(deepResearchThread.status).toBe(200);
-    expect(deepResearchThread.text).toContain('/client/chat-app.js');
+    expect(removedDeepResearchRoute.status).toBe(200);
+    expect(removedDeepResearchRoute.text).toContain('/client/app.js');
   });
 });
 

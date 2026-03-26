@@ -791,8 +791,6 @@ function getPlanningMessage(mode: RunMode): string {
       return "Starting a fast search pass for a concise answer.";
     case "agentic":
       return "Building an exploratory research plan and selecting retrieval paths.";
-    case "deep_research":
-      return "Preparing a longer background research plan with broader source expansion.";
   }
 }
 

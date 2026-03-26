@@ -3,13 +3,25 @@ from __future__ import annotations
 from fastapi.responses import JSONResponse
 
 from backend.agent.runtime import run_agent_once
-from backend.api.errors import map_runtime_failure
+from backend.api.errors import AgentRunApiError, AgentRunErrorResponse, map_runtime_failure
 from backend.api.schemas import AgentRunRequest, AgentRunSuccessResponse
 
 
 def execute_agent_run_request(
     payload: AgentRunRequest,
 ) -> AgentRunSuccessResponse | JSONResponse:
+    if payload.mode != "quick":
+        return JSONResponse(
+            status_code=400,
+            content=AgentRunErrorResponse(
+                error=AgentRunApiError(
+                    code="UNSUPPORTED_MODE",
+                    message="Use the agentic chat route for conversational workflows.",
+                    retryable=False,
+                )
+            ).model_dump(),
+        )
+
     result = run_agent_once(payload.prompt, payload.mode, thread_id=payload.thread_id)
 
     if result.status == "failed":

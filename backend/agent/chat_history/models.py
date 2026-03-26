@@ -9,7 +9,7 @@ from backend.agent.schemas import AgentRunMode, AgentSourceReference
 ChatMessageRole = Literal["user", "assistant"]
 
 
-@dataclass(slots=True)
+@dataclass
 class ChatMessageRecord:
     message_id: str
     thread_id: str
@@ -19,7 +19,7 @@ class ChatMessageRecord:
     sources: list[AgentSourceReference] | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class ChatThreadRecord:
     thread_id: str
     mode: AgentRunMode

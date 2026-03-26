@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from backend.agent.agentic_chat_runtime import AgenticChatRuntime
 from backend.agent.chat_history.store import ChatTranscriptStore
-from backend.agent.deep_research_chat_runtime import DeepResearchChatRuntime
 from backend.agent.schemas import AgentRunMode, AgentSourceReference
 from backend.api.schemas.chat.message import ChatMessage, ChatThreadSummary
 from backend.api.schemas.chat.post_message import PostChatMessageResponse
@@ -19,11 +18,9 @@ class ChatThreadService:
         transcript_store: ChatTranscriptStore,
         *,
         agentic_runtime: AgenticChatRuntime | None = None,
-        deep_research_runtime: DeepResearchChatRuntime | None = None,
     ) -> None:
         self._transcript_store = transcript_store
         self._agentic_runtime = agentic_runtime
-        self._deep_research_runtime = deep_research_runtime
 
     def create_thread(self, mode: AgentRunMode) -> ChatThreadSummary:
         return _to_thread_summary(self._transcript_store.create_thread(mode=mode))
@@ -64,14 +61,6 @@ class ChatThreadService:
             if self._agentic_runtime is None:
                 raise RuntimeError("Agentic chat runtime is not configured")
             return self._agentic_runtime.post_message(
-                thread_id=thread_id,
-                content=content,
-                idempotency_key=idempotency_key,
-            )
-        if thread.mode == "deep_research":
-            if self._deep_research_runtime is None:
-                raise RuntimeError("Deep research chat runtime is not configured")
-            return self._deep_research_runtime.post_message(
                 thread_id=thread_id,
                 content=content,
                 idempotency_key=idempotency_key,

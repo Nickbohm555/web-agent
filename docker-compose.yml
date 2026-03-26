@@ -24,7 +24,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DEEP_RESEARCH_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/web_agent
+      AGENT_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/web_agent
       OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
       SERPER_API_KEY: ${SERPER_API_KEY:?SERPER_API_KEY is required}
     logging:

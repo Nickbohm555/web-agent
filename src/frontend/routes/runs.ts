@@ -100,13 +100,18 @@ export function createRunsRouter(): Router {
           request,
           error: {
             code: "INVALID_REQUEST",
-            message: "Use thread-based chat routes for agentic and deep research.",
+            message: "Use the agentic chat route for conversational workflows.",
           },
         });
         return;
       }
       const runId = randomUUID();
-      pendingRuns.set(runId, request);
+      pendingRuns.set(
+        runId,
+        request.threadId === undefined
+          ? { prompt: request.prompt, mode: request.mode }
+          : { prompt: request.prompt, mode: request.mode, threadId: request.threadId },
+      );
 
       ingestRunHistoryEvent(req.app.locals.runHistoryStore, {
         run_id: runId,
@@ -267,37 +272,7 @@ function startBackgroundRunIfNeeded(options: {
   backgroundRuns: Map<string, BackgroundRunRecord>;
   historyStore: RunHistoryStoreLike | null;
 }) {
-  if (options.request.mode !== "deep_research") {
-    return;
-  }
-
-  const eventProducer = resolveBackgroundEventProducer(
-    options.runEventStreamLike,
-    options.runExecutorLike,
-    options.request,
-    options.runId,
-  );
-
-  if (eventProducer === undefined) {
-    return;
-  }
-
-  const existingRun = options.backgroundRuns.get(options.runId);
-  if (existingRun !== undefined) {
-    return;
-  }
-
-  const run = createBackgroundRunRecord(options.runId, options.request.mode);
-  options.backgroundRuns.set(options.runId, run);
-  trimBackgroundRuns(options.backgroundRuns);
-
-  void executeBackgroundRun({
-    run,
-    eventProducer,
-    pendingRuns: options.pendingRuns,
-    historyStore: options.historyStore,
-    backgroundRuns: options.backgroundRuns,
-  });
+  return;
 }
 
 function createBackgroundRunRecord(
@@ -1089,8 +1064,6 @@ function getPlanningMessage(mode: RunMode): string {
       return "Starting a fast search pass for a concise answer.";
     case "agentic":
       return "Building an exploratory research plan and selecting retrieval paths.";
-    case "deep_research":
-      return "Preparing a longer background research plan with broader source expansion.";
   }
 }
 
@@ -1170,7 +1143,7 @@ function createRunExecutorContext(
     signal,
     prompt: run.prompt,
     mode: run.mode,
-    threadId: run.threadId,
+    ...(run.threadId === undefined ? {} : { threadId: run.threadId }),
   };
 }
 

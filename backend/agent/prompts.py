@@ -24,14 +24,8 @@ PROFILE_PROMPT_APPENDICES: dict[str, str] = {
     "agentic": "Use bounded multi-step reasoning when the prompt needs verification or synthesis across sources.",
 }
 
-DEEP_RESEARCH_PROMPT_GUIDANCE = (
-    "Deep research guidance: Work methodically, validate competing claims, and spend more budget on coverage before answering."
-)
-
 
 def get_mode_guidance(profile: AgentRuntimeProfile) -> str:
-    if profile.name == "deep_research":
-        return DEEP_RESEARCH_PROMPT_GUIDANCE
     return PROFILE_PROMPT_APPENDICES[profile.name]
 
 

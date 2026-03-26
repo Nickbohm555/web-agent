@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Protocol
 from uuid import uuid4
 
@@ -71,4 +71,4 @@ class InMemoryChatTranscriptStore:
 
 
 def _timestamp() -> str:
-    return datetime.now(tz=UTC).isoformat().replace("+00:00", "Z")
+    return datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z")

@@ -6,8 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
-    DEEP_RESEARCH_DATABASE_URL: str
-    DEEP_RESEARCH_ARTIFACT_NAMESPACE: str = "deep_research"
+    AGENT_DATABASE_URL: str
     OPENAI_API_KEY: str
     SERPER_API_KEY: str
 

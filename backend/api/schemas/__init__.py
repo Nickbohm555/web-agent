@@ -5,10 +5,6 @@ from .agent_run import (
     AgentRunRequest,
     AgentRunSuccessResponse,
 )
-from .deep_research_status import (
-    DeepResearchStatusMetadata,
-    DeepResearchStatusResponse,
-)
 
 __all__ = [
     "AgentRunMetadata",
@@ -16,6 +12,4 @@ __all__ = [
     "AgentRunQueuedResponse",
     "AgentRunRequest",
     "AgentRunSuccessResponse",
-    "DeepResearchStatusMetadata",
-    "DeepResearchStatusResponse",
 ]

@@ -45,14 +45,14 @@ describe("run start API contracts", () => {
 
     const response = await callRoute({
       prompt: "Research the market",
-      mode: "deep_research",
+      mode: "agentic",
     });
 
     expect(response.status).toBe(400);
     const envelope = RunStartErrorEnvelope.parse(response.json);
     expect(envelope.ok).toBe(false);
     expect(envelope.error.code).toBe("INVALID_REQUEST");
-    expect(envelope.error.message).toContain("thread-based chat routes");
+    expect(envelope.error.message).toContain("agentic chat route");
   });
 
   it("returns a validation envelope for malformed payloads", async () => {

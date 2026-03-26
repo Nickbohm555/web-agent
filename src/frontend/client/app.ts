@@ -10,7 +10,6 @@ import {
   type RunHistoryRunSummary,
 } from "./browser-contracts.js";
 import { resolveRunAnswer, segmentStructuredAnswer } from "./answer-rendering.js";
-import { buildDeepResearchClarificationMessage } from "./deep-research-brief.js";
 import {
   createRun,
   subscribeToRunEvents,
@@ -45,10 +44,6 @@ const RUN_MODE_DETAILS: Record<
   agentic: {
     label: "Agentic search",
     description: "Balanced exploration. Uses bounded search and crawl steps before answering.",
-  },
-  deep_research: {
-    label: "Deep research",
-    description: "Longest path. Runs broader background research and streams progress over time.",
   },
 };
 
@@ -170,17 +165,6 @@ runForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (state.selectedMode === "deep_research") {
-    const clarificationMessage = buildDeepResearchClarificationMessage(prompt);
-    if (clarificationMessage) {
-      dispatch({
-        type: "run_failed",
-        message: clarificationMessage,
-      });
-      return;
-    }
-  }
-
   closeRunStream();
   dispatch({ type: "run_requested" });
 
@@ -294,7 +278,7 @@ function describeMode(mode: RunMode): string {
 }
 
 function parseRunModeInput(input: string): RunMode {
-  if (input === "quick" || input === "agentic" || input === "deep_research") {
+  if (input === "quick" || input === "agentic") {
     return input;
   }
 

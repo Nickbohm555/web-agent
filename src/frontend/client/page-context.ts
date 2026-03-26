@@ -21,17 +21,6 @@ export function resolvePageContext(pathname: string): PageContext {
     };
   }
 
-  if (pathname.startsWith("/deep-research/")) {
-    return {
-      mode: "deep_research",
-      pageTitle: "Deep research",
-      phaseLabel: "Deep Research",
-      lead: "Run longer multi-step research from a dedicated thread page.",
-      promptLabel: "Research request",
-      threadId: pathname.slice("/deep-research/".length) || null,
-    };
-  }
-
   return {
     mode: "quick",
     pageTitle: "Quick search",

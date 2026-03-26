@@ -13,7 +13,6 @@ from backend.agent.quick_runtime import QuickCrawlRunner, run_quick_runtime
 from backend.agent.runtime_constants import (
     AGENTIC_RUNTIME_MODE,
     CANONICAL_TOOL_NAMES,
-    DEEP_RESEARCH_RUNTIME_MODE,
     QUICK_RUNTIME_MODE,
     RUNTIME_PROFILES,
 )
@@ -69,18 +68,6 @@ class QuickRuntimeRunner(Protocol):
         ...
 
 
-class DeepResearchRunner(Protocol):
-    def __call__(
-        self,
-        *,
-        prompt: str,
-        run_id: str,
-        started_at: float,
-        runtime_dependencies: "RuntimeDependencies",
-    ) -> AgentRunResult:
-        ...
-
-
 class CheckpointerContextFactory(Protocol):
     def __call__(self) -> ContextManager[object]:
         ...
@@ -93,7 +80,6 @@ class RuntimeDependencies:
     quick_search_runner: QuickSearchRunner | None = None
     quick_crawl_runner: QuickCrawlRunner | None = None
     quick_runtime_runner: QuickRuntimeRunner | None = None
-    deep_research_runner: DeepResearchRunner | None = None
     checkpointer_context_factory: CheckpointerContextFactory | None = None
 
 
@@ -125,13 +111,6 @@ def run_agent_once(
                 started_at=started_at,
                 runtime_dependencies=dependencies,
             )
-        if profile.name == DEEP_RESEARCH_RUNTIME_MODE:
-            return get_deep_research_runtime_runner(dependencies)(
-                prompt=prompt,
-                run_id=run_id,
-                started_at=started_at,
-                runtime_dependencies=dependencies,
-            )
         return run_agentic_runtime(
             prompt=prompt,
             run_id=run_id,
@@ -150,7 +129,6 @@ def build_runtime_dependencies() -> RuntimeDependencies:
         quick_search_runner=run_quick_search,
         quick_crawl_runner=run_open_url,
         quick_runtime_runner=run_quick_mode,
-        deep_research_runner=run_deep_research_mode,
     )
 
 
@@ -264,38 +242,6 @@ def run_agentic_runtime(
         run_id=run_id,
         started_at=started_at,
         thread_id=thread_id,
-        runtime_dependencies=runtime_dependencies,
-    )
-
-
-def run_deep_research_mode(
-    *,
-    prompt: str,
-    run_id: str,
-    started_at: float,
-    runtime_dependencies: RuntimeDependencies,
-) -> AgentRunResult:
-    return run_deep_research_runtime(
-        prompt=prompt,
-        run_id=run_id,
-        started_at=started_at,
-        runtime_dependencies=runtime_dependencies,
-    )
-
-
-def run_deep_research_runtime(
-    *,
-    prompt: str,
-    run_id: str,
-    started_at: float,
-    runtime_dependencies: RuntimeDependencies,
-) -> AgentRunResult:
-    return _run_profile_runtime(
-        profile=get_runtime_profile(DEEP_RESEARCH_RUNTIME_MODE),
-        prompt=prompt,
-        run_id=run_id,
-        started_at=started_at,
-        thread_id=None,
         runtime_dependencies=runtime_dependencies,
     )
 
@@ -433,12 +379,6 @@ def get_quick_runtime_runner(runtime_dependencies: RuntimeDependencies) -> Quick
 
 def get_quick_crawl_runner(runtime_dependencies: RuntimeDependencies) -> QuickCrawlRunner:
     return runtime_dependencies.quick_crawl_runner or run_open_url
-
-
-def get_deep_research_runtime_runner(
-    runtime_dependencies: RuntimeDependencies,
-) -> DeepResearchRunner:
-    return runtime_dependencies.deep_research_runner or run_deep_research_mode
 
 
 def get_checkpointer_context(

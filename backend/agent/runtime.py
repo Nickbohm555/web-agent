@@ -9,7 +9,6 @@ from backend.agent.runtime_execution import (
     RuntimeDependencies,
     assert_canonical_tool_names as _assert_canonical_tool_names,
     run_agentic_mode,
-    run_deep_research_mode,
     get_runtime_profile,
     get_tools_for_profile as _get_tools_for_profile,
     run_quick_mode,
@@ -27,6 +26,5 @@ __all__ = [
     "get_runtime_profile",
     "run_quick_mode",
     "run_agentic_mode",
-    "run_deep_research_mode",
     "run_agent_once",
 ]

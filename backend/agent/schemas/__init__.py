@@ -6,9 +6,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
-AgentRunMode = Literal["quick", "agentic", "deep_research"]
+AgentRunMode = Literal["quick", "agentic"]
 AgentRunStatus = Literal["completed", "failed"]
-AgentRuntimeExecutionMode = Literal["single_pass", "bounded_agent_loop", "background_research"]
+AgentRuntimeExecutionMode = Literal["single_pass", "bounded_agent_loop"]
 AgentRunErrorCategory = Literal[
     "invalid_prompt",
     "loop_limit",

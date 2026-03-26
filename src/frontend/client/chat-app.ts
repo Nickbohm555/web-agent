@@ -19,7 +19,7 @@ export function buildChatPageModel(pathname: string) {
   return {
     mode: route.mode,
     threadId: route.threadId,
-    heading: route.mode === "agentic" ? "Agentic thread" : "Deep research thread",
+    heading: "Agentic thread",
     postUrl: `/api/chat/threads/${route.threadId}/messages`,
   };
 }
@@ -66,7 +66,7 @@ export async function startChatApp(windowObject: Window = window): Promise<void>
   });
 }
 
-export async function launchChatThread(mode: "agentic" | "deep_research"): Promise<string | null> {
+export async function launchChatThread(mode: "agentic"): Promise<string | null> {
   const result = await createChatThread({ mode });
   if (!result.ok) {
     return null;
@@ -74,8 +74,8 @@ export async function launchChatThread(mode: "agentic" | "deep_research"): Promi
   return threadPathFor(result.data.thread);
 }
 
-function render(state: ChatState, mode: "agentic" | "deep_research"): string {
-  const heading = mode === "agentic" ? "Agentic thread" : "Deep research thread";
+function render(state: ChatState, mode: "agentic"): string {
+  const heading = mode === "agentic" ? "Agentic thread" : "Agentic thread";
   const transcript = state.messages.length === 0
     ? "<p>No transcript yet.</p>"
     : state.messages

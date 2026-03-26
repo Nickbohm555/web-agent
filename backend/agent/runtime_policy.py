@@ -46,14 +46,10 @@ def build_retrieval_brief(
 
 
 def build_crawl_plan(profile: AgentRuntimeProfile) -> str:
-    if profile.name == "deep_research":
-        return "crawl only high-value pages that look useful for the answer"
     return "crawl only pages whose search excerpts look promising"
 
 
 def build_mode_plan(profile: AgentRuntimeProfile) -> str:
     if profile.name == "agentic":
         return "use a small number of decisive searches and only enough crawls to answer accurately"
-    if profile.name == "deep_research":
-        return "compare multiple promising sources, validate conflicts, and expand only when needed"
     return "optimize for one decisive search pass"

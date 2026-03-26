@@ -1,4 +1,4 @@
-export type ChatMode = "agentic" | "deep_research";
+export type ChatMode = "agentic";
 
 export interface ChatThread {
   threadId: string;
@@ -90,7 +90,7 @@ export function parseChatError(input: unknown): ChatErrorResponse["error"] {
 function parseChatThread(input: unknown): ChatThread {
   const record = asRecord(input);
   const mode = expectString(record.mode, "thread.mode");
-  if (mode !== "agentic" && mode !== "deep_research") {
+  if (mode !== "agentic") {
     throw new Error("Chat thread mode failed validation.");
   }
   return {

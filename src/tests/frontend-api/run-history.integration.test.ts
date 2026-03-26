@@ -395,8 +395,8 @@ describe("run history API", () => {
 
     try {
       const startResponse = await harness.postJson("/api/runs", {
-        prompt: "Investigate deep research",
-        mode: "deep_research",
+        prompt: "Investigate the market",
+        mode: "agentic",
       });
       expect(startResponse.status).toBe(400);
       expect(startResponse.json).toMatchObject({
@@ -404,7 +404,7 @@ describe("run history API", () => {
         operation: "run_start",
         error: {
           code: "INVALID_REQUEST",
-          message: "Use thread-based chat routes for agentic and deep research.",
+          message: "Use the agentic chat route for conversational workflows.",
         },
       });
     } finally {
@@ -412,7 +412,7 @@ describe("run history API", () => {
     }
   });
 
-  it("rejects deep-research starts on the launcher route", async () => {
+  it("rejects removed deep-research starts on the launcher route", async () => {
     const harness = await createHarness({
       runEventStream: async function* () {
         await new Promise(() => {});
@@ -430,8 +430,7 @@ describe("run history API", () => {
         ok: false,
         operation: "run_start",
         error: {
-          code: "INVALID_REQUEST",
-          message: "Use thread-based chat routes for agentic and deep research.",
+          code: "VALIDATION_ERROR",
         },
       });
     } finally {
@@ -599,7 +598,7 @@ async function createHarness(options: {
     context: {
       runId: string;
       prompt: string;
-      mode: "quick" | "agentic" | "deep_research";
+      mode: "quick" | "agentic";
       signal: AbortSignal;
     },
   ) => Promise<

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 
-type ChatMode = "agentic" | "deep_research";
+type ChatMode = "agentic";
 
 interface ChatThreadRecord {
   thread_id: string;
@@ -24,11 +24,11 @@ export function createChatRouter(): Router {
 
   router.post("/threads", (req, res) => {
     const mode = req.body?.mode;
-    if (mode !== "agentic" && mode !== "deep_research") {
+    if (mode !== "agentic") {
       res.status(400).json({
         error: {
           code: "VALIDATION_ERROR",
-          message: "Chat mode must be agentic or deep_research.",
+          message: "Chat mode must be agentic.",
         },
       });
       return;
@@ -84,9 +84,7 @@ export function createChatRouter(): Router {
     const assistantMessage = createMessage(
       thread.thread_id,
       "assistant",
-      thread.mode === "agentic"
-        ? `Agentic reply: ${content}`
-        : `Deep research reply: ${content}`,
+      `Agentic reply: ${content}`,
     );
     thread.messages.push(userMessage, assistantMessage);
     thread.updated_at = assistantMessage.created_at;

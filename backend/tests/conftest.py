@@ -29,8 +29,8 @@ def fake_tool_runtime() -> _FakeToolRuntime:
 
 
 @pytest.fixture(autouse=True)
-def deep_research_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
+def agent_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
-        "DEEP_RESEARCH_DATABASE_URL",
+        "AGENT_DATABASE_URL",
         "postgresql://postgres:postgres@postgres:5432/web_agent",
     )

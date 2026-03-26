@@ -19,7 +19,7 @@ def create_agent_checkpointer(
 ) -> Iterator[PostgresSaver]:
     resolved_settings = _resolve_settings(settings)
     with PostgresSaver.from_conn_string(
-        resolved_settings.DEEP_RESEARCH_DATABASE_URL
+        resolved_settings.AGENT_DATABASE_URL
     ) as saver:
         saver.setup()
         yield saver

@@ -18,20 +18,9 @@ export function resolveThreadRoute(pathname: string): ThreadRoute {
     };
   }
 
-  const deepResearchMatch = /^\/deep-research\/(?<threadId>[^/]+)$/.exec(pathname);
-  if (deepResearchMatch?.groups?.threadId) {
-    return {
-      kind: "chat",
-      mode: "deep_research",
-      threadId: deepResearchMatch.groups.threadId,
-    };
-  }
-
   return { kind: "launcher" };
 }
 
 export function threadPathFor(thread: ChatThread): string {
-  return thread.mode === "agentic"
-    ? `/agentic/${thread.threadId}`
-    : `/deep-research/${thread.threadId}`;
+  return `/agentic/${thread.threadId}`;
 }

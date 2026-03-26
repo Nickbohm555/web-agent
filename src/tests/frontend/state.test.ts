@@ -9,7 +9,7 @@ import {
 describe("run state reducer", () => {
   it("tracks the selected run mode and preserves it across run start", () => {
     const state = applyActions([
-      { type: "mode_updated", mode: "deep_research" },
+      { type: "mode_updated", mode: "agentic" },
       { type: "prompt_updated", prompt: "Build a market map" },
       { type: "run_requested" },
       {
@@ -21,12 +21,12 @@ describe("run state reducer", () => {
       },
     ]);
 
-    expect(state.selectedMode).toBe("deep_research");
+    expect(state.selectedMode).toBe("agentic");
     expect(state.runEvents[0]).toMatchObject({
       event_type: "run_started",
       tool_input: {
         prompt: "Build a market map",
-        mode: "deep_research",
+        mode: "agentic",
       },
     });
     expect(state.runEvents[1]).toMatchObject({
@@ -34,11 +34,11 @@ describe("run state reducer", () => {
       progress: {
         stage: "planning",
         message:
-          "Preparing a longer background research plan with broader source expansion.",
+          "Building an exploratory research plan and selecting retrieval paths.",
       },
       tool_input: {
         prompt: "Build a market map",
-        mode: "deep_research",
+        mode: "agentic",
       },
     });
   });

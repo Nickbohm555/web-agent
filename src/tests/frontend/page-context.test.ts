@@ -18,11 +18,11 @@ describe("page context", () => {
     });
   });
 
-  it("maps deep-research thread routes to the deep-research page", () => {
+  it("treats removed deep-research routes as the quick launcher", () => {
     expect(resolvePageContext("/deep-research/thread-456")).toMatchObject({
-      mode: "deep_research",
-      pageTitle: "Deep research",
-      threadId: "thread-456",
+      mode: "quick",
+      pageTitle: "Quick search",
+      threadId: null,
     });
   });
 });

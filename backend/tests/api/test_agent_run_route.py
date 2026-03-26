@@ -361,7 +361,7 @@ def test_run_route_returns_stable_success_envelope_for_quick_mode(
     assert runner.calls == [("find one source", mode, None)]
 
 
-def test_run_route_returns_stable_success_envelope_for_agentic_mode_with_thread_id(
+def test_run_route_rejects_agentic_mode_with_thread_id(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -386,24 +386,15 @@ def test_run_route_returns_stable_success_envelope_for_agentic_mode_with_thread_
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     assert response.json() == {
-        "run_id": "run-agentic-thread",
-        "status": "completed",
-        "final_answer": {
-            "text": "Threaded answer.",
-            "citations": [],
-            "basis": [],
-        },
-        "sources": [],
-        "tool_call_count": 1,
-        "elapsed_ms": 44,
-        "metadata": {
-            "tool_call_count": 1,
-            "elapsed_ms": 44,
-        },
+        "error": {
+            "code": "UNSUPPORTED_MODE",
+            "message": "Use the agentic chat route for conversational workflows.",
+            "retryable": False,
+        }
     }
-    assert runner.calls == [("continue the previous conversation", "agentic", "thread-agentic-123")]
+    assert runner.calls == []
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
 

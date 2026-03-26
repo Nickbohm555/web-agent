@@ -78,7 +78,6 @@ let activeRunStream: RunStreamSubscription | null = null;
 const RUN_MODES: ReadonlySet<RunMode> = new Set([
   "quick",
   "agentic",
-  "deep_research",
 ]);
 
 export async function createRun(request: RunStartRequest): Promise<RunStartResult> {

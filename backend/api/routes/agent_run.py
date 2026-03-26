@@ -10,12 +10,10 @@ from backend.api.schemas import (
     AgentRunQueuedResponse,
     AgentRunRequest,
     AgentRunSuccessResponse,
-    DeepResearchStatusResponse,
 )
 from backend.api.errors import AgentRunErrorResponse
 from backend.api.services.agent_run import (
     execute_agent_run_request,
-    get_deep_research_status,
 )
 
 router = APIRouter()
@@ -48,23 +46,6 @@ async def run_agent(
 
     _set_route_headers(response)
     return route_response
-
-
-@router.get(
-    "/api/agent/deep-research/{run_id}",
-    response_model=DeepResearchStatusResponse,
-    responses={
-        404: {"model": AgentRunErrorResponse},
-    },
-)
-async def get_deep_research_run_status(
-    run_id: str,
-) -> DeepResearchStatusResponse | JSONResponse:
-    route_response = get_deep_research_status(run_id)
-    if isinstance(route_response, JSONResponse):
-        return route_response
-    return route_response
-
 
 def _set_route_headers(
     response: Response,

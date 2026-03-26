@@ -1,13 +1,9 @@
 import {
   parseBackendAgentRunSuccessResponse,
-  parseBackendDeepResearchQueuedResponse,
-  parseBackendDeepResearchStatusResponse,
   type RunSource,
   type StructuredAnswer,
 } from "../contracts.js";
 import type { RunExecutor, RunExecutorContext, RunExecutorResult } from "./runs.js";
-
-const DEFAULT_POLL_INTERVAL_MS = 250;
 
 export type PollDelay = (ms: number) => Promise<void>;
 
@@ -36,16 +32,6 @@ export function createHttpAgentRunExecutor(
     );
 
     const payload = await safelyReadJson(response);
-    if (response.status === 202 && context.mode === "deep_research") {
-      const queued = parseBackendDeepResearchQueuedResponse(payload);
-      return await pollDeepResearchRun({
-        backendOrigin,
-        fetchImplementation,
-        delay,
-        signal: context.signal,
-        runId: queued.run_id,
-      });
-    }
 
     if (response.ok) {
       const responseRecord = parseBackendAgentRunSuccessResponse(payload);
@@ -63,45 +49,6 @@ export function createHttpAgentRunExecutor(
     return createBackendFailureResult(response.status, payload);
   };
 }
-
-async function pollDeepResearchRun(input: {
-  backendOrigin: string;
-  fetchImplementation: typeof fetch;
-  delay: PollDelay;
-  signal: AbortSignal;
-  runId: string;
-}): Promise<RunExecutorResult> {
-  for (;;) {
-    input.signal.throwIfAborted();
-    const response = await input.fetchImplementation(
-      new URL(`/api/agent/deep-research/${input.runId}`, input.backendOrigin),
-      {
-        method: "GET",
-        signal: input.signal,
-      },
-    );
-    const payload = await safelyReadJson(response);
-    if (!response.ok) {
-      return createBackendFailureResult(response.status, payload);
-    }
-
-    const status = parseBackendDeepResearchStatusResponse(payload);
-    if (status.status === "completed" && status.final_answer !== null) {
-      return createCompletedResult(status.final_answer, status.sources);
-    }
-    if (status.status === "failed") {
-      return {
-        status: "failed",
-        message: status.error?.message ?? "Deep research failed.",
-        code: "RUN_FAILED",
-        failedAt: Date.now(),
-      };
-    }
-
-    await input.delay(DEFAULT_POLL_INTERVAL_MS);
-  }
-}
-
 function createCompletedResult(
   finalAnswer: StructuredAnswer,
   sources: RunSource[],

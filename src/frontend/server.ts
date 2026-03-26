@@ -89,7 +89,7 @@ export function createFrontendServerApp(): Application {
   });
   app.use(express.static(publicDir));
 
-  app.get(/^\/(?:agentic|deep-research)\/[^/]+$/, async (_req, res, next) => {
+  app.get(/^\/agentic\/[^/]+$/, async (_req, res, next) => {
     try {
       const html = await readFile(publicIndexPath, "utf8");
       res.type("html").send(
