@@ -1,67 +1,51 @@
 # web-agent
 
-Lightweight local agent workflow for building and iterating on web apps with Codex.
+Python-only backend library and SDK wrapper for stateless OpenAI web-search runs.
 
-The app currently exposes two main user-facing search experiences:
+The repository now centers on two Python surfaces:
 
-- `/` for the quick-search launcher
-- `/agentic/:threadId` for persistent agentic chats
+- `sdk/python/src/web_agent_backend`: the internal backend library that executes stateless OpenAI Responses API searches
+- `sdk/python/src/web_agent_sdk`: the public SDK wrapper published to PyPI as [`web-agent-sdk`](https://pypi.org/project/web-agent-sdk/0.3.0/)
 
-The Python SDK is published on PyPI as [`web-agent-sdk`](https://pypi.org/project/web-agent-sdk/0.2.0/) and documents two stable stateless entrypoints:
+![web-agent backend sdk workflow](docs/assets/readme-backend-sdk-workflow.svg)
 
-- `quick_search(query)` for a fast OpenAI-backed web answer
-- `agentic_search(query)` for a deeper single-run investigation
-- configure the client with only `api_key` and `model`
-
-![web-agent quick search and agentic search workflow](docs/assets/readme-search-workflows.svg)
-
-## Quick Search Vs. Agentic Search
-
-### Quick search
-
-Use quick search when you want a fast stateless answer grounded by OpenAI web search.
-
-- SDK entrypoint: `WebAgentClient.quick_search(...)`
-- Runtime path: the Python SDK calls the OpenAI Responses API with the user-supplied `model`, the built-in web search tool, and `store=False`
-- Best fit: quick fact-finding, lightweight retrieval, and low-latency answers without server-side memory
-
-### Agentic search
-
-Use agentic search when you want a deeper single-run investigation without any attached memory or server-side database state.
-
-- SDK entrypoint: `WebAgentClient.agentic_search(...)`
-- Runtime path: the Python SDK calls the OpenAI Responses API with the user-supplied `model`, the built-in web search tool, and `store=False`
-- Best fit: investigations, synthesis, and single-shot answers where the user controls the model and API key
-
-## How The Workflow Fits Together
-
-The diagram above now describes the product split conceptually, but the published Python SDK itself is stateless and OpenAI-native as of `web-agent-sdk` `0.2.0`.
-
-- The quick path asks OpenAI to answer quickly with web search.
-- The agentic path asks OpenAI to perform a more thorough single-pass investigation with web search.
-- In practice: choose `quick_search(...)` for speed, and choose `agentic_search(...)` for deeper synthesis.
-
-## Python SDK
-
-Install from PyPI:
+## Install
 
 ```bash
 pip install web-agent-sdk
 ```
 
-Published usage example:
+## Usage
 
 ```python
+from langchain_openai import ChatOpenAI
+
 from web_agent_sdk import WebAgentClient
 
-client = WebAgentClient(api_key="your-openai-key", model="gpt-5.4")
+llm = ChatOpenAI(
+    model="gpt-5-nano",
+    api_key="your-openai-key",
+)
+
+client = WebAgentClient(chat_model=llm)
 
 quick = client.quick_search("Find pricing")
 agentic = client.agentic_search("Investigate this company")
 ```
 
-## Included
+## How It Works
 
-- `AGENTS.md`: operating instructions for the agent
-- `prompt_build.md`: implementation prompt template
-- `loop.sh`: repeatable Ralph-style execution loop
+- You create a `ChatOpenAI` model with your OpenAI credentials.
+- The SDK extracts the OpenAI model name and API key from that chat model.
+- The internal backend library runs stateless OpenAI Responses API calls with the built-in `web_search` tool and `store=False`.
+- `quick_search(...)` favors speed and concise answers.
+- `agentic_search(...)` uses a more thorough stateless search instruction set.
+
+## Repository Shape
+
+- `backend/`: existing Python backend modules retained as internal implementation code
+- `sdk/python/`: packaged SDK and packaged internal backend runtime used for PyPI releases
+
+## Release
+
+The next SDK release prepared by this repo is `web-agent-sdk` `0.3.0`, which documents and packages the `ChatOpenAI`-driven client flow.

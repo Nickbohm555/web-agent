@@ -1,0 +1,14 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci-placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CI disabled
+        run: echo "No CI validation steps are currently required."

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>web-agent backend SDK</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --surface: #ffffff;
+        --line: #d0d7de;
+        --ink: #1f2328;
+        --muted: #57606a;
+        --accent: #0969da;
+        --accent-soft: #ddf4ff;
+        --shadow: 0 12px 32px rgba(31, 35, 40, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.6;
+      }
+
+      a {
+        color: var(--accent);
+      }
+
+      main {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 56px;
+      }
+
+      .hero,
+      .card,
+      pre {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+      }
+
+      .hero {
+        padding: 36px;
+        margin-bottom: 24px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        font-size: clamp(2.8rem, 7vw, 4.8rem);
+        line-height: 0.95;
+        margin-bottom: 16px;
+      }
+
+      .lede {
+        max-width: 50rem;
+        font-size: 1.15rem;
+        color: var(--muted);
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        border: 1px solid var(--line);
+        text-decoration: none;
+        color: var(--ink);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+
+      .card {
+        padding: 24px;
+      }
+
+      .diagram img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 16px;
+      }
+
+      pre {
+        padding: 18px 20px;
+        overflow-x: auto;
+        background: #1f2937;
+        color: #f9fafb;
+      }
+
+      code {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      @media (max-width: 800px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p>web-agent</p>
+        <h1>Python-only backend library and SDK wrapper.</h1>
+        <p class="lede">
+          The repo now focuses on a stateless OpenAI search SDK. You inject a
+          <code>ChatOpenAI</code> model, the SDK extracts the OpenAI configuration, and the
+          packaged internal backend runtime executes stateless search runs through the OpenAI
+          Responses API.
+        </p>
+        <div class="pill-row">
+          <a class="pill" href="https://github.com/Nickbohm555/web-agent">GitHub</a>
+          <a class="pill" href="https://pypi.org/project/web-agent-sdk/0.3.0/">PyPI 0.3.0</a>
+          <span class="pill">Internal runtime: web_agent_backend</span>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Public SDK</h2>
+          <p>
+            <code>web_agent_sdk</code> exposes <code>WebAgentClient</code>,
+            <code>quick_search(...)</code>, and <code>agentic_search(...)</code>.
+          </p>
+          <p>
+            The client is created from a <code>ChatOpenAI</code> instance rather than raw
+            <code>api_key</code> and <code>model</code> strings.
+          </p>
+        </article>
+
+        <article class="card">
+          <h2>Internal Backend</h2>
+          <p>
+            <code>web_agent_backend</code> is packaged alongside the SDK and owns the stateless
+            OpenAI Responses execution path.
+          </p>
+          <p>
+            Both search modes use the built-in <code>web_search</code> tool with
+            <code>store=False</code>.
+          </p>
+        </article>
+      </section>
+
+      <section class="card diagram">
+        <h2>Architecture</h2>
+        <p class="lede">
+          The current release flow is <code>ChatOpenAI -&gt; WebAgentClient -&gt; web_agent_backend
+          -&gt; OpenAI Responses API -&gt; structured SDK result</code>.
+        </p>
+        <img
+          src="docs/assets/readme-backend-sdk-workflow.svg"
+          alt="web-agent backend sdk workflow"
+        />
+      </section>
+
+      <section class="grid" style="margin-top: 24px;">
+        <article class="card">
+          <h2>Install</h2>
+          <pre><code>pip install web-agent-sdk</code></pre>
+        </article>
+        <article class="card">
+          <h2>Usage</h2>
+          <pre><code>from langchain_openai import ChatOpenAI
+
+from web_agent_sdk import WebAgentClient
+
+llm = ChatOpenAI(
+    model="gpt-5-nano",
+    api_key="your-openai-key",
+)
+
+client = WebAgentClient(chat_model=llm)
+
+quick = client.quick_search("Find pricing")
+agentic = client.agentic_search("Investigate this company")</code></pre>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

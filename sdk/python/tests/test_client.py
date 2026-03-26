@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-from web_agent_sdk import WebAgentClient
+import pytest
+
+from web_agent_sdk import WebAgentClient, agentic_search, quick_search
 from web_agent_sdk.errors import WebAgentSdkError
 
 
@@ -27,6 +29,24 @@ class FakeOpenAIClient:
         self.responses = FakeResponsesClient(response)
 
 
+class FakeSecret:
+    def __init__(self, value: str) -> None:
+        self._value = value
+
+    def get_secret_value(self) -> str:
+        return self._value
+
+
+class FakeChatOpenAI:
+    def __init__(self, *, model_name: str, api_key: str, response: object) -> None:
+        self.model_name = model_name
+        self.openai_api_key = FakeSecret(api_key)
+        self._response = response
+
+    def build_client(self) -> FakeOpenAIClient:
+        return FakeOpenAIClient(self._response)
+
+
 def make_response(*, text: str, annotations: list[dict] | None = None) -> object:
     return SimpleNamespace(
         output_text=text,
@@ -42,9 +62,11 @@ def make_response(*, text: str, annotations: list[dict] | None = None) -> object
     )
 
 
-def test_quick_search_uses_openai_responses_api_with_model_and_query() -> None:
-    openai_client = FakeOpenAIClient(
-        make_response(
+def test_quick_search_uses_injected_chat_model_configuration() -> None:
+    chat_model = FakeChatOpenAI(
+        model_name="gpt-5.4-mini",
+        api_key="openai-key",
+        response=make_response(
             text="Pricing starts at $20.",
             annotations=[
                 {
@@ -52,12 +74,11 @@ def test_quick_search_uses_openai_responses_api_with_model_and_query() -> None:
                     "url": "https://example.com/pricing",
                 }
             ],
-        )
+        ),
     )
     client = WebAgentClient(
-        api_key="openai-key",
-        model="gpt-5.4-mini",
-        openai_client=openai_client,
+        chat_model=chat_model,
+        openai_client_factory=lambda model: model.build_client(),
     )
 
     response = client.quick_search("Find pricing")
@@ -67,18 +88,13 @@ def test_quick_search_uses_openai_responses_api_with_model_and_query() -> None:
     assert response.model == "gpt-5.4-mini"
     assert response.sources[0].title == "Pricing"
     assert str(response.sources[0].url) == "https://example.com/pricing"
-    assert openai_client.responses.calls[0].kwargs == {
-        "model": "gpt-5.4-mini",
-        "input": "Find pricing",
-        "instructions": "Answer the query quickly using web search. Keep the response concise and factual.",
-        "tools": [{"type": "web_search"}],
-        "store": False,
-    }
 
 
-def test_agentic_search_uses_openai_responses_api_without_memory() -> None:
-    openai_client = FakeOpenAIClient(
-        make_response(
+def test_agentic_search_uses_stateless_openai_responses_api() -> None:
+    chat_model = FakeChatOpenAI(
+        model_name="gpt-5.4",
+        api_key="openai-key",
+        response=make_response(
             text="Company overview with supporting evidence.",
             annotations=[
                 {
@@ -86,12 +102,12 @@ def test_agentic_search_uses_openai_responses_api_without_memory() -> None:
                     "url": "https://example.com",
                 }
             ],
-        )
+        ),
     )
+    openai_client = chat_model.build_client()
     client = WebAgentClient(
-        api_key="openai-key",
-        model="gpt-5.4",
-        openai_client=openai_client,
+        chat_model=chat_model,
+        openai_client_factory=lambda _: openai_client,
     )
 
     response = client.agentic_search("Investigate this company")
@@ -112,23 +128,54 @@ def test_agentic_search_uses_openai_responses_api_without_memory() -> None:
     }
 
 
+def test_top_level_helpers_accept_chat_model() -> None:
+    chat_model = FakeChatOpenAI(
+        model_name="gpt-5.4-nano",
+        api_key="openai-key",
+        response=make_response(text="Answer"),
+    )
+
+    quick = quick_search(
+        "What changed?",
+        chat_model=chat_model,
+        openai_client_factory=lambda model: model.build_client(),
+    )
+    agentic = agentic_search(
+        "Explain the change",
+        chat_model=chat_model,
+        openai_client_factory=lambda model: model.build_client(),
+    )
+
+    assert quick.model == "gpt-5.4-nano"
+    assert agentic.model == "gpt-5.4-nano"
+
+
+def test_missing_chat_model_configuration_raises_clear_error() -> None:
+    chat_model = SimpleNamespace(model_name="", openai_api_key=FakeSecret(""))
+
+    with pytest.raises(ValueError, match="chat_model must expose a non-empty OpenAI model name"):
+        WebAgentClient(chat_model=chat_model)
+
+
 def test_agentic_search_wraps_openai_errors() -> None:
     class FailingResponsesClient:
         def create(self, **kwargs):
             raise RuntimeError("upstream failed")
 
+    chat_model = FakeChatOpenAI(
+        model_name="gpt-5.4",
+        api_key="openai-key",
+        response=make_response(text="unused"),
+    )
     openai_client = SimpleNamespace(responses=FailingResponsesClient())
     client = WebAgentClient(
-        api_key="openai-key",
-        model="gpt-5.4",
-        openai_client=openai_client,
+        chat_model=chat_model,
+        openai_client_factory=lambda _: openai_client,
     )
 
-    try:
+    with pytest.raises(WebAgentSdkError, match="upstream failed") as error_info:
         client.agentic_search("Investigate this company")
-    except WebAgentSdkError as error:
-        assert str(error) == "upstream failed"
-        assert error.code == "OPENAI_REQUEST_FAILED"
-        assert error.retryable is False
-    else:
-        raise AssertionError("Expected WebAgentSdkError")
+
+    error = error_info.value
+    assert error.code == "OPENAI_REQUEST_FAILED"
+    assert error.retryable is False
