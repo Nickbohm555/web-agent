@@ -63,6 +63,15 @@ def test_release_workflow_uses_twine_api_token_secret() -> None:
     assert "TWINE_PASSWORD: ${{ secrets.TWINE_API_TOKEN }}" in workflow
 
 
+def test_release_workflow_skips_existing_pypi_files() -> None:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "release-sdk.yml"
+
+    assert workflow_path.exists()
+    workflow = workflow_path.read_text()
+
+    assert "python -m twine upload --skip-existing dist/*" in workflow
+
+
 def test_release_script_rejects_mismatched_release_tag() -> None:
     script_path = REPO_ROOT / "scripts" / "release_sdk.sh"
 
