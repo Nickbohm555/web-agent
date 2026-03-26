@@ -61,7 +61,7 @@ def test_run_request_contract_forbids_unknown_fields() -> None:
 
 
 def test_run_request_contract_rejects_unknown_mode() -> None:
-    with pytest.raises(ValidationError, match="Input should be 'quick', 'agentic' or 'deep_research'"):
+    with pytest.raises(ValidationError, match="Input should be 'quick' or 'agentic'"):
         AgentRunRequest(prompt="find one source", mode="turbo")
 
 
@@ -304,7 +304,7 @@ def test_run_route_rejects_unknown_modes(client: TestClient) -> None:
     response = post_run(client, prompt="find one source", mode="turbo")
 
     assert response.status_code == 422
-    assert "Input should be 'quick', 'agentic' or 'deep_research'" in response.json()["detail"][0]["msg"]
+    assert "Input should be 'quick' or 'agentic'" in response.json()["detail"][0]["msg"]
 
 
 def test_run_route_returns_stable_success_envelope_for_quick_mode(
@@ -361,7 +361,7 @@ def test_run_route_returns_stable_success_envelope_for_quick_mode(
     assert runner.calls == [("find one source", mode, None)]
 
 
-def test_run_route_rejects_agentic_requests_even_with_thread_id(
+def test_run_route_returns_stable_success_envelope_for_agentic_mode_with_thread_id(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -386,34 +386,35 @@ def test_run_route_rejects_agentic_requests_even_with_thread_id(
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 200
     assert response.json() == {
-        "error": {
-            "code": "UNSUPPORTED_MODE",
-            "message": "Use thread-based chat routes for agentic and deep research.",
-            "retryable": False,
-        }
+        "run_id": "run-agentic-thread",
+        "status": "completed",
+        "final_answer": {
+            "text": "Threaded answer.",
+            "citations": [],
+            "basis": [],
+        },
+        "sources": [],
+        "tool_call_count": 1,
+        "elapsed_ms": 44,
+        "metadata": {
+            "tool_call_count": 1,
+            "elapsed_ms": 44,
+        },
     }
-    assert runner.calls == []
-
-
-@pytest.mark.parametrize("mode", ["agentic", "deep_research"])
-def test_agent_run_route_rejects_non_quick_modes(
-    client: TestClient,
-    mode: str,
-) -> None:
-    response = post_run(client, prompt="Find sources", mode=mode)
-
-    assert response.status_code == 400
-    assert response.json() == {
-        "error": {
-            "code": "UNSUPPORTED_MODE",
-            "message": "Use thread-based chat routes for agentic and deep research.",
-            "retryable": False,
-        }
-    }
+    assert runner.calls == [("continue the previous conversation", "agentic", "thread-agentic-123")]
     assert response.headers["x-run-route"] == "legacy-compat"
     assert response.headers["x-run-execution-surface"] == "sync"
+
+
+def test_agent_run_route_rejects_deep_research_mode(
+    client: TestClient,
+) -> None:
+    response = post_run(client, prompt="Find sources", mode="deep_research")
+
+    assert response.status_code == 422
+    assert "Input should be 'quick' or 'agentic'" in response.json()["detail"][0]["msg"]
 
 
 @pytest.mark.parametrize(

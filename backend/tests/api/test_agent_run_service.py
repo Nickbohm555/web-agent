@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi.responses import JSONResponse
+import pytest
+from pydantic import ValidationError
 
 from backend.agent.schemas import AgentRunResult
 from backend.api.schemas import AgentRunRequest, AgentRunSuccessResponse
@@ -31,15 +32,30 @@ def test_execute_agent_run_request_returns_sync_success_for_quick_mode(
     assert response.status == "completed"
 
 
-def test_execute_agent_run_request_rejects_non_quick_modes() -> None:
-    response = agent_run_service.execute_agent_run_request(
-        AgentRunRequest(prompt="Investigate deeply", mode="deep_research")
+def test_execute_agent_run_request_returns_sync_success_for_agentic_mode(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        agent_run_service,
+        "run_agent_once",
+        lambda prompt, mode, thread_id=None: AgentRunResult(
+            run_id="run-agentic",
+            status="completed",
+            final_answer={"text": "Agentic answer."},
+            tool_call_count=2,
+            elapsed_ms=12,
+        ),
     )
 
-    assert isinstance(response, JSONResponse)
-    assert response.status_code == 400
-    assert response.body.decode("utf-8") == (
-        '{"error":{"code":"UNSUPPORTED_MODE",'
-        '"message":"Use thread-based chat routes for agentic and deep research.",'
-        '"retryable":false}}'
+    response = agent_run_service.execute_agent_run_request(
+        AgentRunRequest(prompt="Investigate this source", mode="agentic")
     )
+
+    assert isinstance(response, AgentRunSuccessResponse)
+    assert response.run_id == "run-agentic"
+    assert response.status == "completed"
+
+
+def test_execute_agent_run_request_request_contract_rejects_deep_research_mode() -> None:
+    with pytest.raises(ValidationError, match="Input should be 'quick' or 'agentic'"):
+        AgentRunRequest(prompt="Investigate deeply", mode="deep_research")

@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+src/web_agent_sdk/__init__.py
+src/web_agent_sdk/client.py
+src/web_agent_sdk/errors.py
+src/web_agent_sdk.egg-info/PKG-INFO
+src/web_agent_sdk.egg-info/SOURCES.txt
+src/web_agent_sdk.egg-info/dependency_links.txt
+src/web_agent_sdk.egg-info/requires.txt
+src/web_agent_sdk.egg-info/top_level.txt
+src/web_agent_sdk/schemas/__init__.py
+src/web_agent_sdk/schemas/agentic_search.py
+src/web_agent_sdk/schemas/quick_search.py
+tests/test_client.py
