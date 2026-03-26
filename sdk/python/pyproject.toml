@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web-agent-sdk"
-version = "0.3.0"
+version = "0.3.1"
 description = "Python SDK for stateless OpenAI web search runs driven by ChatOpenAI."
 readme = "README.md"
 requires-python = ">=3.11"

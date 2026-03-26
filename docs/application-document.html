@@ -66,7 +66,7 @@
       }
 
       .lede {
-        max-width: 50rem;
+        max-width: 54rem;
         font-size: 1.15rem;
         color: var(--muted);
       }
@@ -118,6 +118,19 @@
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
       }
 
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border-top: 1px solid var(--line);
+        padding: 12px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
       @media (max-width: 800px) {
         .grid {
           grid-template-columns: 1fr;
@@ -131,61 +144,30 @@
         <p>web-agent</p>
         <h1>Python-only backend library and SDK wrapper.</h1>
         <p class="lede">
-          The repo now focuses on a stateless OpenAI search SDK. You inject a
-          <code>ChatOpenAI</code> model, the SDK extracts the OpenAI configuration, and the
-          packaged internal backend runtime executes stateless search runs through the OpenAI
-          Responses API.
+          I built this to show that web search is not magic. The useful core is small:
+          <code>web_search</code> gets URLs, <code>open_url</code> retrieves the pages, and the
+          LLM does the reasoning over the evidence.
         </p>
         <div class="pill-row">
           <a class="pill" href="https://github.com/Nickbohm555/web-agent">GitHub</a>
-          <a class="pill" href="https://pypi.org/project/web-agent-sdk/0.3.0/">PyPI 0.3.0</a>
+          <a class="pill" href="https://pypi.org/project/web-agent-sdk/0.3.1/">PyPI 0.3.1</a>
           <span class="pill">Internal runtime: web_agent_backend</span>
         </div>
       </section>
 
       <section class="grid">
         <article class="card">
-          <h2>Public SDK</h2>
+          <h2>Why I Built This</h2>
           <p>
-            <code>web_agent_sdk</code> exposes <code>WebAgentClient</code>,
-            <code>quick_search(...)</code>, and <code>agentic_search(...)</code>.
+            I wanted to prove that internet-grounded answers do not require a mysterious giant
+            search stack. Two well-designed tools and a competent model already get you very far.
           </p>
           <p>
-            The client is created from a <code>ChatOpenAI</code> instance rather than raw
-            <code>api_key</code> and <code>model</code> strings.
+            I also wanted a version that is materially cheaper than the common bundled research
+            APIs people usually adopt first.
           </p>
         </article>
 
-        <article class="card">
-          <h2>Internal Backend</h2>
-          <p>
-            <code>web_agent_backend</code> is packaged alongside the SDK and owns the stateless
-            OpenAI Responses execution path.
-          </p>
-          <p>
-            Both search modes use the built-in <code>web_search</code> tool with
-            <code>store=False</code>.
-          </p>
-        </article>
-      </section>
-
-      <section class="card diagram">
-        <h2>Architecture</h2>
-        <p class="lede">
-          The current release flow is <code>ChatOpenAI -&gt; WebAgentClient -&gt; web_agent_backend
-          -&gt; OpenAI Responses API -&gt; structured SDK result</code>.
-        </p>
-        <img
-          src="docs/assets/readme-backend-sdk-workflow.svg"
-          alt="web-agent backend sdk workflow"
-        />
-      </section>
-
-      <section class="grid" style="margin-top: 24px;">
-        <article class="card">
-          <h2>Install</h2>
-          <pre><code>pip install web-agent-sdk</code></pre>
-        </article>
         <article class="card">
           <h2>Usage</h2>
           <pre><code>from langchain_openai import ChatOpenAI
@@ -202,6 +184,98 @@ client = WebAgentClient(chat_model=llm)
 quick = client.quick_search("Find pricing")
 agentic = client.agentic_search("Investigate this company")</code></pre>
         </article>
+      </section>
+
+      <section class="card diagram">
+        <h2>Architecture</h2>
+        <p class="lede">
+          The runtime flow is vertical and simple: <code>ChatOpenAI</code> and
+          <code>WebAgentClient</code>, then <code>web_search</code>, then <code>open_url</code>,
+          then LLM synthesis over the fetched evidence.
+        </p>
+        <img
+          src="docs/assets/readme-backend-sdk-workflow.svg"
+          alt="web-agent backend sdk workflow"
+        />
+      </section>
+
+      <section class="grid" style="margin-top: 24px;">
+        <article class="card">
+          <h2>The Two Tools</h2>
+          <p>
+            <code>web_search</code> is the shortlist step. It uses Serper to return ranked URLs,
+            snippets, and metadata.
+          </p>
+          <p>
+            <code>open_url</code> is the retrieval step. It fetches one page or a small batch,
+            extracts readable text and markdown, and gives the model actual source material to
+            reason over.
+          </p>
+        </article>
+
+        <article class="card">
+          <h2>How The Crawler Works</h2>
+          <p>
+            The crawler validates the URL, tries HTTP first, retries transient failures, follows
+            redirects, validates content type, extracts text, and only escalates to browser fetches
+            when the domain profile or failure pattern requires it.
+          </p>
+        </article>
+      </section>
+
+      <section class="card" style="margin-bottom: 24px;">
+        <h2>Cost Comparison</h2>
+        <p class="lede">
+          Pricing checked on March 25, 2026. Computed workload rows assume 1,000 questions, one
+          search per question, and three page opens per question.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Setup</th>
+              <th>Cost for 1,000 questions</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>This repo with Serper + self-hosted open_url</td>
+              <td>$1.00 plus your own crawl infra</td>
+              <td>Serper Starter is $1 per 1k searches.</td>
+            </tr>
+            <tr>
+              <td>Brave search only</td>
+              <td>$5.00 before crawling</td>
+              <td>Brave Search API Search is $5 per 1k requests.</td>
+            </tr>
+            <tr>
+              <td>Tavily search only</td>
+              <td>$8.00</td>
+              <td>Basic search is 1 credit per search at $0.008 per credit.</td>
+            </tr>
+            <tr>
+              <td>Tavily search + extract</td>
+              <td>$12.80</td>
+              <td>Computed from 1,000 searches plus 3,000 extractions under Tavily's credit rules.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="diagram" style="margin-top: 18px;">
+          <img
+            src="docs/assets/readme-pricing-comparison.svg"
+            alt="web-agent pricing comparison"
+          />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Inspiration</h2>
+        <p>
+          This work was inspired in part by Onyx's article,
+          <a href="https://onyx.app/blog/building-the-best-deep-research">
+            Lessons from building the best Deep Research (and how you can build better agents)
+          </a>.
+        </p>
       </section>
     </main>
   </body>

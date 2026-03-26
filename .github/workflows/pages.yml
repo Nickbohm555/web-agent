@@ -32,6 +32,7 @@ jobs:
           cp docs/application-document.html _site/architecture.html
           cp docs/application-document.html _site/index.html
           cp docs/assets/readme-backend-sdk-workflow.svg _site/docs/assets/readme-backend-sdk-workflow.svg
+          cp docs/assets/readme-pricing-comparison.svg _site/docs/assets/readme-pricing-comparison.svg
           touch _site/.nojekyll
 
       - name: Configure Pages

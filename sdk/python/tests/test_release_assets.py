@@ -19,6 +19,7 @@ def test_static_application_document_matches_current_repo_story() -> None:
     assert "web_agent_backend" in html
     assert "ChatOpenAI" in html
     assert "docs/assets/readme-backend-sdk-workflow.svg" in html
+    assert "docs/assets/readme-pricing-comparison.svg" in html
 
 
 def test_pages_workflow_publishes_the_current_svg_asset() -> None:
@@ -29,6 +30,8 @@ def test_pages_workflow_publishes_the_current_svg_asset() -> None:
 
     assert "docs/assets/readme-backend-sdk-workflow.svg" in workflow
     assert "_site/docs/assets/readme-backend-sdk-workflow.svg" in workflow
+    assert "docs/assets/readme-pricing-comparison.svg" in workflow
+    assert "_site/docs/assets/readme-pricing-comparison.svg" in workflow
 
 
 def test_pages_workflow_enables_pages_for_first_deploy() -> None:
