@@ -35,7 +35,7 @@ jobs:
       - name: Build and validate SDK artifacts
         env:
           RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.release_tag }}
-        run: ./scripts/release_sdk.sh
+        run: bash ./scripts/release_sdk.sh
 
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4

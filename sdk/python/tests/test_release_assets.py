@@ -31,6 +31,15 @@ def test_pages_workflow_publishes_the_current_svg_asset() -> None:
     assert "_site/docs/assets/readme-backend-sdk-workflow.svg" in workflow
 
 
+def test_release_workflow_invokes_script_via_bash() -> None:
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "release-sdk.yml"
+
+    assert workflow_path.exists()
+    workflow = workflow_path.read_text()
+
+    assert "run: bash ./scripts/release_sdk.sh" in workflow
+
+
 def test_release_script_rejects_mismatched_release_tag() -> None:
     script_path = REPO_ROOT / "scripts" / "release_sdk.sh"
 
